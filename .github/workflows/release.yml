@@ -134,6 +134,22 @@ jobs:
           print('[FTP Root Inhalt:]')
           ftp.dir()
 
+          # FTP-Home ist moeglicherweise Home/Dev (chroot), Web-Root liegt eine Ebene hoeher
+          ftp.cwd('/')
+          pwd_root = ftp.sendcmd('PWD')
+          ftp.cwd('..')
+          pwd_parent = ftp.sendcmd('PWD')
+          print(f'[cwd(..) Test] vorher: {pwd_root} | danach: {pwd_parent}')
+          if pwd_parent != pwd_root:
+            print('[OK: Elternverzeichnis erreichbar — navigiere von dort]')
+            print('[Elternverzeichnis Inhalt:]')
+            ftp.dir()
+            # Bleibe hier — navigate() laeuft vom Subscription-Root
+          else:
+            print('[WARNUNG: FTP-Chroot aktiv — Elternverzeichnis gesperrt]')
+            print('[LOESUNG: In Plesk FTP-Accounts das Home-Verzeichnis auf "/" aendern]')
+            ftp.cwd('/')
+
           def navigate(ftp, target):
             for part in target.replace('\\', '/').strip('/').split('/'):
               if not part:
