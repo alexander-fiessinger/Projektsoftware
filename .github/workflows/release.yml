@@ -150,9 +150,16 @@ jobs:
 
           navigate(ftp, path)
           print(f'[PWD Zielverzeichnis] {ftp.sendcmd("PWD")}')
+          print('[Zielverzeichnis Inhalt vor Upload:]')
+          ftp.dir()
+          # test.html um nginx-Blockierung vs. falsches Verzeichnis zu unterscheiden
+          test_html = os.path.join(ws, 'test.html')
+          with open(test_html, 'w') as f:
+            f.write('<html><body>OK</body></html>')
           for local, remote in [
             (os.path.join(ws, 'upload', 'manifest.json'),       'manifest.json'),
             (os.path.join(ws, 'upload', f'setup-{v}.exe'), f'setup-{v}.exe'),
+            (test_html,                                          'test.html'),
           ]:
             print(f'Uploading {remote}')
             with open(local, 'rb') as f:
@@ -177,13 +184,14 @@ jobs:
           $base = "https://af-software-engineering.de"
           $candidates = @(
             "/Dev/Projektsoftware/manifest.json",
+            "/Dev/Projektsoftware/test.html",
             "/Projektsoftware/manifest.json",
             "/dev/projektsoftware/manifest.json",
             "/httpdocs/Dev/Projektsoftware/manifest.json",
             "/manifest.json"
           )
           Write-Host "=== HTTP-URL-Scan ==="
-          Start-Sleep -Seconds 10
+          Start-Sleep -Seconds 15
           foreach ($p in $candidates) {
             try {
               $r = Invoke-WebRequest "$base$p" -UseBasicParsing -ErrorAction Stop
