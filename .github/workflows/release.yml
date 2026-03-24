@@ -155,3 +155,16 @@ jobs:
               print(f'Deleted old: {name}')
           ftp.quit()
           print('Upload abgeschlossen.')
+
+      # ── 11. Manifest-URL verifizieren ──────────────────────────────────────
+      - name: Verify manifest URL
+        shell: pwsh
+        env:
+          UPDATE_BASE_URL: ${{ secrets.UPDATE_BASE_URL }}
+        run: |
+          $url = "$env:UPDATE_BASE_URL/manifest.json"
+          Write-Host "Prüfe: $url"
+          Start-Sleep -Seconds 5
+          $resp = Invoke-WebRequest -Uri $url -UseBasicParsing -ErrorAction Stop
+          Write-Host "HTTP $($resp.StatusCode) — Inhalt:"
+          Write-Host $resp.Content
