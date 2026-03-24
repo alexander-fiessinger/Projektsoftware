@@ -108,16 +108,14 @@ jobs:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
-          FTP_PATH: ${{ secrets.FTP_PATH }}
           VERSION:  ${{ steps.meta.outputs.VERSION }}
         run: |
           import ftplib, os, re, ssl
-          host  = os.environ['FTP_HOST']
-          user  = os.environ['FTP_USER']
-          pw    = os.environ['FTP_PASS']
-          path  = os.environ['FTP_PATH']
-          v     = os.environ['VERSION']
-          ws    = os.environ['GITHUB_WORKSPACE']
+          host = os.environ['FTP_HOST']
+          user = os.environ['FTP_USER']
+          pw   = os.environ['FTP_PASS']
+          v    = os.environ['VERSION']
+          ws   = os.environ['GITHUB_WORKSPACE']
           ctx = ssl.create_default_context()
           ctx.check_hostname = False
           ctx.verify_mode = ssl.CERT_NONE
@@ -130,60 +128,14 @@ jobs:
             ftp = ftplib.FTP(host)
             ftp.login(user, pw)
           ftp.set_pasv(True)
-          print(f'[PWD nach Login] {ftp.sendcmd("PWD")}')
-          print('[FTP Root Inhalt:]')
-          ftp.dir()
-
-          # FTP-Home ist moeglicherweise Home/Dev (chroot), Web-Root liegt eine Ebene hoeher
-          ftp.cwd('/')
-          pwd_root = ftp.sendcmd('PWD')
-          ftp.cwd('..')
-          pwd_parent = ftp.sendcmd('PWD')
-          print(f'[cwd(..) Test] vorher: {pwd_root} | danach: {pwd_parent}')
-          if pwd_parent != pwd_root:
-            print('[OK: Elternverzeichnis erreichbar — navigiere von dort]')
-            print('[Elternverzeichnis Inhalt:]')
-            ftp.dir()
-            # Bleibe hier — navigate() laeuft vom Subscription-Root
-          else:
-            print('[WARNUNG: FTP-Chroot aktiv — Elternverzeichnis gesperrt]')
-            print('[LOESUNG: In Plesk FTP-Accounts das Home-Verzeichnis auf "/" aendern]')
-            ftp.cwd('/')
-
-          def navigate(ftp, target):
-            for part in target.replace('\\', '/').strip('/').split('/'):
-              if not part:
-                continue
-              try:
-                ftp.mkd(part)
-              except ftplib.error_perm:
-                pass
-              try:
-                ftp.sendcmd(f'SITE CHMOD 755 {part}')
-              except:
-                pass
-              ftp.cwd(part)
-
-          navigate(ftp, path)
-          print(f'[PWD Zielverzeichnis] {ftp.sendcmd("PWD")}')
-          print('[Zielverzeichnis Inhalt vor Upload:]')
-          ftp.dir()
-          # test.html um nginx-Blockierung vs. falsches Verzeichnis zu unterscheiden
-          test_html = os.path.join(ws, 'test.html')
-          with open(test_html, 'w') as f:
-            f.write('<html><body>OK</body></html>')
+          print(f'[PWD] {ftp.sendcmd("PWD")}')
           for local, remote in [
-            (os.path.join(ws, 'upload', 'manifest.json'),       'manifest.json'),
+            (os.path.join(ws, 'upload', 'manifest.json'),     'manifest.json'),
             (os.path.join(ws, 'upload', f'setup-{v}.exe'), f'setup-{v}.exe'),
-            (test_html,                                          'test.html'),
           ]:
             print(f'Uploading {remote}')
             with open(local, 'rb') as f:
               ftp.storbinary(f'STOR {remote}', f)
-            try:
-              ftp.sendcmd(f'SITE CHMOD 644 {remote}')
-            except:
-              pass
           for name in ftp.nlst():
             if re.match(r'setup-.+\.exe$', name) and name != f'setup-{v}.exe':
               ftp.delete(name)
@@ -197,31 +149,12 @@ jobs:
         env:
           UPDATE_BASE_URL: ${{ secrets.UPDATE_BASE_URL }}
         run: |
-          $base = "https://af-software-engineering.de"
-          $candidates = @(
-            "/Dev/Projektsoftware/manifest.json",
-            "/Dev/Projektsoftware/test.html",
-            "/Projektsoftware/manifest.json",
-            "/dev/projektsoftware/manifest.json",
-            "/httpdocs/Dev/Projektsoftware/manifest.json",
-            "/manifest.json"
-          )
-          Write-Host "=== HTTP-URL-Scan ==="
-          Start-Sleep -Seconds 15
-          foreach ($p in $candidates) {
-            try {
-              $r = Invoke-WebRequest "$base$p" -UseBasicParsing -ErrorAction Stop
-              Write-Host "200  $p  <=== GEFUNDEN!"
-            } catch {
-              Write-Host "404  $p"
-            }
-          }
-          Write-Host "=== Prüfe UPDATE_BASE_URL (Länge $(("$env:UPDATE_BASE_URL/manifest.json").Length) Zeichen) ==="
+          Start-Sleep -Seconds 10
           try {
             $resp = Invoke-WebRequest "$env:UPDATE_BASE_URL/manifest.json" -UseBasicParsing -ErrorAction Stop
-            Write-Host "200 OK — Inhalt:"
+            Write-Host "200 OK — manifest.json erreichbar:"
             Write-Host $resp.Content
           } catch {
-            Write-Host "404 — UPDATE_BASE_URL stimmt nicht mit FTP-Pfad überein"
+            Write-Host "FEHLER: $env:UPDATE_BASE_URL/manifest.json nicht erreichbar"
             exit 1
           }
