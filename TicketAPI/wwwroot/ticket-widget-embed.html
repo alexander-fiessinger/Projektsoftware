@@ -1,0 +1,333 @@
+<!-- 
+    TICKET-FORMULAR WIDGET
+    Kann in jede bestehende Website eingebettet werden
+    
+    INTEGRATION:
+    1. Diesen Code in Ihre HTML-Seite einfügen
+    2. API_URL anpassen (Zeile 15)
+    3. Optional: CSS an Ihr Design anpassen
+-->
+
+<div id="ticket-widget-container">
+    <style>
+        #ticket-widget-container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        #ticket-widget-container * {
+            box-sizing: border-box;
+        }
+
+        .ticket-form-wrapper {
+            background: #fff;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .ticket-form-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .ticket-form-header h2 {
+            color: #2196F3;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .ticket-form-header p {
+            color: #666;
+            font-size: 15px;
+        }
+
+        .ticket-form-group {
+            margin-bottom: 20px;
+        }
+
+        .ticket-form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .ticket-form-group .required {
+            color: #f44336;
+        }
+
+        .ticket-form-group input,
+        .ticket-form-group select,
+        .ticket-form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+
+        .ticket-form-group input:focus,
+        .ticket-form-group select:focus,
+        .ticket-form-group textarea:focus {
+            outline: none;
+            border-color: #2196F3;
+        }
+
+        .ticket-form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .ticket-form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .ticket-submit-btn {
+            width: 100%;
+            padding: 14px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .ticket-submit-btn:hover {
+            background: #45a049;
+        }
+
+        .ticket-submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .ticket-success {
+            background: #4CAF50;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+        }
+
+        .ticket-success.show {
+            display: block;
+        }
+
+        .ticket-success h3 {
+            margin-bottom: 10px;
+        }
+
+        .ticket-number-display {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 5px;
+        }
+
+        .ticket-error {
+            color: #f44336;
+            font-size: 13px;
+            margin-top: 5px;
+            display: none;
+        }
+
+        .ticket-error.show {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .ticket-form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
+    <div class="ticket-form-wrapper">
+        <div class="ticket-form-header">
+            <h2>Support-Anfrage</h2>
+            <p>Wir helfen Ihnen gerne weiter!</p>
+        </div>
+
+        <div id="ticketSuccess" class="ticket-success">
+            <h3>✅ Vielen Dank!</h3>
+            <p>Ihr Support-Ticket wurde erfolgreich erstellt.</p>
+            <div class="ticket-number-display" id="ticketNumberDisplay"></div>
+            <p>Wir werden uns schnellstmöglich bei Ihnen melden.</p>
+        </div>
+
+        <form id="ticketWidgetForm">
+            <div class="ticket-form-group">
+                <label>Name oder Firma <span class="required">*</span></label>
+                <input type="text" id="tw_name" required placeholder="Ihr Name">
+                <div class="ticket-error" id="tw_name_error"></div>
+            </div>
+
+            <div class="ticket-form-group">
+                <label>E-Mail-Adresse <span class="required">*</span></label>
+                <input type="email" id="tw_email" required placeholder="ihre@email.de">
+                <div class="ticket-error" id="tw_email_error"></div>
+            </div>
+
+            <div class="ticket-form-group">
+                <label>Telefon (optional)</label>
+                <input type="tel" id="tw_phone" placeholder="+49 123 456789">
+            </div>
+
+            <div class="ticket-form-row">
+                <div class="ticket-form-group">
+                    <label>Kategorie <span class="required">*</span></label>
+                    <select id="tw_category" required>
+                        <option value="0">Allgemein</option>
+                        <option value="1">Technisch</option>
+                        <option value="2">Abrechnung</option>
+                        <option value="3">Feature-Wunsch</option>
+                        <option value="4">Fehler</option>
+                    </select>
+                </div>
+
+                <div class="ticket-form-group">
+                    <label>Priorität <span class="required">*</span></label>
+                    <select id="tw_priority" required>
+                        <option value="0">Niedrig</option>
+                        <option value="1" selected>Normal</option>
+                        <option value="2">Hoch</option>
+                        <option value="3">Dringend</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="ticket-form-group">
+                <label>Betreff <span class="required">*</span></label>
+                <input type="text" id="tw_subject" required placeholder="Kurze Zusammenfassung">
+                <div class="ticket-error" id="tw_subject_error"></div>
+            </div>
+
+            <div class="ticket-form-group">
+                <label>Beschreibung <span class="required">*</span></label>
+                <textarea id="tw_description" required placeholder="Bitte beschreiben Sie Ihr Anliegen..."></textarea>
+                <div class="ticket-error" id="tw_description_error"></div>
+            </div>
+
+            <button type="submit" class="ticket-submit-btn" id="ticketWidgetSubmitBtn">
+                <span id="ticketWidgetBtnText">Anfrage absenden</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+(function() {
+    // ⚙️ KONFIGURATION - HIER ANPASSEN!
+    const TICKET_API_URL = 'https://localhost:7001/api/tickets'; // Ihre API-URL
+
+    const form = document.getElementById('ticketWidgetForm');
+    const submitBtn = document.getElementById('ticketWidgetSubmitBtn');
+    const btnText = document.getElementById('ticketWidgetBtnText');
+    const successDiv = document.getElementById('ticketSuccess');
+    const numberDisplay = document.getElementById('ticketNumberDisplay');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // Validierung
+        if (!validateTicketForm()) return;
+
+        // Loading-Status
+        submitBtn.disabled = true;
+        btnText.textContent = 'Wird gesendet...';
+
+        try {
+            const data = {
+                customerName: document.getElementById('tw_name').value.trim(),
+                customerEmail: document.getElementById('tw_email').value.trim(),
+                customerPhone: document.getElementById('tw_phone').value.trim(),
+                subject: document.getElementById('tw_subject').value.trim(),
+                description: document.getElementById('tw_description').value.trim(),
+                category: parseInt(document.getElementById('tw_category').value),
+                priority: parseInt(document.getElementById('tw_priority').value)
+            };
+
+            const response = await fetch(TICKET_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                numberDisplay.textContent = `Ticket: ${result.data.ticketNumber}`;
+                successDiv.classList.add('show');
+                form.style.display = 'none';
+            } else {
+                alert('Fehler: ' + (result.message || 'Bitte versuchen Sie es später erneut.'));
+            }
+        } catch (error) {
+            console.error('Ticket-Fehler:', error);
+            alert('Verbindungsfehler. Bitte versuchen Sie es später erneut.');
+        } finally {
+            submitBtn.disabled = false;
+            btnText.textContent = 'Anfrage absenden';
+        }
+    });
+
+    function validateTicketForm() {
+        let valid = true;
+
+        // Name
+        if (document.getElementById('tw_name').value.trim().length < 2) {
+            showTicketError('tw_name', 'Name zu kurz');
+            valid = false;
+        }
+
+        // E-Mail
+        const email = document.getElementById('tw_email').value.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            showTicketError('tw_email', 'Ungültige E-Mail');
+            valid = false;
+        }
+
+        // Betreff
+        if (document.getElementById('tw_subject').value.trim().length < 5) {
+            showTicketError('tw_subject', 'Betreff zu kurz (mind. 5 Zeichen)');
+            valid = false;
+        }
+
+        // Beschreibung
+        if (document.getElementById('tw_description').value.trim().length < 20) {
+            showTicketError('tw_description', 'Beschreibung zu kurz (mind. 20 Zeichen)');
+            valid = false;
+        }
+
+        return valid;
+    }
+
+    function showTicketError(fieldId, message) {
+        const errorDiv = document.getElementById(fieldId + '_error');
+        errorDiv.textContent = message;
+        errorDiv.classList.add('show');
+    }
+
+    // Fehler beim Tippen ausblenden
+    ['tw_name', 'tw_email', 'tw_subject', 'tw_description'].forEach(id => {
+        document.getElementById(id).addEventListener('input', function() {
+            const errorDiv = document.getElementById(id + '_error');
+            errorDiv.classList.remove('show');
+        });
+    });
+})();
+</script>

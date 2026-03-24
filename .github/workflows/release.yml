@@ -1,0 +1,115 @@
+name: 🚀 Release
+
+# Trigger: git tag -a v1.1.0 -m "- Feature X\n- Fix Y" && git push --tags
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed to read tag annotation
+
+      # ── 2. Extract version + release notes from annotated tag ──────────────
+      - name: Extract metadata
+        id: meta
+        shell: pwsh
+        run: |
+          $tag     = "${{ github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          $notes   = git for-each-ref --format='%(contents)' "refs/tags/$tag"
+          $notes   = ($notes -join "`n").Trim()
+          if (-not $notes) { $notes = "Version $version" }
+
+          "VERSION=$version"           | Out-File $env:GITHUB_OUTPUT -Append
+          "NOTES<<__EOF__"             | Out-File $env:GITHUB_OUTPUT -Append
+          $notes                       | Out-File $env:GITHUB_OUTPUT -Append
+          "__EOF__"                    | Out-File $env:GITHUB_OUTPUT -Append
+
+      # ── 3. Patch version in .csproj ────────────────────────────────────────
+      - name: Patch csproj version
+        shell: pwsh
+        run: |
+          $v    = "${{ steps.meta.outputs.VERSION }}"
+          $file = "Projektsoftware/Projektsoftware.csproj"
+          (Get-Content $file) `
+            -replace '<Version>.*?</Version>',               "<Version>$v</Version>"          `
+            -replace '<AssemblyVersion>.*?</AssemblyVersion>',"<AssemblyVersion>$v.0</AssemblyVersion>" `
+            -replace '<FileVersion>.*?</FileVersion>',        "<FileVersion>$v.0</FileVersion>"         |
+          Set-Content $file
+
+      # ── 4. Setup .NET 10 ───────────────────────────────────────────────────
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+          include-prerelease: true
+
+      # ── 5. Publish (self-contained, win-x64) ──────────────────────────────
+      - name: Restore & Publish
+        run: >
+          dotnet publish Projektsoftware/Projektsoftware.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -o publish/
+
+      # ── 6. Install Inno Setup ──────────────────────────────────────────────
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      # ── 7. Build installer ─────────────────────────────────────────────────
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $v = "${{ steps.meta.outputs.VERSION }}"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$v" build/Setup.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # ── 8. Generate manifest.json (Webspace-URL) ──────────────────────────
+      - name: Generate manifest.json
+        shell: pwsh
+        run: |
+          $v     = "${{ steps.meta.outputs.VERSION }}"
+          $base  = "${{ secrets.UPDATE_BASE_URL }}"
+          $notes = @"
+          ${{ steps.meta.outputs.NOTES }}
+          "@
+
+          $manifest = [ordered]@{
+            version      = $v
+            downloadUrl  = "$base/setup-$v.exe"
+            releaseNotes = $notes.Trim()
+          } | ConvertTo-Json
+          Set-Content manifest.json $manifest -Encoding UTF8
+
+      # ── 9. Dateien für Upload zusammenstellen ─────────────────────────────
+      - name: Prepare upload directory
+        shell: pwsh
+        run: |
+          $v = "${{ steps.meta.outputs.VERSION }}"
+          New-Item -ItemType Directory -Force -Path upload
+          Copy-Item "build/Output/setup-$v.exe" "upload/setup-$v.exe"
+          Copy-Item "manifest.json"              "upload/manifest.json"
+
+      # ── 10. Per FTP auf Webspace hochladen ────────────────────────────────
+      - name: Upload to Webspace (FTP)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server:                ${{ secrets.FTP_HOST }}
+          username:              ${{ secrets.FTP_USER }}
+          password:              ${{ secrets.FTP_PASSWORD }}
+          local-dir:             ./upload/
+          server-dir:            ${{ secrets.FTP_PATH }}
+          protocol:              ftps
+          dangerous-clean-slate: false

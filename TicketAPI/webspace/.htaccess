@@ -1,0 +1,13 @@
+# Schützt config.php vor direktem Zugriff
+<Files "config.php">
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+# Verhindert Auflistung von Dateien
+Options -Indexes
+
+# Nur PHP-Dateien ausführen
+<FilesMatch "\.(php)$">
+    Allow from all
+</FilesMatch>

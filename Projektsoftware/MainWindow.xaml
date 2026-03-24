@@ -1,0 +1,395 @@
+<Window x:Class="Projektsoftware.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Projektsoftware"
+        xmlns:views="clr-namespace:Projektsoftware.Views"
+        xmlns:converters="clr-namespace:Projektsoftware.Converters"
+        mc:Ignorable="d"
+        Title="Projektierungssoftware Professional" Height="750" Width="1400"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BackgroundBrush}">
+    <Window.Resources>
+        <converters:EuroCurrencyConverter x:Key="EuroCurrencyConverter"/>
+        <converters:TimeSpanToHoursConverter x:Key="TimeSpanToHoursConverter"/>
+    </Window.Resources>
+    <DockPanel>
+        
+        <!-- Simplified Menu -->
+        <Menu DockPanel.Dock="Top" Style="{StaticResource ModernMenu}">
+            <MenuItem Header="_Datei" Style="{StaticResource ModernMenuItem}">
+                <MenuItem Header="Beenden" Click="Exit_Click" Style="{StaticResource ModernMenuItem}"/>
+            </MenuItem>
+            <MenuItem Header="_Einstellungen" Style="{StaticResource ModernMenuItem}">
+                <MenuItem Header="Benutzerverwaltung" Click="ManageUsers_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="Passwort ändern" Click="ChangeOwnPassword_Click" Style="{StaticResource ModernMenuItem}"/>
+                <Separator/>
+                <MenuItem Header="Support-Tickets" Click="ManageTickets_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="Ticket-Dashboard" Click="ShowTicketDashboard_Click" Style="{StaticResource ModernMenuItem}"/>
+                <Separator/>
+                <MenuItem Header="Datenbank" Style="{StaticResource ModernMenuItem}">
+                    <MenuItem Header="Verbindung konfigurieren" Click="ConfigureDatabase_Click" Style="{StaticResource ModernMenuItem}"/>
+                    <MenuItem Header="Diagnose" Click="DiagnoseConnection_Click" Style="{StaticResource ModernMenuItem}"/>
+                    <MenuItem Header="Datenbank zurücksetzen" Click="ResetDatabase_Click" Style="{StaticResource ModernMenuItem}" Foreground="Red"/>
+                </MenuItem>
+                <MenuItem Header="Webex" Style="{StaticResource ModernMenuItem}">
+                    <MenuItem Header="Konfiguration" Click="ConfigureWebex_Click" Style="{StaticResource ModernMenuItem}"/>
+                </MenuItem>
+                <MenuItem Header="Easybill" Style="{StaticResource ModernMenuItem}">
+                    <MenuItem Header="Konfiguration" Click="ConfigureEasybill_Click" Style="{StaticResource ModernMenuItem}"/>
+                    <MenuItem Header="Dokumente anzeigen" Click="ShowEasybillDocuments_Click" Style="{StaticResource ModernMenuItem}"/>
+                    <MenuItem Header="Produkte anzeigen" Click="ShowEasybillProducts_Click" Style="{StaticResource ModernMenuItem}"/>
+                    <MenuItem Header="Zeiten exportieren" Click="ExportTimesToEasybill_Click" Style="{StaticResource ModernMenuItem}"/>
+                </MenuItem>
+                <MenuItem Header="Updates" Style="{StaticResource ModernMenuItem}">
+                    <MenuItem Header="Update-Einstellungen" Click="ConfigureUpdate_Click" Style="{StaticResource ModernMenuItem}"/>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="Abmelden" Click="Logout_Click" Style="{StaticResource ModernMenuItem}" Foreground="Orange"/>
+            </MenuItem>
+            <MenuItem Header="_Hilfe" Style="{StaticResource ModernMenuItem}">
+                <MenuItem Header="Nach Updates suchen" Click="CheckForUpdates_Click" Style="{StaticResource ModernMenuItem}"/>
+                <Separator/>
+                <MenuItem Header="Über" Click="About_Click" Style="{StaticResource ModernMenuItem}"/>
+            </MenuItem>
+        </Menu>
+        
+        <!-- Main Content Area -->
+        <Grid Margin="10">
+        <TabControl x:Name="MainTabControl"
+                     SelectedIndex="{Binding SelectedTabIndex}"
+                    Style="{StaticResource ModernTabControl}">
+            
+            <!-- Dashboard Tab -->
+            <TabItem Header="📊 Dashboard" Style="{StaticResource ModernTabItem}">
+                <views:DashboardControl x:Name="DashboardControl"
+                    NewProjectClicked="DashboardNewProject_Click"
+                    NewTaskClicked="DashboardNewTask_Click"
+                    NewCustomerClicked="DashboardNewCustomer_Click"
+                    TimeTrackingClicked="DashboardTimeTracking_Click"
+                    CreateOfferClicked="DashboardCreateOffer_Click"
+                    CreateInvoiceClicked="DashboardCreateInvoice_Click"
+                    CreateOrderConfirmationClicked="DashboardCreateOrderConfirmation_Click"
+                    CreateDeliveryNoteClicked="DashboardCreateDeliveryNote_Click"
+                    CreateCreditNoteClicked="DashboardCreateCreditNote_Click"
+                    CreateDunningClicked="DashboardCreateDunning_Click"
+                    ShowDocumentsClicked="ShowEasybillDocuments_Click"
+                    ManageCustomersClicked="ManageCustomers_Click"
+                    ShowProductsClicked="ShowEasybillProducts_Click"
+                    ExportTimesClicked="ExportTimesToEasybill_Click"/>
+            </TabItem>
+
+            <!-- Kunden Tab -->
+            <TabItem Header="👤 Kunden" Style="{StaticResource ModernTabItem}">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+                        <Button Content="+ Neuer Kunde" Style="{StaticResource ModernButton}"
+                                Padding="12,6" Margin="0,0,8,0"
+                                Click="AddCustomer_Click"
+                                Background="#4CAF50" Foreground="White"/>
+                        <Button Content="Von Easybill importieren" Style="{StaticResource ModernButton}"
+                                Padding="12,6"
+                                Click="ImportCustomersFromEasybill_Click"
+                                Background="#2196F3" Foreground="White"/>
+                    </StackPanel>
+                    <DataGrid x:Name="CustomersDataGrid"
+                              Grid.Row="1"
+                              ItemsSource="{Binding Customers}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              SelectionMode="Single"
+                              MouseDoubleClick="CustomersDataGrid_MouseDoubleClick">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Bearbeiten" Click="EditCustomer_Click"/>
+                                <MenuItem Header="Synchronisieren" Click="SyncCustomer_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Löschen" Click="DeleteCustomer_Click" Foreground="Red"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="E-Mail" Binding="{Binding Email}" Width="2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Telefon" Binding="{Binding Phone}" Width="1.2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Stadt" Binding="{Binding City}" Width="1.2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Easybill-Status" Binding="{Binding SyncStatus}" Width="1.5*" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Aktionen" Width="150">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Button Content="Bearbeiten" ToolTip="Kunde bearbeiten"
+                                                    Style="{StaticResource ModernButton}"
+                                                    Margin="2" Padding="8,4"
+                                                    Click="EditCustomer_Click"
+                                                    Background="#2196F3" Foreground="White"/>
+                                            <Button Content="Sync" ToolTip="Zu Easybill synchronisieren"
+                                                    Style="{StaticResource ModernButton}"
+                                                    Margin="2" Padding="8,4"
+                                                    Click="SyncCustomer_Click"
+                                                    Background="#FF9800" Foreground="White"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- Projekte Tab -->
+            <TabItem Header="📁 Projekte" Style="{StaticResource ModernTabItem}">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+                        <Button Content="+ Neues Projekt" Style="{StaticResource ModernButton}"
+                                Padding="12,6"
+                                Click="AddProject_Click"
+                                Background="#4CAF50" Foreground="White"/>
+                    </StackPanel>
+                    <DataGrid x:Name="ProjectsDataGrid"
+                              Grid.Row="1"
+                              ItemsSource="{Binding Projects}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              SelectionMode="Single"
+                              MouseDoubleClick="ProjectsDataGrid_MouseDoubleClick">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Bearbeiten" Click="EditProject_Click"/>
+                                <MenuItem Header="Angebot erstellen" Click="CreateOfferFromProject_Click"/>
+                                <MenuItem Header="Rechnung erstellen" Click="CreateInvoiceFromProject_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Löschen" Click="DeleteProject_Click" Foreground="Red"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Projektname" Binding="{Binding Name}" Width="2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Kunde" Binding="{Binding ClientName}" Width="1.5*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="1*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Start" Binding="{Binding StartDate, StringFormat=dd.MM.yyyy}" Width="0.8*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Budget" Binding="{Binding Budget, Converter={StaticResource EuroCurrencyConverter}}" Width="0.8*" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Aktionen" Width="220">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Button Content="Bearbeiten" ToolTip="Projekt bearbeiten"
+                                                    Style="{StaticResource ModernButton}"
+                                                    Margin="2" Padding="8,4"
+                                                    Click="EditProject_Click"
+                                                    Background="#2196F3" Foreground="White"/>
+                                            <Button Content="Angebot" ToolTip="Angebot erstellen"
+                                                    Style="{StaticResource ModernButton}"
+                                                    Margin="2" Padding="8,4"
+                                                    Click="CreateOfferFromProject_Click"
+                                                    Background="#FF9800" Foreground="White"/>
+                                            <Button Content="Rechnung" ToolTip="Rechnung erstellen"
+                                                    Style="{StaticResource ModernButton}"
+                                                    Margin="2" Padding="8,4"
+                                                    Click="CreateInvoiceFromProject_Click"
+                                                    Background="#009688" Foreground="White"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+            
+            <!-- Zeiterfassung Tab -->
+            <TabItem Header="⏱ Zeiterfassung" Style="{StaticResource ModernTabItem}">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Button Content="+ Neue Zeiterfassung" Style="{StaticResource ModernButton}"
+                            Grid.Row="0"
+                            HorizontalAlignment="Left"
+                            Padding="12,6" Margin="0,0,0,15"
+                            Click="AddTimeEntry_Click"
+                            Background="#4CAF50" Foreground="White"/>
+                    <DataGrid x:Name="TimeEntriesDataGrid"
+                              Grid.Row="1"
+                              ItemsSource="{Binding TimeEntries}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              SelectionMode="Single">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Löschen" Click="DeleteTimeEntry_Click" Foreground="Red"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Projekt" Binding="{Binding ProjectName}" Width="2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Mitarbeiter" Binding="{Binding EmployeeName}" Width="1.5*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Datum" Binding="{Binding Date, StringFormat=dd.MM.yyyy}" Width="1*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Stunden" Binding="{Binding Duration, Converter={StaticResource TimeSpanToHoursConverter}}" Width="0.8*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Tätigkeit" Binding="{Binding Activity}" Width="2*" IsReadOnly="True"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+            
+            <!-- Kalender Tab -->
+            <TabItem Header="📅 Kalender" Style="{StaticResource ModernTabItem}">
+                <views:MeetingCalendarView x:Name="MeetingCalendarView" Margin="10"/>
+            </TabItem>
+
+            <!-- Besprechungsprotokolle Tab -->
+            <TabItem Header="📋 Besprechungsprotokolle" Style="{StaticResource ModernTabItem}">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Button Content="+ Neues Protokoll" Style="{StaticResource ModernButton}"
+                            Grid.Row="0"
+                            HorizontalAlignment="Left"
+                            Padding="12,6" Margin="0,0,0,15"
+                            Click="AddMeetingProtocol_Click"
+                            Background="#4CAF50" Foreground="White"/>
+                    <DataGrid x:Name="MeetingProtocolsDataGrid"
+                              Grid.Row="1"
+                              ItemsSource="{Binding MeetingProtocols}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              SelectionMode="Single"
+                              MouseDoubleClick="MeetingProtocolsDataGrid_MouseDoubleClick">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Bearbeiten" Click="EditMeetingProtocol_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Löschen" Click="DeleteMeetingProtocol_Click" Foreground="Red"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Titel" Binding="{Binding Title}" Width="2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Projekt" Binding="{Binding ProjectName}" Width="1.5*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Datum" Binding="{Binding MeetingDate, StringFormat=dd.MM.yyyy HH:mm}" Width="1.2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Ort" Binding="{Binding Location}" Width="1.2*" IsReadOnly="True"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+            
+            <!-- Aufgaben Tab -->
+            <TabItem Header="✓ Aufgaben" Style="{StaticResource ModernTabItem}">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+                        <Button Content="+ Neue Aufgabe" Style="{StaticResource ModernButton}"
+                                Padding="12,6" Margin="0,0,10,0"
+                                Click="AddTask_Click"
+                                Background="#FF9800" Foreground="White"/>
+                        <TextBox x:Name="TaskSearchBox"
+                                 Width="250" Height="32"
+                                 Margin="10,0,0,0"
+                                 VerticalContentAlignment="Center"
+                                 TextChanged="TaskSearch_TextChanged"
+                                 GotFocus="TaskSearchBox_GotFocus"
+                                 LostFocus="TaskSearchBox_LostFocus"
+                                 Foreground="Gray"
+                                 Text="Suchen..."/>
+                    </StackPanel>
+                    <DataGrid x:Name="TasksDataGrid"
+                              Grid.Row="1"
+                              ItemsSource="{Binding Tasks}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              SelectionMode="Single"
+                              MouseDoubleClick="TasksDataGrid_MouseDoubleClick">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Bearbeiten" Click="EditTask_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Löschen" Click="DeleteTask_Click" Foreground="Red"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Titel" Binding="{Binding Title}" Width="2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Projekt" Binding="{Binding ProjectName}" Width="1.5*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Zugewiesen" Binding="{Binding AssignedTo}" Width="1.2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="1*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Priorität" Binding="{Binding Priority}" Width="1*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Fällig" Binding="{Binding DueDate, StringFormat=dd.MM.yyyy}" Width="0.9*" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Aktionen" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Bearbeiten" ToolTip="Aufgabe bearbeiten"
+                                                Style="{StaticResource ModernButton}"
+                                                Margin="2" Padding="8,4"
+                                                Click="EditTask_Click"
+                                                Background="#2196F3" Foreground="White"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+            
+            <!-- Mitarbeiter Tab -->
+            <TabItem Header="👥 Mitarbeiter" Style="{StaticResource ModernTabItem}">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+                        <Button Content="+ Neuer Mitarbeiter" Style="{StaticResource ModernButton}"
+                                Padding="12,6"
+                                Click="AddEmployee_Click"
+                                Background="#9C27B0" Foreground="White"/>
+                    </StackPanel>
+                    <DataGrid x:Name="EmployeesDataGrid"
+                              Grid.Row="1"
+                              ItemsSource="{Binding Employees}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              SelectionMode="Single"
+                              MouseDoubleClick="EmployeesDataGrid_MouseDoubleClick">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Bearbeiten" Click="EditEmployee_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Löschen" Click="DeleteEmployee_Click" Foreground="Red"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding FullName}" Width="1.8*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Position" Binding="{Binding Position}" Width="1.5*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Abteilung" Binding="{Binding Department}" Width="1.2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="E-Mail" Binding="{Binding Email}" Width="2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Stundensatz" Binding="{Binding HourlyRate, Converter={StaticResource EuroCurrencyConverter}}" Width="1*" IsReadOnly="True"/>
+                            <DataGridCheckBoxColumn Header="Aktiv" Binding="{Binding IsActive}" Width="0.6*" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Aktionen" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Bearbeiten" ToolTip="Mitarbeiter bearbeiten"
+                                                Style="{StaticResource ModernButton}"
+                                                Margin="2" Padding="8,4"
+                                                Click="EditEmployee_Click"
+                                                Background="#2196F3" Foreground="White"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+        </Grid>
+    </DockPanel>
+</Window>

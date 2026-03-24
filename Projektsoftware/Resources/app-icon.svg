@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Background Circle -->
+  <circle cx="128" cy="128" r="120" fill="#1976D2"/>
+  
+  <!-- Inner Circle -->
+  <circle cx="128" cy="128" r="100" fill="#0D47A1"/>
+  
+  <!-- Project Icon - Document/Folder -->
+  <g transform="translate(60, 60)">
+    <!-- Folder Base -->
+    <path d="M 0 20 L 0 120 Q 0 125 5 125 L 125 125 Q 130 125 130 120 L 130 25 Q 130 20 125 20 L 60 20 L 50 10 L 5 10 Q 0 10 0 15 Z" 
+          fill="#FFC107" stroke="#FF9800" stroke-width="2"/>
+    
+    <!-- Document Lines -->
+    <line x1="20" y1="45" x2="110" y2="45" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+    <line x1="20" y1="65" x2="90" y2="65" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+    <line x1="20" y1="85" x2="100" y2="85" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+    
+    <!-- Checkmark -->
+    <path d="M 85 95 L 95 105 L 115 75" stroke="#4CAF50" stroke-width="6" 
+          stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+  
+  <!-- Outer Ring Accent -->
+  <circle cx="128" cy="128" r="118" fill="none" stroke="#2196F3" stroke-width="4" opacity="0.5"/>
+</svg>
