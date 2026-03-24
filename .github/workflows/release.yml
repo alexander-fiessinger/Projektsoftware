@@ -108,12 +108,14 @@ jobs:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          FTP_PATH: ${{ secrets.FTP_PATH }}
           VERSION:  ${{ steps.meta.outputs.VERSION }}
         run: |
           import ftplib, os, re, ssl
           host = os.environ['FTP_HOST']
           user = os.environ['FTP_USER']
           pw   = os.environ['FTP_PASS']
+          path = os.environ.get('FTP_PATH', '').strip('/')
           v    = os.environ['VERSION']
           ws   = os.environ['GITHUB_WORKSPACE']
           ctx = ssl.create_default_context()
@@ -128,7 +130,16 @@ jobs:
             ftp = ftplib.FTP(host)
             ftp.login(user, pw)
           ftp.set_pasv(True)
-          print(f'[PWD] {ftp.sendcmd("PWD")}')
+          print(f'[PWD nach Login] {ftp.sendcmd("PWD")}')
+          for part in path.split('/'):
+            if not part:
+              continue
+            try:
+              ftp.mkd(part)
+            except ftplib.error_perm:
+              pass
+            ftp.cwd(part)
+          print(f'[PWD Ziel] {ftp.sendcmd("PWD")}')
           for local, remote in [
             (os.path.join(ws, 'upload', 'manifest.json'),     'manifest.json'),
             (os.path.join(ws, 'upload', f'setup-{v}.exe'), f'setup-{v}.exe'),
