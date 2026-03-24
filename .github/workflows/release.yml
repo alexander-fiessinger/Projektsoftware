@@ -130,7 +130,25 @@ jobs:
             ftp = ftplib.FTP(host)
             ftp.login(user, pw)
           ftp.set_pasv(True)
-          ftp.cwd(path)
+
+          def navigate(ftp, target):
+            for part in target.strip('/').split('/'):
+              try:
+                ftp.mkd(part)
+              except ftplib.error_perm:
+                pass
+              ftp.cwd(part)
+
+          # Plesk: FTP-Root = Subscription-Root, Web-Root = httpdocs/
+          target = path.strip('/')
+          try:
+            ftp.cwd('httpdocs')
+            target = target.removeprefix('httpdocs/').strip('/')
+            print('Entered httpdocs/ (Plesk)')
+          except ftplib.error_perm:
+            pass  # FTP-Root ist bereits der Web-Root
+
+          navigate(ftp, target)
           for local, remote in [
             (os.path.join(ws, 'upload', 'manifest.json'),       'manifest.json'),
             (os.path.join(ws, 'upload', f'setup-{v}.exe'), f'setup-{v}.exe'),
