@@ -101,7 +101,7 @@ jobs:
           Copy-Item "build/Output/setup-$v.exe" "upload/setup-$v.exe"
           Copy-Item "manifest.json"              "upload/manifest.json"
 
-      # ── 10. Per FTP auf Webspace hochladen (PowerShell) ────────────────────
+      # ── 10. Per FTP auf Webspace hochladen (curl.exe) ──────────────────────
       - name: Upload to Webspace (FTP)
         shell: pwsh
         env:
@@ -110,30 +110,24 @@ jobs:
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           FTP_PATH: ${{ secrets.FTP_PATH }}
         run: |
+          $ErrorActionPreference = 'Stop'
           $v    = "${{ steps.meta.outputs.VERSION }}"
-          $base = "ftp://$($env:FTP_HOST)$($env:FTP_PATH)"
+          $host = $env:FTP_HOST
           $user = $env:FTP_USER
           $pass = $env:FTP_PASS
+          $path = $env:FTP_PATH.Trim('/')
+          $ws   = $env:GITHUB_WORKSPACE
 
-          function Send-FtpFile([string]$local, [string]$remote) {
-            Write-Host "Uploading: $([IO.Path]::GetFileName($local)) → $remote"
-            $req = [System.Net.FtpWebRequest]::Create($remote)
-            $req.Method      = [System.Net.WebRequestMethods+Ftp]::UploadFile
-            $req.Credentials = [System.Net.NetworkCredential]::new($user, $pass)
-            $req.UseBinary   = $true
-            $req.UsePassive  = $true
-            $req.KeepAlive   = $false
-            $bytes = [IO.File]::ReadAllBytes($local)
-            $req.ContentLength = $bytes.Length
-            $stream = $req.GetRequestStream()
-            $stream.Write($bytes, 0, $bytes.Length)
-            $stream.Close()
-            $resp = $req.GetResponse()
-            Write-Host "  Status: $($resp.StatusDescription.Trim())"
-            $resp.Close()
+          Write-Host "FTP target: ftp://${host}/${path}/"
+
+          function Upload-File([string]$local, [string]$name) {
+            $url = "ftp://${host}/${path}/${name}"
+            Write-Host "Uploading: $name"
+            curl.exe -v -u "${user}:${pass}" -T "$local" "$url" `
+                     --ssl-no-revoke --ftp-create-dirs --fail --retry 2
+            if ($LASTEXITCODE -ne 0) { throw "Upload fehlgeschlagen (exit $LASTEXITCODE): $name" }
           }
 
-          $ws = $env:GITHUB_WORKSPACE
-          Send-FtpFile (Join-Path $ws "upload\manifest.json")     "${base}manifest.json"
-          Send-FtpFile (Join-Path $ws "upload\setup-${v}.exe")    "${base}setup-${v}.exe"
+          Upload-File (Join-Path $ws "upload\manifest.json")     "manifest.json"
+          Upload-File (Join-Path $ws "upload\setup-${v}.exe")    "setup-${v}.exe"
           Write-Host "Upload abgeschlossen."
