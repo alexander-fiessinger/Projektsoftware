@@ -140,11 +140,11 @@ jobs:
                 continue
               try:
                 ftp.mkd(part)
-                try:
-                  ftp.sendcmd(f'SITE CHMOD 755 {part}')
-                except:
-                  pass
               except ftplib.error_perm:
+                pass
+              try:
+                ftp.sendcmd(f'SITE CHMOD 755 {part}')
+              except:
                 pass
               ftp.cwd(part)
 
