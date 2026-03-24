@@ -118,10 +118,6 @@ jobs:
           path  = os.environ['FTP_PATH']
           v     = os.environ['VERSION']
           ws    = os.environ['GITHUB_WORKSPACE']
-
-          path_parts = path.replace('\\', '/').strip('/').split('/')
-          print(f'[FTP_PATH] {len(path_parts)} component(s), lengths: {[len(p) for p in path_parts]}')
-
           ctx = ssl.create_default_context()
           ctx.check_hostname = False
           ctx.verify_mode = ssl.CERT_NONE
@@ -129,61 +125,23 @@ jobs:
             ftp = ftplib.FTP_TLS(host, context=ctx)
             ftp.login(user, pw)
             ftp.prot_p()
-            print('Connected via FTPS')
           except Exception as e:
-            print(f'FTPS failed: {e} — trying plain FTP')
+            print(f'FTPS: {e} — plain FTP')
             ftp = ftplib.FTP(host)
             ftp.login(user, pw)
-            print('Connected via plain FTP')
           ftp.set_pasv(True)
 
-          print(f'[PWD login] {ftp.sendcmd("PWD")}')
-          print('[Root listing]')
-          ftp.dir()
-
           def navigate(ftp, target):
-            for part in target.strip('/').split('/'):
+            for part in target.replace('\\', '/').strip('/').split('/'):
               if not part:
                 continue
               try:
                 ftp.mkd(part)
-                print(f'  mkdir {part}')
               except ftplib.error_perm:
                 pass
-              try:
-                ftp.cwd(part)
-                print(f'  cwd   {part}  =>  {ftp.sendcmd("PWD")}')
-              except ftplib.error_perm as e:
-                print(f'  ERROR cwd {part}: {e}')
-                raise
+              ftp.cwd(part)
 
-          # Plesk: FTP-Root = Subscription-Root, Web-Root = httpdocs/
-          # Try known web-root directory names
-          web_root_entered = False
-          for candidate in ('httpdocs', 'public_html', 'www'):
-            try:
-              ftp.cwd(candidate)
-              print(f'[Web root] Entered {candidate}/  =>  {ftp.sendcmd("PWD")}')
-              web_root_entered = True
-              break
-            except ftplib.error_perm:
-              print(f'[Web root] {candidate}/ not found')
-
-          target = path.replace('\\', '/').strip('/')
-          for prefix in ('httpdocs/', 'public_html/', 'www/'):
-            if target.startswith(prefix):
-              target = target[len(prefix):].strip('/')
-              print(f'[Target] stripped {prefix} prefix -> "{target}"')
-              break
-          else:
-            print(f'[Target] no prefix stripped -> "{target}"')
-
-          if target:
-            navigate(ftp, target)
-          print(f'[PWD final] {ftp.sendcmd("PWD")}')
-          print('[Final dir listing]')
-          ftp.dir()
-
+          navigate(ftp, path)
           for local, remote in [
             (os.path.join(ws, 'upload', 'manifest.json'),       'manifest.json'),
             (os.path.join(ws, 'upload', f'setup-{v}.exe'), f'setup-{v}.exe'),
@@ -191,7 +149,6 @@ jobs:
             print(f'Uploading {remote}')
             with open(local, 'rb') as f:
               ftp.storbinary(f'STOR {remote}', f)
-            print(f'  done: {remote}')
           for name in ftp.nlst():
             if re.match(r'setup-.+\.exe$', name) and name != f'setup-{v}.exe':
               ftp.delete(name)
