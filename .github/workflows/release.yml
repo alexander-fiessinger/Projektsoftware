@@ -140,6 +140,10 @@ jobs:
                 continue
               try:
                 ftp.mkd(part)
+                try:
+                  ftp.sendcmd(f'SITE CHMOD 755 {part}')
+                except:
+                  pass
               except ftplib.error_perm:
                 pass
               ftp.cwd(part)
@@ -153,6 +157,10 @@ jobs:
             print(f'Uploading {remote}')
             with open(local, 'rb') as f:
               ftp.storbinary(f'STOR {remote}', f)
+            try:
+              ftp.sendcmd(f'SITE CHMOD 644 {remote}')
+            except:
+              pass
           for name in ftp.nlst():
             if re.match(r'setup-.+\.exe$', name) and name != f'setup-{v}.exe':
               ftp.delete(name)
@@ -175,6 +183,7 @@ jobs:
             "/manifest.json"
           )
           Write-Host "=== HTTP-URL-Scan ==="
+          Start-Sleep -Seconds 10
           foreach ($p in $candidates) {
             try {
               $r = Invoke-WebRequest "$base$p" -UseBasicParsing -ErrorAction Stop
