@@ -130,6 +130,7 @@ jobs:
             ftp = ftplib.FTP(host)
             ftp.login(user, pw)
           ftp.set_pasv(True)
+          print(f'[PWD nach Login] {ftp.sendcmd("PWD")}')
 
           def navigate(ftp, target):
             for part in target.replace('\\', '/').strip('/').split('/'):
@@ -142,6 +143,7 @@ jobs:
               ftp.cwd(part)
 
           navigate(ftp, path)
+          print(f'[PWD Zielverzeichnis] {ftp.sendcmd("PWD")}')
           for local, remote in [
             (os.path.join(ws, 'upload', 'manifest.json'),       'manifest.json'),
             (os.path.join(ws, 'upload', f'setup-{v}.exe'), f'setup-{v}.exe'),
@@ -163,8 +165,14 @@ jobs:
           UPDATE_BASE_URL: ${{ secrets.UPDATE_BASE_URL }}
         run: |
           $url = "$env:UPDATE_BASE_URL/manifest.json"
-          Write-Host "Prüfe: $url"
+          Write-Host "Prüfe URL (Länge $($url.Length) Zeichen)"
           Start-Sleep -Seconds 5
-          $resp = Invoke-WebRequest -Uri $url -UseBasicParsing -ErrorAction Stop
-          Write-Host "HTTP $($resp.StatusCode) — Inhalt:"
-          Write-Host $resp.Content
+          try {
+            $resp = Invoke-WebRequest -Uri $url -UseBasicParsing -ErrorAction Stop
+            Write-Host "HTTP $($resp.StatusCode) OK"
+            Write-Host $resp.Content
+          } catch {
+            Write-Host "FEHLER: $_"
+            Write-Host "UPDATE_BASE_URL muss mit dem FTP-Zielpfad übereinstimmen!"
+            exit 1
+          }
