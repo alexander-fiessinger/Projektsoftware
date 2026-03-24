@@ -112,24 +112,49 @@ jobs:
         run: |
           $v          = "${{ steps.meta.outputs.VERSION }}"
           $ftpHost    = $env:FTP_HOST
-          $ftpUser    = $env:FTP_USER
+          $ftpUser    = [Uri]::EscapeDataString($env:FTP_USER)
           $ftpPass    = [Uri]::EscapeDataString($env:FTP_PASS)
           $remotePath = $env:FTP_PATH
+          $workspace  = $env:GITHUB_WORKSPACE
+          $manifest   = Join-Path $workspace "upload\manifest.json"
+          $installer  = Join-Path $workspace "upload\setup-${v}.exe"
 
-          $script = @"
-          open ftps://${ftpUser}:${ftpPass}@${ftpHost} -explicit -certificate=*
-          cd $remotePath
-          put `"upload/manifest.json`"
-          put `"upload/setup-${v}.exe`"
-          close
-          exit
-          "@
+          # Array-basiertes Script – kein here-string, keine führenden Leerzeichen
+          $lines = @(
+            "option batch abort",
+            "option confirm off",
+            "open ftp://${ftpUser}:${ftpPass}@${ftpHost} -explicit -certificate=`"*`"",
+            "cd `"${remotePath}`"",
+            "put `"${manifest}`"",
+            "put `"${installer}`"",
+            "close",
+            "exit"
+          )
+          $script = $lines -join "`r`n"
 
           $tmpScript = Join-Path $env:TEMP "winscp_upload.txt"
-          $script | Set-Content $tmpScript -Encoding UTF8
+          [System.IO.File]::WriteAllText($tmpScript, $script)
 
-          Write-Host "Starte WinSCP-Upload nach ${ftpHost}${remotePath}..."
-          & "C:\Program Files (x86)\WinSCP\winscp.com" /script="$tmpScript" /log="winscp.log" /loglevel=1
+          Write-Host "=== WinSCP Script ==="
+          $lines | ForEach-Object { Write-Host "  $_" }
+          Write-Host "====================="
+
+          # WinSCP-Pfad dynamisch ermitteln
+          $winscp = @(
+            "${env:ProgramFiles(x86)}\WinSCP\winscp.com",
+            "${env:ProgramFiles}\WinSCP\winscp.com"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $winscp) {
+            $winscp = (Get-Command "winscp.com" -ErrorAction SilentlyContinue)?.Source
+          }
+          if (-not $winscp) {
+            Write-Error "winscp.com nicht gefunden!"
+            Get-ChildItem "C:\Program Files*" -Filter "winscp.com" -Recurse -ErrorAction SilentlyContinue | Select-Object FullName
+            exit 1
+          }
+          Write-Host "WinSCP: $winscp"
+
+          & $winscp /ini=nul /script="$tmpScript" /log="winscp.log" /loglevel=2
 
           if ($LASTEXITCODE -ne 0) {
             Write-Host "=== WinSCP Log ==="
