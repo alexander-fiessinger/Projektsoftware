@@ -101,33 +101,48 @@ jobs:
           Copy-Item "build/Output/setup-$v.exe" "upload/setup-$v.exe"
           Copy-Item "manifest.json"              "upload/manifest.json"
 
-      # ── 10. Per FTP auf Webspace hochladen (curl.exe) ──────────────────────
+      # ── 10. Per FTP auf Webspace hochladen (Python ftplib) ─────────────────
       - name: Upload to Webspace (FTP)
-        shell: pwsh
+        shell: python
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           FTP_PATH: ${{ secrets.FTP_PATH }}
+          VERSION:  ${{ steps.meta.outputs.VERSION }}
         run: |
-          $ErrorActionPreference = 'Stop'
-          $v       = "${{ steps.meta.outputs.VERSION }}"
-          $ftpHost = $env:FTP_HOST
-          $user    = $env:FTP_USER
-          $pass    = $env:FTP_PASS
-          $path    = $env:FTP_PATH.Trim('/')
-          $ws      = $env:GITHUB_WORKSPACE
-
-          Write-Host "FTP target: ftp://${ftpHost}/${path}/"
-
-          function Upload-File([string]$local, [string]$name) {
-            $url = "ftp://${ftpHost}/${path}/${name}"
-            Write-Host "Uploading: $name"
-            curl.exe -v -u "${user}:${pass}" -T "$local" "$url" `
-                     --ssl-no-revoke --ftp-create-dirs --fail --retry 2
-            if ($LASTEXITCODE -ne 0) { throw "Upload fehlgeschlagen (exit $LASTEXITCODE): $name" }
-          }
-
-          Upload-File (Join-Path $ws "upload\manifest.json")     "manifest.json"
-          Upload-File (Join-Path $ws "upload\setup-${v}.exe")    "setup-${v}.exe"
-          Write-Host "Upload abgeschlossen."
+          import ftplib, os, ssl
+          host  = os.environ['FTP_HOST']
+          user  = os.environ['FTP_USER']
+          pw    = os.environ['FTP_PASS']
+          path  = os.environ['FTP_PATH']
+          v     = os.environ['VERSION']
+          ws    = os.environ['GITHUB_WORKSPACE']
+          files = [
+            (os.path.join(ws, 'upload', 'manifest.json'), 'manifest.json'),
+            (os.path.join(ws, 'upload', f'setup-{v}.exe'), f'setup-{v}.exe'),
+          ]
+          print(f'FTP: {host}{path}')
+          ctx = ssl.create_default_context()
+          ctx.check_hostname = False
+          ctx.verify_mode = ssl.CERT_NONE
+          try:
+            ftp = ftplib.FTP_TLS(host, context=ctx)
+            ftp.login(user, pw)
+            ftp.prot_p()
+            print('Connected via FTPS')
+          except Exception as e:
+            print(f'FTPS: {e} — FTP fallback')
+            ftp = ftplib.FTP(host)
+            ftp.login(user, pw)
+            print('Connected via plain FTP')
+          ftp.set_pasv(True)
+          ftp.cwd(path)
+          print(f'CWD: {ftp.pwd()}')
+          for local, remote in files:
+            print(f'Uploading {remote}')
+            with open(local, 'rb') as f:
+              ftp.storbinary(f'STOR {remote}', f)
+            print(f'Done: {remote}')
+          ftp.quit()
+          print('Upload abgeschlossen.')
