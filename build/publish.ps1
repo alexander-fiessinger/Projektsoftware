@@ -123,18 +123,19 @@ Set-Content $manifestFile $manifest -Encoding UTF8
 Write-Host $manifest
 Write-Host "    OK" -ForegroundColor Green
 
-# ── 5. manifest.json nach GitHub pushen ──────────────────────────────────────
-Write-Host "[5/6] Git commit & push (manifest.json) ..." -ForegroundColor Yellow
-git -C $root add manifest.json
+# ── 5. csproj + manifest.json nach GitHub pushen ─────────────────────────────
+Write-Host "[5/6] Git commit & push (csproj + manifest.json) ..." -ForegroundColor Yellow
+$relPath = "Projektsoftware/Projektsoftware.csproj"
+git -C $root add manifest.json "$relPath"
 $staged = git -C $root diff --cached --name-only
-if ($staged -match 'manifest\.json') {
-    git -C $root commit -m "Release v$Version [manifest]"
+if ($staged) {
+    git -C $root commit -m "Release v$Version"
     if ($LASTEXITCODE -ne 0) { throw "git commit fehlgeschlagen (Exit: $LASTEXITCODE)" }
     git -C $root push
     if ($LASTEXITCODE -ne 0) { throw "git push fehlgeschlagen (Exit: $LASTEXITCODE)" }
-    Write-Host "    OK  (gepusht)" -ForegroundColor Green
+    Write-Host "    OK  (gepusht: $($staged -join ', '))" -ForegroundColor Green
 } else {
-    Write-Host "    manifest.json unveraendert — kein Push noetig" -ForegroundColor DarkGray
+    throw "Keine Aenderungen staged — Version $Version wurde moeglicherweise bereits veroeffentlicht.`nPrüfe: https://github.com/$gitHubRepo/releases"
 }
 
 # ── 6. GitHub Release erstellen & setup.exe hochladen ────────────────────────
