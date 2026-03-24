@@ -111,17 +111,17 @@ jobs:
           FTP_PATH: ${{ secrets.FTP_PATH }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $v    = "${{ steps.meta.outputs.VERSION }}"
-          $host = $env:FTP_HOST
-          $user = $env:FTP_USER
-          $pass = $env:FTP_PASS
-          $path = $env:FTP_PATH.Trim('/')
-          $ws   = $env:GITHUB_WORKSPACE
+          $v       = "${{ steps.meta.outputs.VERSION }}"
+          $ftpHost = $env:FTP_HOST
+          $user    = $env:FTP_USER
+          $pass    = $env:FTP_PASS
+          $path    = $env:FTP_PATH.Trim('/')
+          $ws      = $env:GITHUB_WORKSPACE
 
-          Write-Host "FTP target: ftp://${host}/${path}/"
+          Write-Host "FTP target: ftp://${ftpHost}/${path}/"
 
           function Upload-File([string]$local, [string]$name) {
-            $url = "ftp://${host}/${path}/${name}"
+            $url = "ftp://${ftpHost}/${path}/${name}"
             Write-Host "Uploading: $name"
             curl.exe -v -u "${user}:${pass}" -T "$local" "$url" `
                      --ssl-no-revoke --ftp-create-dirs --fail --retry 2
