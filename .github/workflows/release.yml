@@ -131,6 +131,8 @@ jobs:
             ftp.login(user, pw)
           ftp.set_pasv(True)
           print(f'[PWD nach Login] {ftp.sendcmd("PWD")}')
+          print('[FTP Root Inhalt:]')
+          ftp.dir()
 
           def navigate(ftp, target):
             for part in target.replace('\\', '/').strip('/').split('/'):
@@ -164,15 +166,29 @@ jobs:
         env:
           UPDATE_BASE_URL: ${{ secrets.UPDATE_BASE_URL }}
         run: |
-          $url = "$env:UPDATE_BASE_URL/manifest.json"
-          Write-Host "Prüfe URL (Länge $($url.Length) Zeichen)"
-          Start-Sleep -Seconds 5
+          $base = "https://af-software-engineering.de"
+          $candidates = @(
+            "/Dev/Projektsoftware/manifest.json",
+            "/Projektsoftware/manifest.json",
+            "/dev/projektsoftware/manifest.json",
+            "/httpdocs/Dev/Projektsoftware/manifest.json",
+            "/manifest.json"
+          )
+          Write-Host "=== HTTP-URL-Scan ==="
+          foreach ($p in $candidates) {
+            try {
+              $r = Invoke-WebRequest "$base$p" -UseBasicParsing -ErrorAction Stop
+              Write-Host "200  $p  <=== GEFUNDEN!"
+            } catch {
+              Write-Host "404  $p"
+            }
+          }
+          Write-Host "=== Prüfe UPDATE_BASE_URL (Länge $(("$env:UPDATE_BASE_URL/manifest.json").Length) Zeichen) ==="
           try {
-            $resp = Invoke-WebRequest -Uri $url -UseBasicParsing -ErrorAction Stop
-            Write-Host "HTTP $($resp.StatusCode) OK"
+            $resp = Invoke-WebRequest "$env:UPDATE_BASE_URL/manifest.json" -UseBasicParsing -ErrorAction Stop
+            Write-Host "200 OK — Inhalt:"
             Write-Host $resp.Content
           } catch {
-            Write-Host "FEHLER: $_"
-            Write-Host "UPDATE_BASE_URL muss mit dem FTP-Zielpfad übereinstimmen!"
+            Write-Host "404 — UPDATE_BASE_URL stimmt nicht mit FTP-Pfad überein"
             exit 1
           }
