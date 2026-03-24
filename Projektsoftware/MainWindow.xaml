@@ -43,14 +43,12 @@
                     <MenuItem Header="Zeiten exportieren" Click="ExportTimesToEasybill_Click" Style="{StaticResource ModernMenuItem}"/>
                 </MenuItem>
                 <MenuItem Header="Updates" Style="{StaticResource ModernMenuItem}">
-                    <MenuItem Header="Update-Einstellungen" Click="ConfigureUpdate_Click" Style="{StaticResource ModernMenuItem}"/>
+                    <MenuItem Header="Nach Updates suchen" Click="CheckForUpdates_Click" Style="{StaticResource ModernMenuItem}"/>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="Abmelden" Click="Logout_Click" Style="{StaticResource ModernMenuItem}" Foreground="Orange"/>
             </MenuItem>
             <MenuItem Header="_Hilfe" Style="{StaticResource ModernMenuItem}">
-                <MenuItem Header="Nach Updates suchen" Click="CheckForUpdates_Click" Style="{StaticResource ModernMenuItem}"/>
-                <Separator/>
                 <MenuItem Header="Über" Click="About_Click" Style="{StaticResource ModernMenuItem}"/>
             </MenuItem>
         </Menu>

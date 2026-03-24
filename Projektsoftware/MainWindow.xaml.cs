@@ -1678,9 +1678,6 @@ namespace Projektsoftware
                 await System.Threading.Tasks.Task.Delay(4000);
 
                 var service = new UpdateService();
-                if (!service.IsConfigured || !service.AutoCheckOnStartup)
-                    return;
-
                 var info = await service.CheckForUpdateAsync();
                 if (info != null)
                 {
@@ -1694,26 +1691,18 @@ namespace Projektsoftware
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Hintergrund-Update-Check fehlgeschlagen: {ex.Message}");
+                await Dispatcher.InvokeAsync(() =>
+                    MessageBox.Show($"Update-Check fehlgeschlagen:\n\n{ex.Message}",
+                        "Update-Fehler", MessageBoxButton.OK, MessageBoxImage.Warning));
             }
         }
 
         private async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
         {
-            var service = new UpdateService();
-            if (!service.IsConfigured)
-            {
-                MessageBox.Show(
-                    "Der Update-Server ist nicht konfiguriert.\n\n" +
-                    "Bitte hinterlegen Sie die Manifest-URL unter Einstellungen > Updates.",
-                    "Update-Server nicht konfiguriert",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-                return;
-            }
-
             try
             {
                 Mouse.OverrideCursor = Cursors.Wait;
+                var service = new UpdateService();
                 var info = await service.CheckForUpdateAsync();
                 Mouse.OverrideCursor = null;
 
@@ -1740,12 +1729,6 @@ namespace Projektsoftware
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
-        }
-
-        private void ConfigureUpdate_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new UpdateSettingsDialog { Owner = this };
-            dialog.ShowDialog();
         }
 
         #endregion

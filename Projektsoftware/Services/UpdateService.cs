@@ -17,8 +17,9 @@ namespace Projektsoftware.Services
 
     public class UpdateService
     {
+        private const string ManifestUrl = "https://raw.githubusercontent.com/alexander-fiessinger/Projektsoftware/main/manifest.json";
+
         private readonly HttpClient httpClient;
-        private readonly UpdateConfig config;
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -27,7 +28,6 @@ namespace Projektsoftware.Services
 
         public UpdateService()
         {
-            config = UpdateConfig.Load();
             httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
             httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("Projektsoftware-Updater/1.0");
         }
@@ -44,19 +44,14 @@ namespace Projektsoftware.Services
             }
         }
 
-        public bool IsConfigured => config.IsConfigured;
-        public bool AutoCheckOnStartup => config.AutoCheckOnStartup;
-
         /// <summary>
         /// Fetches the update manifest and returns UpdateInfo if a newer version is available,
         /// or null if the current version is already up-to-date.
         /// </summary>
         public async Task<UpdateInfo?> CheckForUpdateAsync()
         {
-            if (!config.IsConfigured)
-                return null;
-
-            var json = await httpClient.GetStringAsync(config.ManifestUrl);
+            var url = $"{ManifestUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+            var json = await httpClient.GetStringAsync(url);
             var info = JsonSerializer.Deserialize<UpdateInfo>(json, JsonOptions)
                 ?? throw new Exception("Ungültiges Update-Manifest.");
 
