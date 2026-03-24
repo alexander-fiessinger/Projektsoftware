@@ -42,4 +42,4 @@ Name: "{commondesktop}\{#MyAppName}";            Filename: "{app}\{#MyAppExeName
 [Run]
 Filename: "{app}\{#MyAppExeName}"; \
   Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; \
-  Flags: nowait postinstall skipifsilent
+  Flags: nowait postinstall skipifsilent runascurrentuser
