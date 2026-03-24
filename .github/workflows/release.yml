@@ -130,6 +130,9 @@ jobs:
             ftp = ftplib.FTP(host)
             ftp.login(user, pw)
           ftp.set_pasv(True)
+          print('=== FTP ROOT listing ===')
+          ftp.retrlines('LIST')
+          print('=======================')
           ftp.cwd(path)
           for local, remote in [
             (os.path.join(ws, 'upload', 'manifest.json'),       'manifest.json'),
