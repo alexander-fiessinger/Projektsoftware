@@ -63,9 +63,9 @@ jobs:
           --self-contained true
           -o publish/
 
-      # ── 6. Install Inno Setup + WinSCP ──────────────────────────────────────
-      - name: Install Inno Setup + WinSCP
-        run: choco install innosetup winscp --no-progress -y
+      # ── 6. Install Inno Setup ──────────────────────────────────────────────
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
 
       # ── 7. Build installer ─────────────────────────────────────────────────
       - name: Build installer
@@ -101,8 +101,8 @@ jobs:
           Copy-Item "build/Output/setup-$v.exe" "upload/setup-$v.exe"
           Copy-Item "manifest.json"              "upload/manifest.json"
 
-      # ── 10. Per FTPS auf Webspace hochladen (WinSCP) ───────────────────────
-      - name: Upload to Webspace (FTPS)
+      # ── 10. Per FTP auf Webspace hochladen (PowerShell) ────────────────────
+      - name: Upload to Webspace (FTP)
         shell: pwsh
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
@@ -110,56 +110,30 @@ jobs:
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           FTP_PATH: ${{ secrets.FTP_PATH }}
         run: |
-          $v          = "${{ steps.meta.outputs.VERSION }}"
-          $ftpHost    = $env:FTP_HOST
-          $ftpUser    = [Uri]::EscapeDataString($env:FTP_USER)
-          $ftpPass    = [Uri]::EscapeDataString($env:FTP_PASS)
-          $remotePath = $env:FTP_PATH
-          $workspace  = $env:GITHUB_WORKSPACE
-          $manifest   = Join-Path $workspace "upload\manifest.json"
-          $installer  = Join-Path $workspace "upload\setup-${v}.exe"
+          $v    = "${{ steps.meta.outputs.VERSION }}"
+          $base = "ftp://$($env:FTP_HOST)$($env:FTP_PATH)"
+          $user = $env:FTP_USER
+          $pass = $env:FTP_PASS
 
-          # Array-basiertes Script – kein here-string, keine führenden Leerzeichen
-          $lines = @(
-            "option batch abort",
-            "option confirm off",
-            "open ftp://${ftpUser}:${ftpPass}@${ftpHost} -explicit -certificate=`"*`"",
-            "cd `"${remotePath}`"",
-            "put `"${manifest}`"",
-            "put `"${installer}`"",
-            "close",
-            "exit"
-          )
-          $script = $lines -join "`r`n"
-
-          $tmpScript = Join-Path $env:TEMP "winscp_upload.txt"
-          [System.IO.File]::WriteAllText($tmpScript, $script)
-
-          Write-Host "=== WinSCP Script ==="
-          $lines | ForEach-Object { Write-Host "  $_" }
-          Write-Host "====================="
-
-          # WinSCP-Pfad dynamisch ermitteln
-          $winscp = @(
-            "${env:ProgramFiles(x86)}\WinSCP\winscp.com",
-            "${env:ProgramFiles}\WinSCP\winscp.com"
-          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $winscp) {
-            $winscp = (Get-Command "winscp.com" -ErrorAction SilentlyContinue)?.Source
+          function Send-FtpFile([string]$local, [string]$remote) {
+            Write-Host "Uploading: $([IO.Path]::GetFileName($local)) → $remote"
+            $req = [System.Net.FtpWebRequest]::Create($remote)
+            $req.Method      = [System.Net.WebRequestMethods+Ftp]::UploadFile
+            $req.Credentials = [System.Net.NetworkCredential]::new($user, $pass)
+            $req.UseBinary   = $true
+            $req.UsePassive  = $true
+            $req.KeepAlive   = $false
+            $bytes = [IO.File]::ReadAllBytes($local)
+            $req.ContentLength = $bytes.Length
+            $stream = $req.GetRequestStream()
+            $stream.Write($bytes, 0, $bytes.Length)
+            $stream.Close()
+            $resp = $req.GetResponse()
+            Write-Host "  Status: $($resp.StatusDescription.Trim())"
+            $resp.Close()
           }
-          if (-not $winscp) {
-            Write-Error "winscp.com nicht gefunden!"
-            Get-ChildItem "C:\Program Files*" -Filter "winscp.com" -Recurse -ErrorAction SilentlyContinue | Select-Object FullName
-            exit 1
-          }
-          Write-Host "WinSCP: $winscp"
 
-          & $winscp /ini=nul /script="$tmpScript" /log="winscp.log" /loglevel=2
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "=== WinSCP Log ==="
-            Get-Content winscp.log -ErrorAction SilentlyContinue
-            Write-Error "Upload fehlgeschlagen (exit $LASTEXITCODE)"
-            exit 1
-          }
+          $ws = $env:GITHUB_WORKSPACE
+          Send-FtpFile (Join-Path $ws "upload\manifest.json")     "${base}manifest.json"
+          Send-FtpFile (Join-Path $ws "upload\setup-${v}.exe")    "${base}setup-${v}.exe"
           Write-Host "Upload abgeschlossen."
