@@ -122,27 +122,36 @@ jobs:
             (os.path.join(ws, 'upload', 'manifest.json'), 'manifest.json'),
             (os.path.join(ws, 'upload', f'setup-{v}.exe'), f'setup-{v}.exe'),
           ]
-          print(f'FTP: {host}{path}')
+          print(f'=== FTP host={host!r}  path={path!r}  version={v!r} ===')
+          for local, _ in files:
+            print(f'Local file exists: {local!r} -> {os.path.exists(local)}')
           ctx = ssl.create_default_context()
           ctx.check_hostname = False
           ctx.verify_mode = ssl.CERT_NONE
           try:
             ftp = ftplib.FTP_TLS(host, context=ctx)
+            ftp.set_debuglevel(2)
             ftp.login(user, pw)
             ftp.prot_p()
-            print('Connected via FTPS')
+            print('==> FTPS OK')
           except Exception as e:
-            print(f'FTPS: {e} — FTP fallback')
+            print(f'==> FTPS failed: {e!r}  =>  plain FTP')
             ftp = ftplib.FTP(host)
+            ftp.set_debuglevel(2)
             ftp.login(user, pw)
-            print('Connected via plain FTP')
+            print('==> plain FTP OK')
           ftp.set_pasv(True)
           ftp.cwd(path)
-          print(f'CWD: {ftp.pwd()}')
+          print(f'==> CWD: {ftp.pwd()!r}')
+          print('==> DIR before upload:')
+          ftp.retrlines('LIST')
           for local, remote in files:
-            print(f'Uploading {remote}')
+            size = os.path.getsize(local)
+            print(f'==> Uploading {remote!r} ({size} bytes)')
             with open(local, 'rb') as f:
               ftp.storbinary(f'STOR {remote}', f)
-            print(f'Done: {remote}')
+            print(f'==> Done: {remote!r}')
+          print('==> DIR after upload:')
+          ftp.retrlines('LIST')
           ftp.quit()
-          print('Upload abgeschlossen.')
+          print('=== Upload abgeschlossen. ===')
