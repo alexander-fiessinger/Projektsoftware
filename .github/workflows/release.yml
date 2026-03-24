@@ -63,9 +63,9 @@ jobs:
           --self-contained true
           -o publish/
 
-      # ── 6. Install Inno Setup ──────────────────────────────────────────────
-      - name: Install Inno Setup
-        run: choco install innosetup --no-progress -y
+      # ── 6. Install Inno Setup + WinSCP ──────────────────────────────────────
+      - name: Install Inno Setup + WinSCP
+        run: choco install innosetup winscp --no-progress -y
 
       # ── 7. Build installer ─────────────────────────────────────────────────
       - name: Build installer
@@ -101,8 +101,8 @@ jobs:
           Copy-Item "build/Output/setup-$v.exe" "upload/setup-$v.exe"
           Copy-Item "manifest.json"              "upload/manifest.json"
 
-      # ── 10. Per FTP auf Webspace hochladen ────────────────────────────────
-      - name: Upload to Webspace (FTP)
+      # ── 10. Per FTPS auf Webspace hochladen (WinSCP) ───────────────────────
+      - name: Upload to Webspace (FTPS)
         shell: pwsh
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
@@ -110,18 +110,31 @@ jobs:
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           FTP_PATH: ${{ secrets.FTP_PATH }}
         run: |
-          $v    = "${{ steps.meta.outputs.VERSION }}"
-          $base = "ftp://$($env:FTP_HOST)$($env:FTP_PATH)"
-          $auth = "$($env:FTP_USER):$($env:FTP_PASS)"
+          $v          = "${{ steps.meta.outputs.VERSION }}"
+          $ftpHost    = $env:FTP_HOST
+          $ftpUser    = $env:FTP_USER
+          $ftpPass    = [Uri]::EscapeDataString($env:FTP_PASS)
+          $remotePath = $env:FTP_PATH
 
-          Write-Host "Uploading manifest.json → $base"
-          curl --ssl --ftp-create-dirs --retry 3 --progress-bar `
-               -u $auth -T "upload/manifest.json" "${base}manifest.json"
-          if ($LASTEXITCODE -ne 0) { Write-Error "manifest.json upload fehlgeschlagen (exit $LASTEXITCODE)"; exit 1 }
+          $script = @"
+          open ftps://${ftpUser}:${ftpPass}@${ftpHost} -explicit -certificate=*
+          cd $remotePath
+          put `"upload/manifest.json`"
+          put `"upload/setup-${v}.exe`"
+          close
+          exit
+          "@
 
-          Write-Host "Uploading setup-$v.exe → $base"
-          curl --ssl --ftp-create-dirs --retry 3 --progress-bar `
-               -u $auth -T "upload/setup-$v.exe" "${base}setup-$v.exe"
-          if ($LASTEXITCODE -ne 0) { Write-Error "Installer upload fehlgeschlagen (exit $LASTEXITCODE)"; exit 1 }
+          $tmpScript = Join-Path $env:TEMP "winscp_upload.txt"
+          $script | Set-Content $tmpScript -Encoding UTF8
 
+          Write-Host "Starte WinSCP-Upload nach ${ftpHost}${remotePath}..."
+          & "C:\Program Files (x86)\WinSCP\winscp.com" /script="$tmpScript" /log="winscp.log" /loglevel=1
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "=== WinSCP Log ==="
+            Get-Content winscp.log -ErrorAction SilentlyContinue
+            Write-Error "Upload fehlgeschlagen (exit $LASTEXITCODE)"
+            exit 1
+          }
           Write-Host "Upload abgeschlossen."
