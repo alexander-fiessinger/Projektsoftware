@@ -6,11 +6,146 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <Version>1.0.19</Version>
-    <AssemblyVersion>1.0.19.0</AssemblyVersion>
-    <FileVersion>1.0.19.0</FileVersion>
+    <Version>1.0.20</Version>
+    <AssemblyVersion>1.0.20.0</AssemblyVersion>
+    <FileVersion>1.0.20.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Embed the generated ico into the exe (Explorer / Start Menu icon) -->
+    <ApplicationIcon Condition="Exists('app.ico')">app.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <!-- Inline MSBuild task: generates app.ico before compilation, no external tools needed -->
+  <UsingTask TaskName="GenerateAppIconTask"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <OutputPath ParameterType="System.String" Required="true"/>
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO"/>
+      <Using Namespace="System.Collections.Generic"/>
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(OutputPath) ?? ".");
+
+            // Sizes to include in the multi-size ICO
+            int[] sizes = { 16, 32, 48, 256 };
+            var imageDataList = new List<byte[]>();
+
+            foreach (int sz in sizes)
+            {
+                int xorBytes  = sz * sz * 4;
+                int andRowPad = ((sz + 31) / 32) * 4;
+                int andBytes  = andRowPad * sz;
+
+                using var imgMs = new MemoryStream();
+                using var imgBw = new BinaryWriter(imgMs);
+
+                // BITMAPINFOHEADER (40 bytes) � height doubled for ICO XOR+AND layout
+                imgBw.Write((uint)40);
+                imgBw.Write((int)sz);
+                imgBw.Write((int)(sz * 2));
+                imgBw.Write((ushort)1);
+                imgBw.Write((ushort)32);
+                imgBw.Write((uint)0);
+                imgBw.Write((uint)(xorBytes + andBytes));
+                imgBw.Write((int)0);
+                imgBw.Write((int)0);
+                imgBw.Write((uint)0);
+                imgBw.Write((uint)0);
+
+                float cr = sz * 0.22f; // rounded-corner radius
+
+                // XOR pixel data � BMP rows are bottom-up
+                for (int row = 0; row < sz; row++)
+                {
+                    int vy = sz - 1 - row;
+                    for (int col = 0; col < sz; col++)
+                    {
+                        int vx = col;
+
+                        // Determine if pixel is inside the rounded rectangle
+                        bool outside = false;
+                        if (vx < cr && vy < cr)
+                        { float dx = vx - cr, dy = vy - cr; outside = dx*dx + dy*dy > cr*cr; }
+                        else if (vx > sz-1-cr && vy < cr)
+                        { float dx = vx-(sz-1-cr), dy = vy-cr; outside = dx*dx + dy*dy > cr*cr; }
+                        else if (vx < cr && vy > sz-1-cr)
+                        { float dx = vx-cr, dy = vy-(sz-1-cr); outside = dx*dx + dy*dy > cr*cr; }
+                        else if (vx > sz-1-cr && vy > sz-1-cr)
+                        { float dx = vx-(sz-1-cr), dy = vy-(sz-1-cr); outside = dx*dx + dy*dy > cr*cr; }
+
+                        byte alpha = outside ? (byte)0 : (byte)255;
+
+                        // Gradient: indigo(99,102,241) ? blue(37,99,235), diagonal
+                        float t = (sz > 1) ? (float)(vx + vy) / (float)((sz-1)*2) : 0f;
+                        byte r = (byte)(99  + (37  - 99 ) * t);
+                        byte g = (byte)(102 + (99  - 102) * t);
+                        byte b = (byte)(241 + (235 - 241) * t);
+
+                        imgBw.Write(b); // BGRA
+                        imgBw.Write(g);
+                        imgBw.Write(r);
+                        imgBw.Write(alpha);
+                    }
+                }
+
+                // AND mask � all zeros (alpha channel handles transparency)
+                for (int i = 0; i < andBytes; i++)
+                    imgBw.Write((byte)0);
+
+                imageDataList.Add(imgMs.ToArray());
+            }
+
+            // Build the ICO file
+            int entryCount  = sizes.Length;
+            int totalOffset = 6 + 16 * entryCount;
+
+            using var icoMs = new MemoryStream();
+            using var icoBw = new BinaryWriter(icoMs);
+
+            // ICONDIR header
+            icoBw.Write((ushort)0); // reserved
+            icoBw.Write((ushort)1); // type = ICO
+            icoBw.Write((ushort)entryCount);
+
+            // ICONDIRENTRY array
+            for (int i = 0; i < entryCount; i++)
+            {
+                int sz = sizes[i];
+                icoBw.Write((byte)(sz >= 256 ? 0 : sz)); // 0 encodes 256
+                icoBw.Write((byte)(sz >= 256 ? 0 : sz));
+                icoBw.Write((byte)0);  // color count
+                icoBw.Write((byte)0);  // reserved
+                icoBw.Write((ushort)1);  // planes
+                icoBw.Write((ushort)32); // bit depth
+                icoBw.Write((uint)imageDataList[i].Length);
+                icoBw.Write((uint)totalOffset);
+                totalOffset += imageDataList[i].Length;
+            }
+
+            // Image data
+            foreach (var data in imageDataList)
+                icoBw.Write(data);
+
+            File.WriteAllBytes(OutputPath, icoMs.ToArray());
+        }
+        catch
+        {
+            // Non-fatal: build continues without embedded icon
+        }
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <!-- Generate app.ico before the compiler embeds it via ApplicationIcon -->
+  <Target Name="GenerateAppIcon" BeforeTargets="BeforeBuild">
+    <GenerateAppIconTask OutputPath="$(MSBuildProjectDirectory)\app.ico"
+                         Condition="!Exists('$(MSBuildProjectDirectory)\app.ico')"/>
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="MailKit" Version="4.15.1" />
@@ -31,3 +166,4 @@
   </ItemGroup>
 
 </Project>
+
