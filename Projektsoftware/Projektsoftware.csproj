@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <Version>1.0.28</Version>
-    <AssemblyVersion>1.0.28.0</AssemblyVersion>
-    <FileVersion>1.0.28.0</FileVersion>
+    <Version>1.0.29</Version>
+    <AssemblyVersion>1.0.29.0</AssemblyVersion>
+    <FileVersion>1.0.29.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Embed the generated ico into the exe (Explorer / Start Menu icon) -->
     <ApplicationIcon Condition="Exists('app.ico')">app.ico</ApplicationIcon>
@@ -16,15 +16,13 @@
   </PropertyGroup>
 
   <!-- Inline MSBuild task: generates app.ico before compilation, no external tools needed -->
-  <UsingTask TaskName="GenerateAppIconTask"
-             TaskFactory="RoslynCodeTaskFactory"
-             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+  <UsingTask TaskName="GenerateAppIconTask" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
-      <OutputPath ParameterType="System.String" Required="true"/>
+      <OutputPath ParameterType="System.String" Required="true" />
     </ParameterGroup>
     <Task>
-      <Using Namespace="System.IO"/>
-      <Using Namespace="System.Collections.Generic"/>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Collections.Generic" />
       <Code Type="Fragment" Language="cs">
         <![CDATA[
         try
@@ -144,16 +142,13 @@
 
   <!-- Generate app.ico before the compiler embeds it via ApplicationIcon -->
   <Target Name="GenerateAppIcon" BeforeTargets="BeforeBuild">
-    <GenerateAppIconTask OutputPath="$(MSBuildProjectDirectory)\app.ico"
-                         Condition="!Exists('$(MSBuildProjectDirectory)\app.ico')"/>
+    <GenerateAppIconTask OutputPath="$(MSBuildProjectDirectory)\app.ico" Condition="!Exists('$(MSBuildProjectDirectory)\app.ico')" />
   </Target>
 
   <ItemGroup>
     <PackageReference Include="MailKit" Version="4.15.1" />
     <PackageReference Include="MySql.Data" Version="9.2.0" />
     <PackageReference Include="QuestPDF" Version="2026.2.4" />
-    <PackageReference Include="SIPSorcery" Version="6.0.12" />
-    <PackageReference Include="SIPSorceryMedia.Windows" Version="6.0.4" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.5" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
   </ItemGroup>
@@ -166,6 +161,10 @@
     <Resource Update="Resources\Styles.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Resource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Audio\" />
   </ItemGroup>
 
 </Project>
