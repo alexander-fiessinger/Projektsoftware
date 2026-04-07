@@ -14,6 +14,10 @@ namespace Projektsoftware.Models
         public string CustomerEmail { get; set; }
         public string CustomerPhone { get; set; }
         public int? CustomerId { get; set; } // Optional: Verknüpfung zu bestehendem Kunden
+
+        // Projektzuordnung für Abrechnung
+        public int? ProjectId { get; set; }
+        public string ProjectName { get; set; }
         
         // Ticketdaten
         public string Subject { get; set; }

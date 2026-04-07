@@ -3,6 +3,7 @@ using Projektsoftware.Services;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 
@@ -67,7 +68,7 @@ namespace Projektsoftware.Views
         {
             var button = sender as System.Windows.Controls.Button;
             var customer = button?.DataContext as Customer;
-            
+
             if (customer != null)
             {
                 var dialog = new CustomerDialog(customer);
@@ -75,6 +76,18 @@ namespace Projektsoftware.Views
                 {
                     await LoadCustomersAsync();
                 }
+            }
+        }
+
+        private void DocumentsCustomer_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as System.Windows.Controls.Button;
+            var customer = button?.DataContext as Customer;
+
+            if (customer != null)
+            {
+                var dialog = new CustomerDocumentsDialog(customer);
+                dialog.ShowDialog();
             }
         }
 
@@ -281,5 +294,6 @@ namespace Projektsoftware.Views
                 }
             }
         }
-    }
-}
+
+            }
+        }

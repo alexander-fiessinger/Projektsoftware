@@ -50,6 +50,23 @@ namespace Projektsoftware.Views
             CustomerComboBox.DropDownClosed += PreserveSelection;
         }
 
+        public TimeEntryDialog(ObservableCollection<Project> projects, ObservableCollection<Employee> employees, TimeEntry prefilledEntry)
+            : this(projects, employees)
+        {
+            if (prefilledEntry == null) return;
+
+            DatePicker.SelectedDate = prefilledEntry.Date;
+            DurationTextBox.Text = prefilledEntry.Duration.TotalHours.ToString("F2");
+            ActivityTextBox.Text = prefilledEntry.Activity ?? "";
+            DescriptionTextBox.Text = prefilledEntry.Description ?? "";
+            EmployeeComboBox.Text = prefilledEntry.EmployeeName ?? "";
+
+            var project = (ProjectComboBox.ItemsSource as ObservableCollection<Project>)
+                ?.FirstOrDefault(p => p.Id == prefilledEntry.ProjectId);
+            if (project != null)
+                ProjectComboBox.SelectedItem = project;
+        }
+
         private void PreserveSelection(object sender, EventArgs e)
         {
             // Diese Methode sorgt dafür, dass die Auswahl erhalten bleibt
@@ -171,6 +188,35 @@ namespace Projektsoftware.Views
         {
             DialogResult = false;
             Close();
+        }
+
+        private async void LoadTemplate_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new TimeEntryTemplatesDialog(
+                new System.Collections.Generic.List<Project>(
+                    ProjectComboBox.ItemsSource as ObservableCollection<Project> ?? new ObservableCollection<Project>()))
+            { Owner = this };
+
+            if (dialog.ShowDialog() != true || dialog.SelectedTemplate is not TimeEntryTemplate t)
+                return;
+
+            // Apply template values to form fields
+            ActivityTextBox.Text = t.Activity ?? string.Empty;
+            DescriptionTextBox.Text = t.Description ?? string.Empty;
+
+            DurationTextBox.Text = t.DefaultDuration.TotalHours.ToString("F2");
+
+            if (t.ProjectId.HasValue)
+            {
+                foreach (var item in ProjectComboBox.Items)
+                {
+                    if (item is Project p && p.Id == t.ProjectId.Value)
+                    {
+                        ProjectComboBox.SelectedItem = p;
+                        break;
+                    }
+                }
+            }
         }
 
         private async void OpenEasybillCustomers_Click(object sender, RoutedEventArgs e)

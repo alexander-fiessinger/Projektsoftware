@@ -114,6 +114,26 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Projektzuordnung -->
+                <Border Background="#E3F2FD" 
+                        Padding="15" 
+                        Margin="0,0,0,15" 
+                        CornerRadius="5">
+                    <StackPanel>
+                        <TextBlock Text="Projektzuordnung (optional)" 
+                                   FontSize="16" 
+                                   FontWeight="Bold" 
+                                   Margin="0,0,0,10"/>
+                        <TextBlock Text="Für Abrechnung: Ticket einem Projekt zuordnen."
+                                   FontSize="12" Foreground="#555" Margin="0,0,0,8"/>
+                        <Label Content="Projekt"/>
+                        <ComboBox x:Name="ProjectComboBox"
+                                  DisplayMemberPath="Name"
+                                  SelectedValuePath="Id"
+                                  ToolTip="Optionale Zuordnung zu einem Projekt für die Abrechnung"/>
+                    </StackPanel>
+                </Border>
+
                 <TextBlock Text="* Pflichtfelder" 
                            FontSize="11" 
                            Foreground="#666" 

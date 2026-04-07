@@ -83,6 +83,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -111,6 +112,14 @@
                                    Margin="0,0,10,10"/>
                         <TextBlock x:Name="AssignedToText" 
                                    Grid.Row="2" Grid.Column="1" 
+                                   Margin="0,0,0,10"/>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" 
+                                   Text="Projekt:" 
+                                   FontWeight="Bold" 
+                                   Margin="0,0,10,10"/>
+                        <TextBlock x:Name="ProjectText" 
+                                   Grid.Row="3" Grid.Column="1" 
                                    Margin="0,0,0,10"/>
                     </Grid>
 
@@ -169,6 +178,12 @@
                             Height="40" 
                             Click="ExportPdf_Click"
                             Background="#E91E63"
+                            Foreground="White"/>
+                    <Button Content="📧 E-Mail senden" 
+                            Margin="0,0,0,10" 
+                            Height="40" 
+                            Click="SendEmail_Click"
+                            Background="#2196F3"
                             Foreground="White"/>
                     <Button Content="👥 Kunden-Historie" 
                             Height="40" 

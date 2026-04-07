@@ -43,6 +43,7 @@
                           Margin="0,0,0,15"
                           SelectionChanged="TypeComboBox_SelectionChanged">
                     <ComboBoxItem Content="📄 Rechnung" Tag="INVOICE" IsSelected="True"/>
+                    <ComboBoxItem Content="🧾 Proforma-Rechnung" Tag="PROFORMA_INVOICE"/>
                     <ComboBoxItem Content="📋 Angebot" Tag="OFFER"/>
                     <ComboBoxItem Content="✓ Auftragsbestätigung" Tag="ORDER_CONFIRMATION"/>
                     <ComboBoxItem Content="📦 Lieferschein" Tag="DELIVERY_NOTE"/>

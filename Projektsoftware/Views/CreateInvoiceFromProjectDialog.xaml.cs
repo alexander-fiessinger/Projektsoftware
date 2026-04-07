@@ -19,15 +19,18 @@ namespace Projektsoftware.Views
 
         public EasybillDocument? CreatedDocument { get; private set; }
 
-        public CreateInvoiceFromProjectDialog(Project project, bool isOffer = false)
+        private readonly string _documentType;
+
+        public CreateInvoiceFromProjectDialog(Project project, string documentType = "INVOICE")
         {
             InitializeComponent();
             this.project = project;
+            _documentType = documentType;
             easybillService = new EasybillService();
             databaseService = new DatabaseService();
 
             // Dialog-Typ setzen
-            if (isOffer)
+            if (documentType == "OFFER")
             {
                 Title = "Angebot aus Projekt erstellen";
                 HeaderTextBlock.Text = "📋 Angebot erstellen";
@@ -205,7 +208,7 @@ namespace Projektsoftware.Views
                 CreateButton.IsEnabled = false;
                 StatusTextBlock.Text = "Erstelle Dokument...";
 
-                var isOffer = DocumentTypeTextBlock.Text == "Angebot";
+                var isOffer = _documentType == "OFFER";
                 var isDraft = IsDraftCheckBox.IsChecked == true;
                 var vatPercent = currentVatResult?.VatPercent ?? 19;
                 var vatSuffix = currentVatResult?.DocumentSuffix;

@@ -178,6 +178,17 @@ namespace Projektsoftware.Views
             if (document?.Id == null)
                 return;
 
+            var exchangeConfig = ExchangeConfig.Load();
+            if (!exchangeConfig.IsConfigured)
+            {
+                MessageBox.Show(
+                    "SMTP ist nicht konfiguriert.\nBitte zuerst unter Einstellungen → SMTP E-Mail → Konfiguration einrichten.",
+                    "SMTP nicht konfiguriert",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
             var dialog = new EasybillSendEmailDialog(document);
             if (dialog.ShowDialog() == true)
             {
@@ -185,14 +196,13 @@ namespace Projektsoftware.Views
                 {
                     StatusTextBlock.Text = $"Sende Dokument {document.Number}...";
 
-                    await easybillService.SendDocumentAsync(
-                        document.Id.Value,
-                        dialog.To,
-                        dialog.EmailSubject,
-                        dialog.Message,
-                        dialog.Cc,
-                        dialog.Bcc
-                    );
+                    byte[] pdfBytes = null;
+                    try { pdfBytes = await easybillService.DownloadDocumentPdfAsync(document.Id.Value); } catch { }
+                    var pdfFileName = $"{document.DisplayType}_{document.Number?.Replace("/", "-") ?? "Dokument"}.pdf";
+
+                    await new ExchangeEmailService(exchangeConfig).SendEmailAsync(
+                        dialog.To, dialog.EmailSubject, dialog.Message,
+                        dialog.Cc, dialog.Bcc, pdfFileName, pdfBytes);
 
                     MessageBox.Show(
                         $"Dokument {document.Number} wurde erfolgreich per E-Mail versendet!",
@@ -224,7 +234,7 @@ namespace Projektsoftware.Views
 
             var result = MessageBox.Show(
                 $"Möchten Sie Dokument '{document.Number}' als bezahlt markieren?\n\n" +
-                $"Betrag: {document.TotalGross:N2} €\n" +
+                $"Betrag: {document.TotalGrossDisplay}\n" +
                 $"Datum: {DateTime.Now:dd.MM.yyyy}",
                 "Als bezahlt markieren",
                 MessageBoxButton.YesNo,
@@ -261,18 +271,66 @@ namespace Projektsoftware.Views
             }
         }
 
+        private async void FinalizeDocument_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            var document = button?.DataContext as EasybillDocument;
+
+            if (document?.Id == null)
+                return;
+
+            var result = MessageBox.Show(
+                $"Möchten Sie den Entwurf '{document.Number ?? "(ohne Nummer)"}' fertigstellen?\n\n" +
+                $"Typ: {document.DisplayType}\n" +
+                $"Betrag: {document.TotalGrossDisplay}\n\n" +
+                "Das Dokument wird finalisiert und erhält eine fortlaufende Nummer.\n" +
+                "Dieser Vorgang kann nicht rückgängig gemacht werden!",
+                "Entwurf fertigstellen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    StatusTextBlock.Text = $"Stelle Entwurf {document.Number ?? document.Id.ToString()} fertig...";
+
+                    var finalized = await easybillService.FinalizeDocumentAsync(document.Id.Value);
+
+                    MessageBox.Show(
+                        $"Dokument wurde erfolgreich fertiggestellt!\n\nNummer: {finalized.Number}",
+                        "Fertiggestellt",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+
+                    var selectedItem = TypeFilterComboBox.SelectedItem as ComboBoxItem;
+                    var type = selectedItem?.Tag?.ToString();
+                    await LoadDocumentsAsync(string.IsNullOrEmpty(type) ? null : type);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        $"Fehler beim Fertigstellen des Entwurfs:\n\n{ex.Message}",
+                        "Fehler",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    StatusTextBlock.Text = "Fehler beim Fertigstellen";
+                }
+            }
+        }
+
         private async void DeleteDocument_Click(object sender, RoutedEventArgs e)
         {
             var button = sender as Button;
             var document = button?.DataContext as EasybillDocument;
-            
+
             if (document?.Id == null)
                 return;
 
             var result = MessageBox.Show(
                 $"Möchten Sie Dokument '{document.Number}' wirklich löschen?\n\n" +
                 $"Typ: {document.DisplayType}\n" +
-                $"Betrag: {document.TotalGross:N2} €\n\n" +
+                $"Betrag: {document.TotalGrossDisplay}\n\n" +
                 "Diese Aktion kann nicht rückgängig gemacht werden!",
                 "Dokument löschen",
                 MessageBoxButton.YesNo,
@@ -305,6 +363,59 @@ namespace Projektsoftware.Views
                         MessageBoxImage.Error);
                     StatusTextBlock.Text = "Fehler beim Löschen";
                 }
+            }
+        }
+
+        private async void Convert_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            var document = button?.DataContext as EasybillDocument;
+
+            if (document?.Id == null)
+                return;
+
+            if (!ConvertDocumentDialog.HasConversions(document.Type))
+            {
+                MessageBox.Show(
+                    $"Für '{document.DisplayType}' sind keine Konvertierungen verfügbar.",
+                    "Nicht möglich",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new ConvertDocumentDialog(document);
+            if (dialog.ShowDialog() != true)
+                return;
+
+            try
+            {
+                StatusTextBlock.Text = "Lade Dokumentdetails...";
+                var fullDocument = await easybillService.GetDocumentAsync(document.Id.Value);
+
+                StatusTextBlock.Text = $"Konvertiere zu {new EasybillDocument { Type = dialog.TargetType }.DisplayType}...";
+                var converted = await easybillService.ConvertDocumentAsync(fullDocument, dialog.TargetType, dialog.CreateAsDraft);
+
+                MessageBox.Show(
+                    $"Dokument erfolgreich als {converted.DisplayType} erstellt!\n\n" +
+                    $"Neue Nummer: {converted.Number ?? "(Entwurf)"}\n" +
+                    (dialog.CreateAsDraft ? "Das Dokument wurde als Entwurf erstellt." : "Das Dokument wurde finalisiert."),
+                    "Erfolg",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+
+                var selectedItem = TypeFilterComboBox.SelectedItem as ComboBoxItem;
+                var type = selectedItem?.Tag?.ToString();
+                await LoadDocumentsAsync(string.IsNullOrEmpty(type) ? null : type);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Fehler beim Konvertieren:\n\n{ex.Message}",
+                    "Fehler",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                StatusTextBlock.Text = "Fehler beim Konvertieren";
             }
         }
     }

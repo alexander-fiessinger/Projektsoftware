@@ -1,12 +1,195 @@
 <UserControl x:Class="Projektsoftware.Views.DashboardControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="20">
-            <TextBlock Text="📊 Dashboard" FontSize="24" FontWeight="Bold" Foreground="#1976D2" Margin="0,0,0,20"/>
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Projektsoftware.Converters"
+             Background="{StaticResource BackgroundBrush}">
+    <UserControl.Resources>
+        <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
 
-            <!-- Statistics Cards -->
-            <Grid>
+        <Style x:Key="KpiCard" TargetType="Border">
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="22,18"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.12" Color="#000000"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="KpiValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="30"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Margin" Value="0,8,0,0"/>
+        </Style>
+
+        <Style x:Key="KpiLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Opacity" Value="0.85"/>
+        </Style>
+
+        <Style x:Key="KpiSub" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Opacity" Value="0.70"/>
+            <Setter Property="Margin" Value="0,5,0,0"/>
+        </Style>
+
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        </Style>
+
+        <Style x:Key="FinTile" TargetType="Border">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,14"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="6" ShadowDepth="1" Opacity="0.11" Color="#000000"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="FinValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+
+        <Style x:Key="FinLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Opacity" Value="0.88"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <Style x:Key="DocCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.07" Color="#000000"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="28,24,28,36">
+
+            <!-- ═══ PAGE HEADER ══════════════════════════════════════════ -->
+            <Grid Margin="0,0,0,28">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="Dashboard" FontSize="28" FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}" LineHeight="32"/>
+                    <TextBlock Text="Übersicht aller Projekte, Finanzen und Aktivitäten"
+                               FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="FinancialLoadingText" Text="⏳ Lade Finanzdaten…"
+                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                               VerticalAlignment="Center" Margin="0,0,12,0" Visibility="Visible"/>
+                    <Button Content="Finanzdaten aktualisieren" Style="{StaticResource ActionButton}"
+                            Padding="14,7" Click="RefreshFinancial_Click"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- ═══ KPI CARDS ════════════════════════════════════════════ -->
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource KpiCard}" Background="{StaticResource PrimaryBrush}">
+                    <StackPanel>
+                        <TextBlock Text="PROJEKTE" Style="{StaticResource KpiLabel}"/>
+                        <TextBlock x:Name="TotalProjectsText" Style="{StaticResource KpiValue}"/>
+                        <TextBlock x:Name="ActiveProjectsText" Style="{StaticResource KpiSub}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource KpiCard}" Background="{StaticResource WarningBrush}">
+                    <StackPanel>
+                        <TextBlock Text="AUFGABEN" Style="{StaticResource KpiLabel}"/>
+                        <TextBlock x:Name="TotalTasksText" Style="{StaticResource KpiValue}"/>
+                        <TextBlock x:Name="OpenTasksText" Style="{StaticResource KpiSub}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="4" Style="{StaticResource KpiCard}" Background="{StaticResource SuccessBrush}">
+                    <StackPanel>
+                        <TextBlock Text="STUNDEN ERFASST" Style="{StaticResource KpiLabel}"/>
+                        <TextBlock x:Name="TotalHoursText" Style="{StaticResource KpiValue}"/>
+                        <TextBlock Text="gesamt erfasst" Style="{StaticResource KpiSub}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="6" Style="{StaticResource KpiCard}">
+                    <Border.Background><SolidColorBrush Color="#7C3AED"/></Border.Background>
+                    <StackPanel>
+                        <TextBlock Text="PROJEKTBUDGET" Style="{StaticResource KpiLabel}"/>
+                        <TextBlock x:Name="TotalBudgetText" Style="{StaticResource KpiValue}"/>
+                        <TextBlock Text="gesamt" Style="{StaticResource KpiSub}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ═══ STATUS CARDS ══════════════════════════════════════════ -->
+            <Grid Margin="0,0,0,30">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource ModernCard}"
+                        BorderThickness="4,1,1,1" BorderBrush="{StaticResource DangerBrush}">
+                    <StackPanel>
+                        <TextBlock Text="Offene Aufgaben" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource DangerBrush}" Margin="0,0,0,10"/>
+                        <TextBlock x:Name="OverdueTasksText" FontSize="13"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock x:Name="OpenTasksDetailText" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource ModernCard}"
+                        BorderThickness="4,1,1,1" BorderBrush="{StaticResource PrimaryBrush}">
+                    <StackPanel>
+                        <TextBlock Text="Kommende Events" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource PrimaryBrush}" Margin="0,0,0,10"/>
+                        <TextBlock x:Name="UpcomingMeetingsText" FontSize="13"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock x:Name="ActiveEmployeesText" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ═══ FINANZIELLE ÜBERSICHT ══════════════════════════════════ -->
+            <TextBlock Text="Finanzielle Übersicht" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
+
+            <!-- Einnahmen KPI Tiles -->
+            <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition/>
                     <ColumnDefinition Width="10"/>
@@ -15,194 +198,370 @@
                     <ColumnDefinition/>
                     <ColumnDefinition Width="10"/>
                     <ColumnDefinition/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition/>
                 </Grid.ColumnDefinitions>
-
-                <!-- Projekte Card -->
-                <Border Grid.Column="0" Background="#E3F2FD" CornerRadius="10" Padding="15">
+                <Border Grid.Column="0" Style="{StaticResource FinTile}" Background="#16A34A">
                     <StackPanel>
-                        <TextBlock Text="📁 Projekte" FontSize="14" FontWeight="Bold" Foreground="#1976D2"/>
-                        <TextBlock x:Name="TotalProjectsText" FontSize="32" FontWeight="Bold" Foreground="#1976D2" Margin="0,10,0,0"/>
-                        <TextBlock x:Name="ActiveProjectsText" FontSize="12" Foreground="#666" Margin="0,5,0,0"/>
+                        <TextBlock Text="Einnahmen gesamt" Style="{StaticResource FinLabel}"/>
+                        <TextBlock x:Name="TotalRevenueText" Text="–" Style="{StaticResource FinValue}"/>
                     </StackPanel>
                 </Border>
-
-                <!-- Aufgaben Card -->
-                <Border Grid.Column="2" Background="#FFF3E0" CornerRadius="10" Padding="15">
+                <Border Grid.Column="2" Style="{StaticResource FinTile}" Background="{StaticResource PrimaryBrush}">
                     <StackPanel>
-                        <TextBlock Text="✓ Aufgaben" FontSize="14" FontWeight="Bold" Foreground="#F57C00"/>
-                        <TextBlock x:Name="TotalTasksText" FontSize="32" FontWeight="Bold" Foreground="#F57C00" Margin="0,10,0,0"/>
-                        <TextBlock x:Name="OpenTasksText" FontSize="12" Foreground="#666" Margin="0,5,0,0"/>
+                        <TextBlock Text="Dieser Monat" Style="{StaticResource FinLabel}"/>
+                        <TextBlock x:Name="ThisMonthRevenueText" Text="–" Style="{StaticResource FinValue}"/>
                     </StackPanel>
                 </Border>
-
-                <!-- Stunden Card -->
-                <Border Grid.Column="4" Background="#E8F5E9" CornerRadius="10" Padding="15">
+                <Border Grid.Column="4" Style="{StaticResource FinTile}" Background="{StaticResource WarningBrush}">
                     <StackPanel>
-                        <TextBlock Text="⏱ Stunden" FontSize="14" FontWeight="Bold" Foreground="#4CAF50"/>
-                        <TextBlock x:Name="TotalHoursText" FontSize="32" FontWeight="Bold" Foreground="#4CAF50" Margin="0,10,0,0"/>
-                        <TextBlock Text="erfasst" FontSize="12" Foreground="#666" Margin="0,5,0,0"/>
+                        <TextBlock Text="Offene Rechnungen" Style="{StaticResource FinLabel}"/>
+                        <TextBlock x:Name="OpenInvoicesText" Text="–" Style="{StaticResource FinValue}"/>
+                        <TextBlock x:Name="OpenInvoicesCountText" Text="" Foreground="White" FontSize="10" Opacity="0.85" Margin="0,3,0,0"/>
                     </StackPanel>
                 </Border>
-
-                <!-- Budget Card -->
-                <Border Grid.Column="6" Background="#F3E5F5" CornerRadius="10" Padding="15">
+                <Border Grid.Column="6" Style="{StaticResource FinTile}" Background="{StaticResource DangerBrush}">
                     <StackPanel>
-                        <TextBlock Text="💰 Budget" FontSize="14" FontWeight="Bold" Foreground="#7B1FA2"/>
-                        <TextBlock x:Name="TotalBudgetText" FontSize="32" FontWeight="Bold" Foreground="#7B1FA2" Margin="0,10,0,0"/>
-                        <TextBlock Text="gesamt" FontSize="12" Foreground="#666" Margin="0,5,0,0"/>
+                        <TextBlock Text="Überfällig" Style="{StaticResource FinLabel}"/>
+                        <TextBlock x:Name="OverdueInvoicesText" Text="–" Style="{StaticResource FinValue}"/>
+                        <TextBlock x:Name="OverdueInvoicesCountText" Text="" Foreground="White" FontSize="10" Opacity="0.85" Margin="0,3,0,0"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="8" Style="{StaticResource FinTile}" Background="{StaticResource NeutralBrush}">
+                    <StackPanel>
+                        <TextBlock Text="Entwürfe" Style="{StaticResource FinLabel}"/>
+                        <TextBlock x:Name="DraftInvoicesText" Text="–" Style="{StaticResource FinValue}"/>
+                        <TextBlock Text="unversendete RE" Foreground="White" FontSize="10" Opacity="0.85" Margin="0,3,0,0"/>
                     </StackPanel>
                 </Border>
             </Grid>
 
-            <!-- Details Section -->
-            <Grid Margin="0,20,0,0">
+            <!-- Einkauf KPI Tiles -->
+            <Grid Margin="0,0,0,28">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition/>
                     <ColumnDefinition Width="10"/>
                     <ColumnDefinition/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="2*"/>
                 </Grid.ColumnDefinitions>
-
-                <!-- Tasks Details -->
-                <Border Grid.Column="0" Background="#FFEBEE" CornerRadius="10" Padding="15">
+                <Border Grid.Column="0" Style="{StaticResource FinTile}">
+                    <Border.Background><SolidColorBrush Color="#1E3A8A"/></Border.Background>
                     <StackPanel>
-                        <TextBlock Text="⚠ Offene Aufgaben" FontSize="14" FontWeight="Bold" Foreground="#D32F2F" Margin="0,0,0,10"/>
-                        <TextBlock x:Name="OverdueTasksText" FontSize="12" Foreground="#666"/>
-                        <TextBlock x:Name="OpenTasksDetailText" FontSize="12" Foreground="#666" Margin="0,5,0,0"/>
+                        <TextBlock Text="Offene Bestellungen" Style="{StaticResource FinLabel}"/>
+                        <TextBlock x:Name="OpenPurchaseOrdersText" Text="–" Style="{StaticResource FinValue}"/>
                     </StackPanel>
                 </Border>
-
-                <!-- Meetings & Employees -->
-                <Border Grid.Column="2" Background="#E1F5FE" CornerRadius="10" Padding="15">
+                <Border Grid.Column="2" Style="{StaticResource FinTile}">
+                    <Border.Background><SolidColorBrush Color="#1D4ED8"/></Border.Background>
                     <StackPanel>
-                        <TextBlock Text="📅 Kommende Events" FontSize="14" FontWeight="Bold" Foreground="#0277BD" Margin="0,0,0,10"/>
-                        <TextBlock x:Name="UpcomingMeetingsText" FontSize="12" Foreground="#666"/>
-                        <TextBlock x:Name="ActiveEmployeesText" FontSize="12" Foreground="#666" Margin="0,5,0,0"/>
+                        <TextBlock Text="Belegablage" Style="{StaticResource FinLabel}"/>
+                        <TextBlock x:Name="UnpaidPurchaseInvoicesText" Text="–" Style="{StaticResource FinValue}"/>
+                        <TextBlock x:Name="UnpaidPurchaseAmountText" Text="" Foreground="White" FontSize="10" Opacity="0.85" Margin="0,3,0,0"/>
                     </StackPanel>
+                </Border>
+                <Border Grid.Column="4" Style="{StaticResource ModernCard}">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,24,0">
+                            <TextBlock Text="Easybill" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                            <WrapPanel>
+                                <Button Content="Dokumente anzeigen" Style="{StaticResource ActionButton}"
+                                        Padding="10,5" Margin="0,0,6,0" Click="ShowDocuments_Click"/>
+                                <Button Content="Zeiten exportieren" Style="{StaticResource ActionButton}"
+                                        Padding="10,5" Click="ExportTimes_Click"/>
+                            </WrapPanel>
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Einkauf" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                            <Button Content="Zum Einkauf navigieren" Style="{StaticResource ActionButton}"
+                                    Padding="10,5" HorizontalAlignment="Left" Click="ViewPurchases_Click"/>
+                        </StackPanel>
+                    </DockPanel>
                 </Border>
             </Grid>
 
-            <!-- Quick Actions -->
-            <TextBlock Text="🚀 Schnellaktionen" FontSize="16" FontWeight="Bold" Margin="0,30,0,15"/>
-            <WrapPanel>
-                <Button Content="+ Neues Projekt" Width="150" Height="40" Margin="0,0,10,10" 
-                        Background="#4CAF50" Foreground="White" FontWeight="Bold" BorderThickness="0" Click="NewProject_Click"/>
-                <Button Content="+ Neue Aufgabe" Width="150" Height="40" Margin="0,0,10,10"
-                        Background="#FF9800" Foreground="White" FontWeight="Bold" BorderThickness="0" Click="NewTask_Click"/>
-                <Button Content="+ Neuer Kunde" Width="150" Height="40" Margin="0,0,10,10"
-                        Background="#00BCD4" Foreground="White" FontWeight="Bold" BorderThickness="0" Click="NewCustomer_Click"/>
-                <Button Content="⏱ Zeiterfassung" Width="150" Height="40" Margin="0,0,10,10"
-                        Background="#2196F3" Foreground="White" FontWeight="Bold" BorderThickness="0" Click="TimeTracking_Click"/>
+            <!-- ═══ DOKUMENTENSUCHE ════════════════════════════════════ -->
+            <TextBlock Text="Dokumentensuche" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
+            <Border Style="{StaticResource ModernCard}" Margin="0,0,0,28">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,12">
+                        <Button x:Name="DocSearchRefreshBtn" DockPanel.Dock="Right"
+                                Content="Laden" Style="{StaticResource ActionButton}"
+                                Padding="14,7" Margin="8,0,0,0" Click="DocSearchRefresh_Click"/>
+                        <ComboBox x:Name="DocTypeFilter" DockPanel.Dock="Right"
+                                  Width="170" Height="34" SelectedIndex="0"
+                                  Margin="8,0,0,0" VerticalContentAlignment="Center"
+                                  SelectionChanged="DocTypeFilter_SelectionChanged">
+                            <ComboBoxItem Content="Alle Typen"/>
+                            <ComboBoxItem Content="Rechnung"/>
+                            <ComboBoxItem Content="Angebot"/>
+                            <ComboBoxItem Content="Bestellung"/>
+                            <ComboBoxItem Content="Lieferschein"/>
+                            <ComboBoxItem Content="Gutschrift"/>
+                            <ComboBoxItem Content="Mahnung"/>
+                            <ComboBoxItem Content="Proforma-Rechnung"/>
+                        </ComboBox>
+                        <Grid>
+                            <TextBox x:Name="DocSearchBox" Height="34"
+                                     VerticalContentAlignment="Center"
+                                     TextChanged="DocSearchBox_TextChanged" Padding="10,0"/>
+                            <TextBlock Text="Dok.-Nr., Kundennr., Kundenname …"
+                                       IsHitTestVisible="False" VerticalAlignment="Center"
+                                       Margin="12,0,0,0" Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontStyle="Italic" FontSize="12">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=DocSearchBox}" Value="">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </DockPanel>
+                    <TextBlock x:Name="DocSearchStatusText"
+                               Text="Noch nicht geladen – klicken Sie auf Laden"
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,0,0,10"/>
+                    <DataGrid x:Name="DocSearchResultsGrid" MaxHeight="280"
+                              Style="{StaticResource ModernDataGrid}"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
+                              IsReadOnly="True" SelectionMode="Single"
+                              MouseDoubleClick="DocSearchResultsGrid_DoubleClick"
+                              Visibility="Collapsed">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Nr." Binding="{Binding Number}" Width="110"/>
+                            <DataGridTextColumn Header="Typ" Binding="{Binding DisplayType}" Width="130"/>
+                            <DataGridTextColumn Header="Datum" Binding="{Binding DocumentDate}" Width="90"/>
+                            <DataGridTextColumn Header="Kunde" Binding="{Binding CustomerDisplay}" Width="*"/>
+                            <DataGridTextColumn Header="Betrag" Binding="{Binding TotalGrossDisplay}" Width="100"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding DisplayStatus}" Width="110"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ SCHNELLAKTIONEN ═════════════════════════════════════ -->
+            <TextBlock Text="Schnellaktionen" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
+            <WrapPanel Margin="0,0,0,28">
+                <Button Content="+ Neues Projekt" Style="{StaticResource ModernButton}"
+                        Background="{StaticResource SuccessBrush}" Foreground="White"
+                        Padding="16,9" Margin="0,0,8,8" Click="NewProject_Click"/>
+                <Button Content="+ Neue Aufgabe" Style="{StaticResource ModernButton}"
+                        Background="{StaticResource WarningBrush}" Foreground="White"
+                        Padding="16,9" Margin="0,0,8,8" Click="NewTask_Click"/>
+                <Button Content="+ Neuer Kunde" Style="{StaticResource ModernButton}"
+                        Background="{StaticResource PrimaryBrush}" Foreground="White"
+                        Padding="16,9" Margin="0,0,8,8" Click="NewCustomer_Click"/>
+                <Button Content="Kunden verwalten" Style="{StaticResource ModernButton}"
+                        Background="{StaticResource NeutralBrush}" Foreground="White"
+                        Padding="16,9" Margin="0,0,8,8" Click="ManageCustomers_Click"/>
+                <Button Content="Zeiterfassung" Style="{StaticResource ModernButton}"
+                        Background="{StaticResource NeutralBrush}" Foreground="White"
+                        Padding="16,9" Margin="0,0,0,8" Click="TimeTracking_Click"/>
             </WrapPanel>
 
-            <!-- Document Creation Section -->
-            <TextBlock Text="📄 Dokumente erstellen" FontSize="16" FontWeight="Bold" Margin="0,30,0,15"/>
-            <Grid>
+            <!-- ═══ DOKUMENTE ERSTELLEN ═══════════════════════════════════ -->
+            <TextBlock Text="Dokumente erstellen" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
+
+            <!-- Primäre Dokumente -->
+            <Grid Margin="0,0,0,12">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="10"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Angebot erstellen Card -->
-                <Border Grid.Column="0" Background="#FFF8E1" CornerRadius="10" Padding="20" BorderBrush="#FFB300" BorderThickness="2">
+                <Border Grid.Column="0" Style="{StaticResource DocCard}">
                     <StackPanel>
-                        <TextBlock Text="📋 Angebot erstellen" FontSize="18" FontWeight="Bold" Foreground="#FF6F00" Margin="0,0,0,10"/>
-                        <TextBlock Text="Erstellen Sie schnell und einfach ein professionelles Angebot für Ihre Projekte und Kunden." 
-                                   TextWrapping="Wrap" FontSize="12" Foreground="#666" Margin="0,0,0,15"/>
-                        <Button Content="Angebot jetzt erstellen" Height="40" 
-                                Background="#FF9800" Foreground="White" FontWeight="Bold" 
-                                BorderThickness="0" Click="CreateOffer_Click"
-                                HorizontalAlignment="Stretch"/>
+                        <Border Width="40" Height="40" CornerRadius="8"
+                                Background="{StaticResource WarningLightBrush}"
+                                HorizontalAlignment="Left" Margin="0,0,0,14">
+                            <TextBlock Text="📋" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="Angebot erstellen" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6"/>
+                        <TextBlock Text="Erstellen Sie ein professionelles Angebot für Projekte und Kunden."
+                                   TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,18"/>
+                        <Button Content="Angebot erstellen" Style="{StaticResource ModernButton}"
+                                Background="{StaticResource WarningBrush}" Foreground="White"
+                                Padding="0,10" HorizontalAlignment="Stretch"
+                                Click="CreateOffer_Click"/>
                     </StackPanel>
                 </Border>
 
-                <!-- Rechnung erstellen Card -->
-                <Border Grid.Column="2" Background="#E8F5E9" CornerRadius="10" Padding="20" BorderBrush="#4CAF50" BorderThickness="2">
+                <Border Grid.Column="2" Style="{StaticResource DocCard}">
                     <StackPanel>
-                        <TextBlock Text="📄 Rechnung erstellen" FontSize="18" FontWeight="Bold" Foreground="#2E7D32" Margin="0,0,0,10"/>
-                        <TextBlock Text="Erstellen Sie Rechnungen direkt aus Ihren erfassten Zeiten und Projektdaten mit Easybill." 
-                                   TextWrapping="Wrap" FontSize="12" Foreground="#666" Margin="0,0,0,15"/>
-                        <Button Content="Rechnung jetzt erstellen" Height="40" 
-                                Background="#4CAF50" Foreground="White" FontWeight="Bold" 
-                                BorderThickness="0" Click="CreateInvoice_Click"
-                                HorizontalAlignment="Stretch"/>
+                        <Border Width="40" Height="40" CornerRadius="8"
+                                Background="{StaticResource SuccessLightBrush}"
+                                HorizontalAlignment="Left" Margin="0,0,0,14">
+                            <TextBlock Text="📄" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="Rechnung erstellen" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6"/>
+                        <TextBlock Text="Erstellen Sie Rechnungen aus erfassten Zeiten und Projektdaten."
+                                   TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,18"/>
+                        <Button Content="Rechnung erstellen" Style="{StaticResource ModernButton}"
+                                Background="{StaticResource SuccessBrush}" Foreground="White"
+                                Padding="0,10" HorizontalAlignment="Stretch"
+                                Click="CreateInvoice_Click"/>
                     </StackPanel>
                 </Border>
             </Grid>
 
-            <!-- Additional Document Types -->
-            <Grid Margin="0,10,0,0">
+            <!-- Sekundäre Dokumente -->
+            <Grid Margin="0,0,0,28">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="10"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="10"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="10"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Auftragsbestätigung Card -->
-                <Border Grid.Column="0" Background="#F3E5F5" CornerRadius="10" Padding="15" BorderBrush="#9C27B0" BorderThickness="2">
+                <Border Grid.Column="0" Style="{StaticResource DocCard}">
                     <StackPanel>
-                        <TextBlock Text="✅ Auftrag" FontSize="14" FontWeight="Bold" Foreground="#7B1FA2" Margin="0,0,0,8"/>
-                        <TextBlock Text="Auftragsbestätigung erstellen" TextWrapping="Wrap" FontSize="11" Foreground="#666" Margin="0,0,0,10"/>
-                        <Button Content="Auftrag erstellen" Height="35" 
-                                Background="#9C27B0" Foreground="White" FontWeight="Bold" 
-                                BorderThickness="0" Click="CreateOrderConfirmation_Click"
-                                HorizontalAlignment="Stretch"/>
+                        <TextBlock Text="Auftragsbestätigung" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6"/>
+                        <TextBlock Text="Auftrag bestätigen" TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,14"/>
+                        <Button Content="Erstellen" Style="{StaticResource ModernButton}"
+                                Padding="0,8" HorizontalAlignment="Stretch"
+                                Click="CreateOrderConfirmation_Click">
+                            <Button.Background><SolidColorBrush Color="#7C3AED"/></Button.Background>
+                        </Button>
                     </StackPanel>
                 </Border>
 
-                <!-- Lieferschein Card -->
-                <Border Grid.Column="2" Background="#E3F2FD" CornerRadius="10" Padding="15" BorderBrush="#2196F3" BorderThickness="2">
+                <Border Grid.Column="2" Style="{StaticResource DocCard}">
                     <StackPanel>
-                        <TextBlock Text="📦 Lieferschein" FontSize="14" FontWeight="Bold" Foreground="#1976D2" Margin="0,0,0,8"/>
-                        <TextBlock Text="Versandbestätigung für Ihre Kunden" TextWrapping="Wrap" FontSize="11" Foreground="#666" Margin="0,0,0,10"/>
-                        <Button Content="Lieferschein erstellen" Height="35" 
-                                Background="#2196F3" Foreground="White" FontWeight="Bold" 
-                                BorderThickness="0" Click="CreateDeliveryNote_Click"
-                                HorizontalAlignment="Stretch"/>
+                        <TextBlock Text="Lieferschein" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6"/>
+                        <TextBlock Text="Versandbestätigung" TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,14"/>
+                        <Button Content="Erstellen" Style="{StaticResource ModernButton}"
+                                Background="{StaticResource PrimaryBrush}" Foreground="White"
+                                Padding="0,8" HorizontalAlignment="Stretch"
+                                Click="CreateDeliveryNote_Click"/>
                     </StackPanel>
                 </Border>
 
-                <!-- Gutschrift Card -->
-                <Border Grid.Column="4" Background="#FCE4EC" CornerRadius="10" Padding="15" BorderBrush="#E91E63" BorderThickness="2">
+                <Border Grid.Column="4" Style="{StaticResource DocCard}">
                     <StackPanel>
-                        <TextBlock Text="💳 Gutschrift" FontSize="14" FontWeight="Bold" Foreground="#C2185B" Margin="0,0,0,8"/>
-                        <TextBlock Text="Rechnungskorrektur oder Storno" TextWrapping="Wrap" FontSize="11" Foreground="#666" Margin="0,0,0,10"/>
-                        <Button Content="Gutschrift erstellen" Height="35" 
-                                Background="#E91E63" Foreground="White" FontWeight="Bold" 
-                                BorderThickness="0" Click="CreateCreditNote_Click"
-                                HorizontalAlignment="Stretch"/>
+                        <TextBlock Text="Gutschrift" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6"/>
+                        <TextBlock Text="Rechnungskorrektur" TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,14"/>
+                        <Button Content="Erstellen" Style="{StaticResource ModernButton}"
+                                Padding="0,8" HorizontalAlignment="Stretch"
+                                Click="CreateCreditNote_Click">
+                            <Button.Background><SolidColorBrush Color="#DB2777"/></Button.Background>
+                        </Button>
                     </StackPanel>
                 </Border>
 
-                <!-- Mahnung Card -->
-                <Border Grid.Column="6" Background="#FFEBEE" CornerRadius="10" Padding="15" BorderBrush="#F44336" BorderThickness="2">
+                <Border Grid.Column="6" Style="{StaticResource DocCard}">
                     <StackPanel>
-                        <TextBlock Text="⚠️ Mahnung" FontSize="14" FontWeight="Bold" Foreground="#D32F2F" Margin="0,0,0,8"/>
-                        <TextBlock Text="Zahlungserinnerung versenden" TextWrapping="Wrap" FontSize="11" Foreground="#666" Margin="0,0,0,10"/>
-                        <Button Content="Mahnung erstellen" Height="35" 
-                                Background="#F44336" Foreground="White" FontWeight="Bold" 
-                                BorderThickness="0" Click="CreateDunning_Click"
-                                HorizontalAlignment="Stretch"/>
+                        <TextBlock Text="Mahnung" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6"/>
+                        <TextBlock Text="Zahlungserinnerung" TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,14"/>
+                        <Button Content="Erstellen" Style="{StaticResource ModernButton}"
+                                Background="{StaticResource DangerBrush}" Foreground="White"
+                                Padding="0,8" HorizontalAlignment="Stretch"
+                                Click="CreateDunning_Click"/>
                     </StackPanel>
                 </Border>
             </Grid>
 
-            <!-- Easybill Shortcuts -->
-            <TextBlock Text="💳 Easybill-Verwaltung" FontSize="16" FontWeight="Bold" Margin="0,30,0,15"/>
-            <WrapPanel>
-                <Button Content="📄 Dokumente anzeigen" Width="180" Height="40" Margin="0,0,10,10"
-                        Background="#2196F3" Foreground="White" FontWeight="Bold" BorderThickness="0" Click="ShowDocuments_Click"/>
-                <Button Content="👤 Kunden verwalten" Width="180" Height="40" Margin="0,0,10,10"
-                        Background="#00BCD4" Foreground="White" FontWeight="Bold" BorderThickness="0" Click="ManageCustomers_Click"/>
-                <Button Content="📦 Produkte anzeigen" Width="180" Height="40" Margin="0,0,10,10"
-                        Background="#009688" Foreground="White" FontWeight="Bold" BorderThickness="0" Click="ShowProducts_Click"/>
-                <Button Content="📤 Zeiten exportieren" Width="180" Height="40" Margin="0,0,10,10"
-                        Background="#FF5722" Foreground="White" FontWeight="Bold" BorderThickness="0" Click="ExportTimes_Click"/>
-            </WrapPanel>
-        </StackPanel>
-    </ScrollViewer>
-</UserControl>
+            <!-- ═══ CHARTS ════════════════════════════════════════════════ -->
+            <Grid Margin="0,0,0,28">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Umsatz-Chart -->
+                <Border Grid.Column="0" Style="{StaticResource ModernCard}">
+                    <StackPanel>
+                        <TextBlock Text="Umsatz-Übersicht" Style="{StaticResource SectionTitle}" Margin="0,0,0,18"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Bezahlt" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource SuccessBrush}" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="{StaticResource NeutralLightBrush}"
+                                    CornerRadius="4" Height="16" Margin="0,0,10,0">
+                                <Border x:Name="ChartBarPaid" Background="{StaticResource SuccessBrush}"
+                                        CornerRadius="4" HorizontalAlignment="Left" Width="0"/>
+                            </Border>
+                            <TextBlock Grid.Column="2" x:Name="ChartLabelPaid" FontSize="12" FontWeight="SemiBold"
+                                       HorizontalAlignment="Right" Foreground="{StaticResource SuccessBrush}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Offen" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource WarningBrush}" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="{StaticResource NeutralLightBrush}"
+                                    CornerRadius="4" Height="16" Margin="0,0,10,0">
+                                <Border x:Name="ChartBarOpen" Background="{StaticResource WarningBrush}"
+                                        CornerRadius="4" HorizontalAlignment="Left" Width="0"/>
+                            </Border>
+                            <TextBlock Grid.Column="2" x:Name="ChartLabelOpen" FontSize="12" FontWeight="SemiBold"
+                                       HorizontalAlignment="Right" Foreground="{StaticResource WarningBrush}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Überfällig" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource DangerBrush}" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="{StaticResource NeutralLightBrush}"
+                                    CornerRadius="4" Height="16" Margin="0,0,10,0">
+                                <Border x:Name="ChartBarOverdue" Background="{StaticResource DangerBrush}"
+                                        CornerRadius="4" HorizontalAlignment="Left" Width="0"/>
+                            </Border>
+                            <TextBlock Grid.Column="2" x:Name="ChartLabelOverdue" FontSize="12" FontWeight="SemiBold"
+                                       HorizontalAlignment="Right" Foreground="{StaticResource DangerBrush}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Budget-Chart -->
+                <Border Grid.Column="2" x:Name="BudgetChartBorder" Style="{StaticResource ModernCard}">
+                    <StackPanel>
+                        <TextBlock Text="Projekt-Budget-Auslastung" Style="{StaticResource SectionTitle}" Margin="0,0,0,18"/>
+                        <StackPanel x:Name="BudgetChartPanel">
+                            <TextBlock x:Name="BudgetChartPlaceholder"
+                                       Text="Keine Projekte mit Budget vorhanden."
+                                       FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </UserControl>

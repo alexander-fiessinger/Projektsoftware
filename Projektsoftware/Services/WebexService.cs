@@ -39,6 +39,47 @@ namespace Projektsoftware.Services
 
         public bool IsConfigured => config.IsConfigured;
 
+        private async Task EnsureValidTokenAsync()
+        {
+            if (!config.IsTokenExpired || !config.CanRefresh) return;
+            try
+            {
+                await RefreshAccessTokenAsync();
+            }
+            catch (Exception ex)
+            {
+                throw new UnauthorizedAccessException(
+                    "Webex Token konnte nicht automatisch erneuert werden.\n" +
+                    "Bitte melden Sie sich erneut an unter Einstellungen \u2192 Webex.\n\n" +
+                    $"Fehler: {ex.Message}");
+            }
+        }
+
+        public async Task RefreshAccessTokenAsync()
+        {
+            using var refreshClient = new HttpClient();
+            var form = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "refresh_token",
+                ["client_id"] = config.ClientId,
+                ["client_secret"] = config.ClientSecret,
+                ["refresh_token"] = config.RefreshToken
+            });
+            var response = await refreshClient.PostAsync("https://webexapis.com/v1/access_token", form);
+            var json = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"HTTP {(int)response.StatusCode}: {json}");
+            var tokenData = JsonSerializer.Deserialize<WebexTokenResponse>(json)
+                ?? throw new Exception("Ung\u00fcltige Token-Antwort von Webex");
+            config.AccessToken = tokenData.AccessToken ?? "";
+            if (!string.IsNullOrWhiteSpace(tokenData.RefreshToken))
+                config.RefreshToken = tokenData.RefreshToken;
+            config.TokenExpiry = DateTime.UtcNow.AddSeconds(tokenData.ExpiresIn);
+            config.Save();
+            httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", config.AccessToken);
+        }
+
         #region Meeting CRUD
 
         /// <summary>
@@ -46,6 +87,7 @@ namespace Projektsoftware.Services
         /// </summary>
         public async Task<WebexMeetingResponse> CreateMeetingAsync(Meeting meeting)
         {
+            await EnsureValidTokenAsync();
             var invitees = BuildInvitees(meeting.Participants);
 
             var request = new
@@ -69,6 +111,20 @@ namespace Projektsoftware.Services
             var response = await httpClient.PostAsync("meetings", content);
             var responseBody = await response.Content.ReadAsStringAsync();
 
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                throw new UnauthorizedAccessException(
+                    "Webex Access Token ist ungültig oder abgelaufen.\n" +
+                    "Bitte aktualisieren Sie den Token unter Einstellungen → Webex.");
+            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                throw new UnauthorizedAccessException(
+                    "Webex: Fehlende Berechtigungen oder keine Meetings-Lizenz.\n\n" +
+                    "Mögliche Ursachen:\n" +
+                    "• Das Token hat nicht den Scope 'meeting:schedules_write'\n" +
+                    "• Der Webex-Account hat keine Meetings-Lizenz\n" +
+                    "• Bot-Token werden für die Meetings-API nicht unterstützt\n\n" +
+                    "Lösung: Melden Sie sich erneut über die OAuth-Anmeldung in den\n" +
+                    "Einstellungen → Webex an (Schritt 1–3). Bot-Token können keine\n" +
+                    "Meetings erstellen – es wird ein persönliches Benutzerkonto benötigt.");
             if (!response.IsSuccessStatusCode)
                 throw new Exception($"Webex API Fehler ({response.StatusCode}): {responseBody}");
 
@@ -81,6 +137,7 @@ namespace Projektsoftware.Services
         /// </summary>
         public async Task<WebexMeetingResponse> UpdateMeetingAsync(string webexMeetingId, Meeting meeting)
         {
+            await EnsureValidTokenAsync();
             var request = new
             {
                 title = meeting.Title,
@@ -95,6 +152,20 @@ namespace Projektsoftware.Services
             var response = await httpClient.PutAsync($"meetings/{webexMeetingId}", content);
             var responseBody = await response.Content.ReadAsStringAsync();
 
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                throw new UnauthorizedAccessException(
+                    "Webex Access Token ist ungültig oder abgelaufen.\n" +
+                    "Bitte aktualisieren Sie den Token unter Einstellungen → Webex.");
+            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                throw new UnauthorizedAccessException(
+                    "Webex: Fehlende Berechtigungen oder keine Meetings-Lizenz.\n\n" +
+                    "Mögliche Ursachen:\n" +
+                    "• Das Token hat nicht den Scope 'meeting:schedules_write'\n" +
+                    "• Der Webex-Account hat keine Meetings-Lizenz\n" +
+                    "• Bot-Token werden für die Meetings-API nicht unterstützt\n\n" +
+                    "Lösung: Melden Sie sich erneut über die OAuth-Anmeldung in den\n" +
+                    "Einstellungen → Webex an (Schritt 1–3). Bot-Token können keine\n" +
+                    "Meetings erstellen – es wird ein persönliches Benutzerkonto benötigt.");
             if (!response.IsSuccessStatusCode)
                 throw new Exception($"Webex API Fehler ({response.StatusCode}): {responseBody}");
 
@@ -139,6 +210,7 @@ namespace Projektsoftware.Services
         /// </summary>
         public async Task<WebexPersonInfo> TestConnectionAsync()
         {
+            await EnsureValidTokenAsync();
             var response = await httpClient.GetAsync("people/me");
             var body = await response.Content.ReadAsStringAsync();
 
@@ -147,6 +219,25 @@ namespace Projektsoftware.Services
 
             return JsonSerializer.Deserialize<WebexPersonInfo>(body, JsonOptions)
                 ?? throw new Exception("Ungültige Antwort von Webex API");
+        }
+
+        /// <summary>
+        /// Prüft ob der Token den Scope 'meeting:schedules_write' besitzt.
+        /// Gibt true zurück wenn ja, false bei 403 (Scope fehlt), null bei anderem Fehler.
+        /// </summary>
+        public async Task<bool?> TestMeetingsScopeAsync()
+        {
+            try
+            {
+                var response = await httpClient.GetAsync("meetings?max=1");
+                if (response.IsSuccessStatusCode) return true;
+                if (response.StatusCode == System.Net.HttpStatusCode.Forbidden) return false;
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         #endregion
@@ -229,5 +320,17 @@ namespace Projektsoftware.Services
         public string[]? Emails { get; set; }
 
         public string Email => Emails?.FirstOrDefault() ?? "";
+    }
+
+    public class WebexTokenResponse
+    {
+        [JsonPropertyName("access_token")]
+        public string? AccessToken { get; set; }
+
+        [JsonPropertyName("refresh_token")]
+        public string? RefreshToken { get; set; }
+
+        [JsonPropertyName("expires_in")]
+        public int ExpiresIn { get; set; }
     }
 }

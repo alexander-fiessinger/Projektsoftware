@@ -68,6 +68,9 @@ namespace Projektsoftware.Views
             AssignedToText.Text = string.IsNullOrEmpty(ticket.AssignedToEmployeeName) 
                 ? "Nicht zugewiesen" 
                 : ticket.AssignedToEmployeeName;
+            ProjectText.Text = string.IsNullOrEmpty(ticket.ProjectName)
+                ? "Kein Projekt zugeordnet"
+                : ticket.ProjectName;
 
             // Zeitstempel
             CreatedAtText.Text = $"Erstellt: {ticket.CreatedAt:dd.MM.yyyy HH:mm}";
@@ -191,6 +194,12 @@ namespace Projektsoftware.Views
             {
                 Window_Loaded(sender, e); // Neu laden
             }
+        }
+
+        private void SendEmail_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new TicketEmailDialog(ticket);
+            dialog.ShowDialog();
         }
 
         private async void ExportPdf_Click(object sender, RoutedEventArgs e)

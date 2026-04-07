@@ -18,6 +18,7 @@ namespace Projektsoftware.Services
         public bool IsRunning => timer != null && timer.IsEnabled;
         public TimeSpan ElapsedTime => stopwatch?.Elapsed ?? TimeSpan.Zero;
         public DateTime StartTime => startTime;
+        public int CurrentProjectId { get; private set; }
         public string CurrentProject => currentProject;
         public string CurrentActivity => currentActivity;
 
@@ -35,10 +36,11 @@ namespace Projektsoftware.Services
             timer.Tick += Timer_Tick;
         }
 
-        public void Start(string project, string activity)
+        public void Start(int projectId, string project, string activity)
         {
             if (!IsRunning)
             {
+                CurrentProjectId = projectId;
                 currentProject = project;
                 currentActivity = activity;
                 startTime = DateTime.Now;
@@ -65,6 +67,7 @@ namespace Projektsoftware.Services
         {
             Stop();
             stopwatch.Reset();
+            CurrentProjectId = 0;
             currentProject = null;
             currentActivity = null;
         }

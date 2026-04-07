@@ -145,6 +145,21 @@
                     IsEnabled="False"
                     Background="#F44336"
                     Foreground="White"/>
+            <Button Content="📧 E-Mail" 
+                    Width="110" 
+                    Height="35" 
+                    Margin="0,0,10,0" 
+                    Click="SendEmail_Click"
+                    x:Name="SendEmailButton"
+                    IsEnabled="False"
+                    Background="#2196F3"
+                    Foreground="White"/>
+            <Button Content="⚙️ Ticket-SMTP" 
+                    Width="130" 
+                    Height="35" 
+                    Margin="0,0,10,0" 
+                    Click="ConfigureTicketSmtp_Click"
+                    ToolTip="Ticket-SMTP Konfiguration öffnen"/>
             <Separator Width="20" Background="Transparent"/>
 
             <!-- Filter -->

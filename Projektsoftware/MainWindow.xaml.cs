@@ -2,20 +2,26 @@
 using Projektsoftware.ViewModels;
 using Projektsoftware.Views;
 using Projektsoftware.Services;
+using Projektsoftware.Resources;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace Projektsoftware
 {
     public partial class MainWindow : Window
     {
         private MainViewModel? viewModel;
-
+        private List<AppNotification> _cachedNotifications = new();
+        private readonly TimeTrackerService _timerService = new();
         public MainWindow()
         {
             InitializeComponent();
@@ -52,6 +58,12 @@ namespace Projektsoftware
 
                 DataContext = viewModel;
 
+                // Timer-Tick für Live-Anzeige
+                _timerService.Tick += (s, elapsed) =>
+                {
+                    TimerDisplay.Text = _timerService.GetFormattedTime();
+                };
+
                 // Zeige Benutzernamen in der Titelleiste
                 Title = $"Projektierungssoftware Professional - Angemeldet als: {AuthenticationService.CurrentUser.Username}";
 
@@ -82,6 +94,9 @@ namespace Projektsoftware
                     DashboardControl.UpdateStats(viewModel.DashboardStats);
                 }
 
+                // Finanzdaten asynchron laden (nicht blockierend)
+                _ = LoadFinancialDashboardDataAsync();
+
                 // Kalender nach DB-Initialisierung laden
                 if (MeetingCalendarView != null)
                 {
@@ -90,6 +105,24 @@ namespace Projektsoftware
 
                 // Auf Updates prüfen (im Hintergrund, nach kurzer Verzögerung)
                 _ = CheckForUpdatesInBackgroundAsync();
+
+                // Easybill-Projekte automatisch im Hintergrund synchronisieren
+                _ = SyncProjectsFromEasybillInBackgroundAsync();
+
+                // Benachrichtigungen laden
+                _ = LoadNotificationsAsync();
+
+                // Dokumentensuche im Dashboard
+                if (DashboardControl != null)
+                {
+                    DashboardControl.DocumentSearchRefreshClicked += async (s, e) => await LoadDocumentSearchAsync();
+                    DashboardControl.DocumentSelected += (s, doc) =>
+                    {
+                        var dialog = new EasybillDocumentsDialog();
+                        dialog.ShowDialog();
+                    };
+                    _ = LoadDocumentSearchAsync();
+                }
             }
             catch (Exception ex)
             {
@@ -391,6 +424,22 @@ namespace Projektsoftware
             }
         }
 
+        private void DocumentsCustomer_Click(object sender, RoutedEventArgs e)
+        {
+            Customer? customer = null;
+
+            if (sender is Button button)
+                customer = button.DataContext as Customer;
+            else if (sender is MenuItem)
+                customer = CustomersDataGrid?.SelectedItem as Customer;
+
+            if (customer != null)
+            {
+                var dialog = new CustomerDocumentsDialog(customer);
+                dialog.ShowDialog();
+            }
+        }
+
         private async void SyncCustomer_Click(object sender, RoutedEventArgs e)
         {
             Customer? customer = null;
@@ -577,6 +626,12 @@ namespace Projektsoftware
             dialog.ShowDialog();
         }
 
+        private void ConfigureExchange_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new ExchangeSettingsDialog { Owner = this };
+            dialog.ShowDialog();
+        }
+
         private void ManageUsers_Click(object sender, RoutedEventArgs e)
         {
             // Nur Admins dürfen Benutzer verwalten
@@ -688,6 +743,26 @@ namespace Projektsoftware
             }
         }
 
+        private void DocumentsProject_Click(object sender, RoutedEventArgs e)
+        {
+            Project project = null;
+
+            if (sender is Button button)
+            {
+                project = button.DataContext as Project;
+            }
+            else if (sender is MenuItem)
+            {
+                project = ProjectsDataGrid.SelectedItem as Project;
+            }
+
+            if (project != null)
+            {
+                var dialog = new ProjectDocumentsDialog(project);
+                dialog.ShowDialog();
+            }
+        }
+
         private async void DeleteProject_Click(object sender, RoutedEventArgs e)
         {
             Project project = null;
@@ -716,7 +791,81 @@ namespace Projektsoftware
             }
         }
 
-        private void CreateOfferFromProject_Click(object sender, RoutedEventArgs e)
+        private async System.Threading.Tasks.Task SyncProjectsFromEasybillInBackgroundAsync()
+        {
+            try
+            {
+                var easybillService = new EasybillService();
+                if (!easybillService.IsConfigured) return;
+
+                var dbService = new DatabaseService();
+                var easybillProjects = await easybillService.GetAllProjectsAsync();
+                var localProjects = await dbService.GetAllProjectsAsync();
+                var easybillCustomers = await easybillService.GetAllCustomersAsync();
+
+                foreach (var ebProject in easybillProjects)
+                {
+                    if (!ebProject.Id.HasValue) continue;
+
+                    var customerName = easybillCustomers
+                        .FirstOrDefault(c => c.Id == ebProject.CustomerId)?.DisplayName ?? "";
+
+                    var existing = localProjects.FirstOrDefault(p => p.EasybillProjectId == ebProject.Id.Value);
+
+                    if (existing != null)
+                    {
+                        existing.Name = ebProject.Name ?? existing.Name;
+                        existing.Description = ebProject.Description ?? existing.Description;
+                        existing.Status = MapEasybillStatus(ebProject.Status);
+                        existing.EasybillCustomerId = ebProject.CustomerId;
+                        if (!string.IsNullOrEmpty(customerName))
+                            existing.ClientName = customerName;
+                        if (ebProject.DueAt != null && DateTime.TryParse(ebProject.DueAt, out var dueDate))
+                            existing.EndDate = dueDate;
+                        await dbService.UpdateProjectAsync(existing);
+                    }
+                    else
+                    {
+                        DateTime? endDate = ebProject.DueAt != null && DateTime.TryParse(ebProject.DueAt, out var newDueDate)
+                            ? newDueDate
+                            : (DateTime?)null;
+
+                        var newProject = new Project
+                        {
+                            Name = ebProject.Name ?? "Unbekanntes Projekt",
+                            Description = ebProject.Description ?? "",
+                            StartDate = DateTime.Now,
+                            EndDate = endDate,
+                            Status = MapEasybillStatus(ebProject.Status),
+                            ClientName = customerName,
+                            EasybillCustomerId = ebProject.CustomerId,
+                            EasybillProjectId = ebProject.Id.Value,
+                            Budget = 0
+                        };
+                        await dbService.AddProjectAsync(newProject);
+                    }
+                }
+
+                await viewModel?.LoadAllDataAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Easybill-Projektsync Fehler: {ex.Message}");
+            }
+        }
+
+        private static string MapEasybillStatus(string easybillStatus)
+        {
+            return easybillStatus switch
+            {
+                "OPEN" => "Aktiv",
+                "COMPLETED" => "Abgeschlossen",
+                "CANCELED" => "Abgebrochen",
+                _ => "Aktiv"
+            };
+        }
+
+        private async void CreateOfferFromProject_Click(object sender, RoutedEventArgs e)
         {
             Project project = null;
 
@@ -731,10 +880,10 @@ namespace Projektsoftware
 
             if (project != null)
             {
-                var dialog = new CreateInvoiceFromProjectDialog(project, isOffer: true);
+                var dialog = new CreateInvoiceFromProjectDialog(project, "OFFER");
                 if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
                 {
-                    ShowOfferCreatedMessage(dialog.CreatedDocument, sender, e);
+                    await ShowDocumentCreatedAsync(dialog.CreatedDocument);
                 }
             }
             else
@@ -743,33 +892,12 @@ namespace Projektsoftware
                 var dialog = new CreateEasybillDocumentDialog("OFFER");
                 if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
                 {
-                    ShowOfferCreatedMessage(dialog.CreatedDocument, sender, e);
+                    await ShowDocumentCreatedAsync(dialog.CreatedDocument);
                 }
             }
         }
 
-        private void ShowOfferCreatedMessage(EasybillDocument doc, object sender, RoutedEventArgs e)
-        {
-            var docNumber = !string.IsNullOrEmpty(doc.Number) ? doc.Number : "(Entwurf - wird beim Abschließen vergeben)";
-
-            var result = MessageBox.Show(
-                $"Angebot erfolgreich in Easybill erstellt!\n\n" +
-                $"Dokumentnummer: {docNumber}\n" +
-                $"Gesamtbetrag: {doc.TotalGross:N2} EUR\n" +
-                $"Status: {doc.DisplayStatus}\n" +
-                $"Datum: {doc.DocumentDate}\n\n" +
-                $"Möchten Sie alle Easybill-Dokumente jetzt anzeigen?",
-                "Angebot erstellt",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Information);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                ShowEasybillDocuments_Click(sender, e);
-            }
-        }
-
-        private void CreateInvoiceFromProject_Click(object sender, RoutedEventArgs e)
+        private async void CreateInvoiceFromProject_Click(object sender, RoutedEventArgs e)
         {
             Project project = null;
 
@@ -784,27 +912,41 @@ namespace Projektsoftware
 
             if (project != null)
             {
-                var dialog = new CreateInvoiceFromProjectDialog(project, isOffer: false);
+                var dialog = new CreateInvoiceFromProjectDialog(project, "INVOICE");
                 if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
                 {
-                    var doc = dialog.CreatedDocument;
-                    var docNumber = !string.IsNullOrEmpty(doc.Number) ? doc.Number : "(Entwurf - wird beim Abschließen vergeben)";
+                    await ShowDocumentCreatedAsync(dialog.CreatedDocument);
+                }
+            }
+            else
+            {
+                var dialog = new CreateEasybillDocumentDialog("INVOICE");
+                if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
+                {
+                    await ShowDocumentCreatedAsync(dialog.CreatedDocument);
+                }
+            }
+        }
 
-                    var result = MessageBox.Show(
-                        $"✅ Rechnung erfolgreich in Easybill erstellt!\n\n" +
-                        $"📄 Rechnungsnummer: {docNumber}\n" +
-                        $"💰 Gesamtbetrag: {doc.TotalGross:N2} €\n" +
-                        $"📊 Status: {doc.DisplayStatus}\n" +
-                        $"📅 Datum: {doc.DocumentDate}\n\n" +
-                        $"Möchten Sie alle Easybill-Dokumente jetzt anzeigen?",
-                        "Rechnung erstellt",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Information);
+        private async void CreateProformaFromProject_Click(object sender, RoutedEventArgs e)
+        {
+            Project project = null;
 
-                    if (result == MessageBoxResult.Yes)
-                    {
-                        ShowEasybillDocuments_Click(sender, e);
-                    }
+            if (sender is Button button)
+            {
+                project = button.DataContext as Project;
+            }
+            else if (sender is MenuItem menuItem)
+            {
+                project = ProjectsDataGrid.SelectedItem as Project;
+            }
+
+            if (project != null)
+            {
+                var dialog = new CreateProformaFromProjectDialog(project);
+                if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
+                {
+                    await ShowDocumentCreatedAsync(dialog.CreatedDocument);
                 }
             }
         }
@@ -955,112 +1097,44 @@ namespace Projektsoftware
             MainTabControl.SelectedIndex = 3; // Zeiterfassung Tab
         }
 
-        private void DashboardCreateOffer_Click(object sender, RoutedEventArgs e)
+        private async void DashboardCreateOffer_Click(object sender, RoutedEventArgs e)
+        {
+            await DashboardCreateOffer_Click_Async();
+        }
+
+        private async void DashboardCreateInvoice_Click(object sender, RoutedEventArgs e)
         {
             if (viewModel == null) return;
 
-            // Frage ob mit oder ohne Projekt
             var choice = MessageBox.Show(
-                "Möchten Sie das Angebot aus einem bestehenden Projekt erstellen?\n\n" +
+                "Möchten Sie die Rechnung aus einem bestehenden Projekt erstellen?\n\n" +
                 "Ja = Aus Projekt (Zeiteinträge werden übernommen)\n" +
                 "Nein = Ohne Projekt (freie Positionen eingeben)",
-                "Angebot erstellen",
+                "Rechnung erstellen",
                 MessageBoxButton.YesNoCancel,
                 MessageBoxImage.Question);
 
-            if (choice == MessageBoxResult.Cancel)
-                return;
+            if (choice == MessageBoxResult.Cancel) return;
 
             if (choice == MessageBoxResult.Yes)
             {
-                // Bestehender Flow: Projekt auswählen
-                var projectSelectionDialog = new ProjectSelectionDialog(viewModel.Projects.ToList(), isForOffer: true);
+                var projectSelectionDialog = new ProjectSelectionDialog(viewModel.Projects.ToList(), isForOffer: false);
                 if (projectSelectionDialog.ShowDialog() == true && projectSelectionDialog.SelectedProject != null)
                 {
                     var project = projectSelectionDialog.SelectedProject;
-                    var dialog = new CreateInvoiceFromProjectDialog(project, isOffer: true);
+                    var dialog = new CreateInvoiceFromProjectDialog(project, "INVOICE");
                     if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
                     {
-                        var doc = dialog.CreatedDocument;
-                        var docNumber = !string.IsNullOrEmpty(doc.Number) ? doc.Number : "(Entwurf - wird beim Abschließen vergeben)";
-
-                        var result = MessageBox.Show(
-                            $"Angebot erfolgreich in Easybill erstellt!\n\n" +
-                            $"Angebotsnummer: {docNumber}\n" +
-                            $"Gesamtbetrag: {doc.TotalGross:N2} EUR\n" +
-                            $"Status: {doc.DisplayStatus}\n" +
-                            $"Datum: {doc.DocumentDate}\n\n" +
-                            $"Möchten Sie alle Easybill-Dokumente jetzt anzeigen?",
-                            "Angebot erstellt",
-                            MessageBoxButton.YesNo,
-                            MessageBoxImage.Information);
-
-                        if (result == MessageBoxResult.Yes)
-                        {
-                            ShowEasybillDocuments_Click(sender, e);
-                        }
+                        await ShowDocumentCreatedAsync(dialog.CreatedDocument);
                     }
                 }
             }
             else
             {
-                // Neuer Flow: Ohne Projekt direkt Angebot erstellen
-                var dialog = new CreateEasybillDocumentDialog("OFFER");
+                var dialog = new CreateEasybillDocumentDialog("INVOICE");
                 if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
                 {
-                    var doc = dialog.CreatedDocument;
-                    var docNumber = !string.IsNullOrEmpty(doc.Number) ? doc.Number : "(Entwurf - wird beim Abschließen vergeben)";
-
-                    var result = MessageBox.Show(
-                        $"Angebot erfolgreich in Easybill erstellt!\n\n" +
-                        $"Angebotsnummer: {docNumber}\n" +
-                        $"Gesamtbetrag: {doc.TotalGross:N2} EUR\n" +
-                        $"Status: {doc.DisplayStatus}\n" +
-                        $"Datum: {doc.DocumentDate}\n\n" +
-                        $"Möchten Sie alle Easybill-Dokumente jetzt anzeigen?",
-                        "Angebot erstellt",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Information);
-
-                    if (result == MessageBoxResult.Yes)
-                    {
-                        ShowEasybillDocuments_Click(sender, e);
-                    }
-                }
-            }
-        }
-
-        private void DashboardCreateInvoice_Click(object sender, RoutedEventArgs e)
-        {
-            // Öffne Dialog zur Auswahl eines Projekts für Rechnung
-            if (viewModel == null) return;
-
-            // Zeige Projekt-Auswahl-Dialog
-            var projectSelectionDialog = new ProjectSelectionDialog(viewModel.Projects.ToList(), isForOffer: false);
-            if (projectSelectionDialog.ShowDialog() == true && projectSelectionDialog.SelectedProject != null)
-            {
-                var project = projectSelectionDialog.SelectedProject;
-                var dialog = new CreateInvoiceFromProjectDialog(project, isOffer: false);
-                if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
-                {
-                    var doc = dialog.CreatedDocument;
-                    var docNumber = !string.IsNullOrEmpty(doc.Number) ? doc.Number : "(Entwurf - wird beim Abschließen vergeben)";
-
-                    var result = MessageBox.Show(
-                        $"✅ Rechnung erfolgreich in Easybill erstellt!\n\n" +
-                        $"📄 Rechnungsnummer: {docNumber}\n" +
-                        $"💰 Gesamtbetrag: {doc.TotalGross:N2} €\n" +
-                        $"📊 Status: {doc.DisplayStatus}\n" +
-                        $"📅 Datum: {doc.DocumentDate}\n\n" +
-                        $"Möchten Sie alle Easybill-Dokumente jetzt anzeigen?",
-                        "Rechnung erstellt",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Information);
-
-                    if (result == MessageBoxResult.Yes)
-                    {
-                        ShowEasybillDocuments_Click(sender, e);
-                    }
+                    await ShowDocumentCreatedAsync(dialog.CreatedDocument);
                 }
             }
         }
@@ -1278,18 +1352,102 @@ namespace Projektsoftware
         {
             try
             {
-                string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "app-icon.ico");
+                var iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
 
-                if (File.Exists(iconPath))
+                if (!File.Exists(iconPath))
                 {
-                    this.Icon = new BitmapImage(new Uri(iconPath, UriKind.Absolute));
+                    IconGenerator.SaveIconToFile(iconPath);
                 }
+
+                this.Icon = BitmapFrame.Create(
+                    new Uri(iconPath, UriKind.Absolute),
+                    BitmapCreateOptions.None,
+                    BitmapCacheOption.OnLoad);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Icon konnte nicht geladen werden: {ex.Message}");
             }
         }
+
+        #region Email Helpers
+
+        private async System.Threading.Tasks.Task SendDocumentEmailAsync(EasybillDocument doc)
+        {
+            if (doc?.Id == null) return;
+            try
+            {
+                var exchangeConfig = ExchangeConfig.Load();
+                if (!exchangeConfig.IsConfigured)
+                {
+                    MessageBox.Show(
+                        "SMTP ist nicht konfiguriert.\nBitte zuerst unter Einstellungen → SMTP E-Mail → Konfiguration einrichten.",
+                        "SMTP nicht konfiguriert",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                string customerEmail = string.Empty;
+                try
+                {
+                    var easybillService = new EasybillService();
+                    if (doc.CustomerId.HasValue)
+                    {
+                        var customer = await easybillService.GetCustomerAsync(doc.CustomerId.Value);
+                        customerEmail = customer?.Emails?.FirstOrDefault() ?? string.Empty;
+                    }
+                }
+                catch { }
+
+                var emailDialog = new EasybillSendEmailDialog(doc, customerEmail) { Owner = this };
+                if (emailDialog.ShowDialog() != true) return;
+
+                byte[] pdfBytes = null;
+                try
+                {
+                    var easybillService = new EasybillService();
+                    pdfBytes = await easybillService.DownloadDocumentPdfAsync(doc.Id.Value);
+                }
+                catch { }
+                var pdfFileName = $"{doc.DisplayType}_{doc.Number?.Replace("/", "-") ?? "Dokument"}.pdf";
+                await new ExchangeEmailService(exchangeConfig).SendEmailAsync(
+                    emailDialog.To, emailDialog.EmailSubject, emailDialog.Message,
+                    emailDialog.Cc, emailDialog.Bcc, pdfFileName, pdfBytes);
+
+                MessageBox.Show(
+                    $"✅ {doc.DisplayType} {doc.Number} erfolgreich per E-Mail versendet!",
+                    "E-Mail gesendet",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Fehler beim Versenden per E-Mail:\n\n{ex.Message}",
+                    "Fehler",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private async System.Threading.Tasks.Task ShowDocumentCreatedAsync(EasybillDocument doc)
+        {
+            var docNumber = !string.IsNullOrEmpty(doc.Number) ? doc.Number : "(Entwurf)";
+            var result = MessageBox.Show(
+                $"✅ {doc.DisplayType} erfolgreich erstellt!\n\n" +
+                $"📄 Nummer: {docNumber}\n" +
+                $"💰 Betrag: {doc.TotalGross:N2} €\n" +
+                $"📊 Status: {doc.DisplayStatus}\n\n" +
+                $"Möchten Sie das Dokument jetzt per E-Mail versenden?",
+                $"{doc.DisplayType} erstellt",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+            if (result == MessageBoxResult.Yes)
+                await SendDocumentEmailAsync(doc);
+        }
+
+        #endregion
 
         #region Dashboard Event Handlers
 
@@ -1340,46 +1498,26 @@ namespace Projektsoftware
                     return;
                 }
 
-                // Zeige Auswahl-Dialog (vereinfacht - könnte durch einen richtigen Dialog ersetzt werden)
-                var invoiceSelection = string.Join("\n", invoices.Take(10).Select((inv, idx) => 
-                    $"{idx + 1}. {inv.Number} - {inv.CustomerSnapshot?.CompanyName} - {inv.TotalGross:F2} €"));
+                var creditDialog = new Views.InvoiceSelectionDialog(
+                    invoices,
+                    "📝 Gutschrift erstellen",
+                    "Wählen Sie die Rechnung aus, zu der eine Gutschrift erstellt werden soll.",
+                    inputLabel: "Grund für die Gutschrift:",
+                    inputDefault: "Storno / Rechnungskorrektur")
+                { Owner = this };
 
-                var input = Microsoft.VisualBasic.Interaction.InputBox(
-                    $"Wählen Sie eine Rechnung (1-{Math.Min(10, invoices.Count)}):\n\n{invoiceSelection}",
-                    "Rechnung auswählen",
-                    "1");
-
-                if (string.IsNullOrWhiteSpace(input) || !int.TryParse(input, out int selection) || 
-                    selection < 1 || selection > invoices.Count)
-                {
+                if (creditDialog.ShowDialog() != true || creditDialog.SelectedInvoice?.Id == null)
                     return;
-                }
 
-                var selectedInvoice = invoices[selection - 1];
-
-                // Grund für Gutschrift erfragen
-                var reason = Microsoft.VisualBasic.Interaction.InputBox(
-                    "Bitte geben Sie den Grund für die Gutschrift ein:",
-                    "Grund für Gutschrift",
-                    "Storno / Rechnungskorrektur");
-
+                var reason = creditDialog.InputValue;
                 if (string.IsNullOrWhiteSpace(reason))
-                {
                     return;
-                }
 
                 var creditNote = await easybillService.CreateCreditNoteFromInvoiceAsync(
-                    selectedInvoice.Id.Value,
+                    creditDialog.SelectedInvoice.Id.Value,
                     reason);
 
-                MessageBox.Show(
-                    $"Gutschrift wurde erfolgreich erstellt!\n\n" +
-                    $"Gutschrift-Nr: {creditNote.Number}\n" +
-                    $"Zu Rechnung: {selectedInvoice.Number}\n" +
-                    $"Betrag: {creditNote.TotalGross:F2} €",
-                    "Erfolg",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                await ShowDocumentCreatedAsync(creditNote);
             }
             catch (Exception ex)
             {
@@ -1427,47 +1565,32 @@ namespace Projektsoftware
                     return;
                 }
 
-                // Zeige Auswahl-Dialog
-                var invoiceSelection = string.Join("\n", unpaidInvoices.Take(10).Select((inv, idx) => 
-                    $"{idx + 1}. {inv.Number} - {inv.CustomerSnapshot?.CompanyName} - {inv.TotalGross:F2} € (Fällig: {inv.DueDate})"));
+                var dunningDialog = new Views.InvoiceSelectionDialog(
+                    unpaidInvoices,
+                    "⚠️ Mahnung erstellen",
+                    "Wählen Sie die offene Rechnung aus, für die eine Mahnung erstellt werden soll.",
+                    inputLabel: "Mahnstufe (1 = 7 Tage, 2 = 5 Tage, 3 = 3 Tage):",
+                    inputDefault: "1")
+                { Owner = this };
 
-                var input = Microsoft.VisualBasic.Interaction.InputBox(
-                    $"Wählen Sie eine Rechnung zum Mahnen (1-{Math.Min(10, unpaidInvoices.Count)}):\n\n{invoiceSelection}",
-                    "Rechnung auswählen",
-                    "1");
-
-                if (string.IsNullOrWhiteSpace(input) || !int.TryParse(input, out int selection) || 
-                    selection < 1 || selection > unpaidInvoices.Count)
-                {
+                if (dunningDialog.ShowDialog() != true || dunningDialog.SelectedInvoice?.Id == null)
                     return;
-                }
 
-                var selectedInvoice = unpaidInvoices[selection - 1];
-
-                // Mahnstufe erfragen
-                var levelInput = Microsoft.VisualBasic.Interaction.InputBox(
-                    "Welche Mahnstufe?\n\n1 = 1. Mahnung (7 Tage)\n2 = 2. Mahnung (5 Tage)\n3 = 3. Mahnung (3 Tage)",
-                    "Mahnstufe",
-                    "1");
-
-                if (!int.TryParse(levelInput, out int dunningLevel) || dunningLevel < 1 || dunningLevel > 3)
+                if (!int.TryParse(dunningDialog.InputValue, out int dunningLevel) || dunningLevel < 1 || dunningLevel > 3)
                 {
+                    MessageBox.Show(
+                        "Bitte geben Sie eine Mahnstufe zwischen 1 und 3 ein.",
+                        "Ungültige Mahnstufe",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
                     return;
                 }
 
                 var dunning = await easybillService.CreateDunningAsync(
-                    selectedInvoice.Id.Value,
+                    dunningDialog.SelectedInvoice.Id.Value,
                     dunningLevel);
 
-                MessageBox.Show(
-                    $"{dunningLevel}. Mahnung wurde erfolgreich erstellt!\n\n" +
-                    $"Mahnung-Nr: {dunning.Number}\n" +
-                    $"Zu Rechnung: {selectedInvoice.Number}\n" +
-                    $"Betrag: {dunning.TotalGross:F2} €\n" +
-                    $"Zahlungsfrist: {dunning.DueInDays} Tage",
-                    "Erfolg",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                await ShowDocumentCreatedAsync(dunning);
             }
             catch (Exception ex)
             {
@@ -1517,22 +1640,16 @@ namespace Projektsoftware
                     return;
                 }
 
-                // Zeige Auswahl-Dialog
-                var invoiceSelection = string.Join("\n", activeInvoices.Take(10).Select((inv, idx) => 
-                    $"{idx + 1}. {inv.Number} - {inv.CustomerSnapshot?.CompanyName ?? inv.CustomerSnapshot?.FirstName + " " + inv.CustomerSnapshot?.LastName} - {inv.TotalGross:F2} € ({inv.DocumentDate})"));
+                var deliveryDialog = new Views.InvoiceSelectionDialog(
+                    activeInvoices,
+                    "📦 Lieferschein erstellen",
+                    "Wählen Sie die Rechnung aus, für die ein Lieferschein erstellt werden soll.")
+                { Owner = this };
 
-                var input = Microsoft.VisualBasic.Interaction.InputBox(
-                    $"Wählen Sie eine Rechnung für den Lieferschein (1-{Math.Min(10, activeInvoices.Count)}):\n\n{invoiceSelection}",
-                    "Rechnung auswählen",
-                    "1");
-
-                if (string.IsNullOrWhiteSpace(input) || !int.TryParse(input, out int selection) || 
-                    selection < 1 || selection > activeInvoices.Count)
-                {
+                if (deliveryDialog.ShowDialog() != true || deliveryDialog.SelectedInvoice == null)
                     return;
-                }
 
-                var selectedInvoice = activeInvoices[selection - 1];
+                var selectedInvoice = deliveryDialog.SelectedInvoice;
 
                 // Erstelle Lieferschein basierend auf der Rechnung
                 var deliveryNote = new EasybillDocument
@@ -1552,15 +1669,7 @@ namespace Projektsoftware
 
                 var createdDeliveryNote = await easybillService.CreateDeliveryNoteAsync(deliveryNote);
 
-                MessageBox.Show(
-                    $"✅ Lieferschein erfolgreich erstellt!\n\n" +
-                    $"📦 Lieferschein-Nr: {createdDeliveryNote.Number ?? "(Entwurf)"}\n" +
-                    $"📄 Zu Rechnung: {selectedInvoice.Number}\n" +
-                    $"👤 Kunde: {selectedInvoice.CustomerSnapshot?.CompanyName ?? selectedInvoice.CustomerSnapshot?.FirstName + " " + selectedInvoice.CustomerSnapshot?.LastName}\n" +
-                    $"📅 Datum: {createdDeliveryNote.DocumentDate}",
-                    "Lieferschein erstellt",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                await ShowDocumentCreatedAsync(createdDeliveryNote);
             }
             catch (Exception ex)
             {
@@ -1575,9 +1684,9 @@ namespace Projektsoftware
         /// <summary>
         /// Handler für Dashboard-Button "Auftrag erstellen"
         /// </summary>
-        private void DashboardCreateOrderConfirmation_Click(object sender, RoutedEventArgs e)
+        private async void DashboardCreateOrderConfirmation_Click(object sender, RoutedEventArgs e)
         {
-            CreateOrderConfirmation_Click(sender, e);
+            await CreateOrderConfirmationAsync();
         }
 
         /// <summary>
@@ -1585,33 +1694,16 @@ namespace Projektsoftware
         /// </summary>
         private void CreateOrderConfirmation_Click(object sender, RoutedEventArgs e)
         {
+            _ = CreateOrderConfirmationAsync();
+        }
+
+        private async System.Threading.Tasks.Task CreateOrderConfirmationAsync()
+        {
             try
             {
                 var dialog = new CreateOrderConfirmationDialog();
                 if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
-                {
-                    var doc = dialog.CreatedDocument;
-                    var docNumber = !string.IsNullOrEmpty(doc.Number) ? doc.Number : "(Entwurf - wird beim Abschließen vergeben)";
-                    var selectedOffer = dialog.SelectedOffer;
-
-                    var result = MessageBox.Show(
-                        $"✅ Auftragsbestätigung erfolgreich in Easybill erstellt!\n\n" +
-                        $"📋 Dokumentnummer: {docNumber}\n" +
-                        $"👤 Kunde: {doc.CustomerSnapshot?.CompanyName ?? doc.CustomerSnapshot?.FirstName + " " + doc.CustomerSnapshot?.LastName}\n" +
-                        $"💰 Gesamtbetrag: {doc.TotalGross:N2} €\n" +
-                        $"📊 Status: {doc.DisplayStatus}\n" +
-                        $"📅 Datum: {doc.DocumentDate}\n" +
-                        $"🔗 Referenz: {selectedOffer?.Number}\n\n" +
-                        $"Möchten Sie alle Easybill-Dokumente jetzt anzeigen?",
-                        "Auftragsbestätigung erstellt",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Information);
-
-                    if (result == MessageBoxResult.Yes)
-                    {
-                        ShowEasybillDocuments_Click(sender, e);
-                    }
-                }
+                    await ShowDocumentCreatedAsync(dialog.CreatedDocument);
             }
             catch (Exception ex)
             {
@@ -1647,6 +1739,12 @@ namespace Projektsoftware
             }
         }
 
+        private void ConfigureTicketSmtp_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new TicketSmtpSettingsDialog { Owner = this };
+            dialog.ShowDialog();
+        }
+
         /// <summary>
         /// Öffnet das Ticket-Dashboard
         /// </summary>
@@ -1665,6 +1763,127 @@ namespace Projektsoftware
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
+        }
+
+        #endregion
+
+        #region Dokumente Menu Handlers
+
+        private async void CreateDocument_Invoice_Click(object sender, RoutedEventArgs e)
+        {
+            var choice = MessageBox.Show(
+                "Möchten Sie die Rechnung aus einem bestehenden Projekt erstellen?\n\n" +
+                "Ja = Aus Projekt (Zeiteinträge werden übernommen)\n" +
+                "Nein = Ohne Projekt (freie Positionen eingeben)",
+                "Rechnung erstellen",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (choice == MessageBoxResult.Cancel) return;
+
+            if (choice == MessageBoxResult.Yes && viewModel != null)
+            {
+                var sel = new ProjectSelectionDialog(viewModel.Projects.ToList(), isForOffer: false);
+                if (sel.ShowDialog() == true && sel.SelectedProject != null)
+                {
+                    var dialog = new CreateInvoiceFromProjectDialog(sel.SelectedProject, "INVOICE");
+                    if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
+                        await ShowDocumentCreatedAsync(dialog.CreatedDocument);
+                }
+            }
+            else
+            {
+                var dialog = new CreateEasybillDocumentDialog("INVOICE");
+                if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
+                    await ShowDocumentCreatedAsync(dialog.CreatedDocument);
+            }
+        }
+
+        private async void CreateDocument_Proforma_Click(object sender, RoutedEventArgs e)
+        {
+            var choice = MessageBox.Show(
+                "Möchten Sie die Proforma-Rechnung aus einem bestehenden Projekt erstellen?\n\n" +
+                "Ja = Aus Projekt (Zeiteinträge werden übernommen)\n" +
+                "Nein = Ohne Projekt (freie Positionen eingeben)",
+                "Proforma-Rechnung erstellen",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (choice == MessageBoxResult.Cancel) return;
+
+            if (choice == MessageBoxResult.Yes && viewModel != null)
+            {
+                var sel = new ProjectSelectionDialog(viewModel.Projects.ToList(), isForOffer: false);
+                if (sel.ShowDialog() == true && sel.SelectedProject != null)
+                {
+                    var dialog = new CreateProformaFromProjectDialog(sel.SelectedProject);
+                    if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
+                        await ShowDocumentCreatedAsync(dialog.CreatedDocument);
+                }
+            }
+            else
+            {
+                var dialog = new CreateEasybillDocumentDialog("PROFORMA_INVOICE");
+                if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
+                    await ShowDocumentCreatedAsync(dialog.CreatedDocument);
+            }
+        }
+
+        private async void CreateDocument_Offer_Click(object sender, RoutedEventArgs e)
+        {
+            await (DashboardCreateOffer_Click_Async());
+        }
+
+        private async System.Threading.Tasks.Task DashboardCreateOffer_Click_Async()
+        {
+            var choice = MessageBox.Show(
+                "Möchten Sie das Angebot aus einem bestehenden Projekt erstellen?\n\n" +
+                "Ja = Aus Projekt (Zeiteinträge werden übernommen)\n" +
+                "Nein = Ohne Projekt (freie Positionen eingeben)",
+                "Angebot erstellen",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (choice == MessageBoxResult.Cancel) return;
+
+            if (choice == MessageBoxResult.Yes && viewModel != null)
+            {
+                var sel = new ProjectSelectionDialog(viewModel.Projects.ToList(), isForOffer: true);
+                if (sel.ShowDialog() == true && sel.SelectedProject != null)
+                {
+                    var dialog = new CreateInvoiceFromProjectDialog(sel.SelectedProject, "OFFER");
+                    if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
+                        await ShowDocumentCreatedAsync(dialog.CreatedDocument);
+                }
+            }
+            else
+            {
+                var dialog = new CreateEasybillDocumentDialog("OFFER");
+                if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
+                    await ShowDocumentCreatedAsync(dialog.CreatedDocument);
+            }
+        }
+
+        private async void CreateDocument_OrderConfirmation_Click(object sender, RoutedEventArgs e)
+        {
+            await CreateOrderConfirmationAsync();
+        }
+
+        private async void CreateDocument_DeliveryNote_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new CreateEasybillDocumentDialog("DELIVERY_NOTE");
+            if (dialog.ShowDialog() == true && dialog.CreatedDocument != null)
+                await ShowDocumentCreatedAsync(dialog.CreatedDocument);
+        }
+
+        private async void CreateDocument_Dunning_Click(object sender, RoutedEventArgs e)
+        {
+            await CreateDunningAsync();
+        }
+
+        private async void CreateDocument_CreditNote_Click(object sender, RoutedEventArgs e)
+        {
+            await CreateCreditNoteAsync();
         }
 
         #endregion
@@ -1732,5 +1951,320 @@ namespace Projektsoftware
         }
 
         #endregion
-    }
-}
+
+        #region Financial Dashboard
+
+        private async System.Threading.Tasks.Task LoadFinancialDashboardDataAsync()
+        {
+            // Ergebnisse in lokalen Variablen sammeln – keine veraltete stats-Referenz halten
+            bool easybillConfigured = false;
+            decimal totalRevenuePaid = 0;
+            decimal thisMonthRevenue = 0;
+            int openInvoicesCount = 0;
+            decimal openInvoicesAmount = 0;
+            int overdueInvoicesCount = 0;
+            decimal overdueInvoicesAmount = 0;
+            int draftInvoicesCount = 0;
+            int openPurchaseOrdersCount = 0;
+            int totalPurchaseDocumentsCount = 0;
+            int syncedPurchaseDocumentsCount = 0;
+            string? easybillError = null;
+
+            // 1. Lokale DB-Daten
+            try
+            {
+                var db = new DatabaseService();
+                var (poOpen, totalDocs, syncedDocs) = await db.GetPurchaseDashboardStatsAsync();
+                openPurchaseOrdersCount = poOpen;
+                totalPurchaseDocumentsCount = totalDocs;
+                syncedPurchaseDocumentsCount = syncedDocs;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Lokale DB-Ladefehler: {ex.Message}");
+            }
+
+            // 2. Easybill-Rechnungsdaten
+            var easybillService = new EasybillService();
+            easybillConfigured = easybillService.IsConfigured;
+
+            if (easybillConfigured)
+            {
+                try
+                {
+                    var allInvoices = await easybillService.GetAllDocumentsAsync("INVOICE");
+
+                    // Diagnostic: write parsed invoice values to %TEMP%
+                    try
+                    {
+                        var sb = new System.Text.StringBuilder();
+                        sb.AppendLine($"Loaded {allInvoices.Count} invoices at {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                        foreach (var inv in allInvoices)
+                            sb.AppendLine($"  ID:{inv.Id} #{inv.Number} Status:{inv.Status} IsDraft:{inv.IsDraft} TotalGross:{inv.TotalGross} TotalNet:{inv.TotalNet}");
+                        System.IO.File.WriteAllText(
+                            System.IO.Path.Combine(System.IO.Path.GetTempPath(), "easybill_invoices_parsed.txt"),
+                            sb.ToString());
+                    }
+                    catch { }
+
+                    var now = DateTime.Now;
+                    var firstOfMonth = new DateTime(now.Year, now.Month, 1);
+
+                    foreach (var inv in allInvoices)
+                    {
+                        if (inv.IsDraft) { draftInvoicesCount++; continue; }
+
+                        // Stornierte Rechnungen nicht mitzählen
+                        if (inv.Status == "CANCELLED" || inv.Status == "INVOICE_CANCELLATION") continue;
+
+                        // total_gross is null in the Easybill API for some invoice states;
+                        // fall back to summing TotalPriceGross from line items (already in euros via EasybillPriceConverter)
+                        decimal amount = inv.TotalGross
+                            ?? inv.Items?.Sum(item => item.TotalPriceGross ?? 0m)
+                            ?? 0m;
+
+                        // paid_at "0000-00-00..." (MySQL-Nulldatum) wie null behandeln
+                        bool hasPaidDate = !string.IsNullOrEmpty(inv.PaidAt)
+                            && !inv.PaidAt.StartsWith("0000");
+                        bool isPaid = hasPaidDate || inv.Status == "PAID" || inv.Status == "PARTIALLY_PAID";
+
+                        bool isOverdue = !isPaid
+                            && (inv.Status == "OVERDUE"
+                                || (!string.IsNullOrEmpty(inv.DueDate)
+                                    && DateTime.TryParse(inv.DueDate, out var due)
+                                    && due < DateTime.Today));
+
+                        if (isPaid)
+                        {
+                            totalRevenuePaid += amount;
+                            if (hasPaidDate
+                                && DateTime.TryParse(inv.PaidAt, out var paidDt)
+                                && paidDt >= firstOfMonth)
+                                thisMonthRevenue += amount;
+                        }
+                        else
+                        {
+                            openInvoicesCount++;
+                            openInvoicesAmount += amount;
+                            if (isOverdue) { overdueInvoicesCount++; overdueInvoicesAmount += amount; }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    easybillError = ex.Message;
+                    System.Diagnostics.Debug.WriteLine($"Easybill-Ladefehler: {ex.Message}");
+                }
+            }
+
+            // 3. Ergebnisse auf das AKTUELL gültige DashboardStats anwenden (kein Race mit LoadAllDataAsync)
+            Dispatcher.Invoke(() =>
+            {
+                var current = viewModel?.DashboardStats;
+                if (current == null) return;
+
+                current.IsFinancialDataLoaded = true;
+                current.EasybillConfigured = easybillConfigured;
+                current.TotalRevenuePaid = totalRevenuePaid;
+                current.ThisMonthRevenue = thisMonthRevenue;
+                current.OpenInvoicesCount = openInvoicesCount;
+                current.OpenInvoicesAmount = openInvoicesAmount;
+                current.OverdueInvoicesCount = overdueInvoicesCount;
+                current.OverdueInvoicesAmount = overdueInvoicesAmount;
+                current.DraftInvoicesCount = draftInvoicesCount;
+                current.OpenPurchaseOrdersCount = openPurchaseOrdersCount;
+                current.TotalPurchaseDocumentsCount = totalPurchaseDocumentsCount;
+                current.SyncedPurchaseDocumentsCount = syncedPurchaseDocumentsCount;
+
+                DashboardControl?.UpdateFinancialStats(current);
+                if (easybillError != null && DashboardControl != null)
+                    DashboardControl.ShowEasybillError(easybillError);
+            });
+        }
+
+        private async void DashboardRefreshFinancial_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadFinancialDashboardDataAsync();
+        }
+
+        private async System.Threading.Tasks.Task LoadDocumentSearchAsync()
+        {
+            var easybillService = new EasybillService();
+            if (!easybillService.IsConfigured)
+            {
+                Dispatcher.Invoke(() => DashboardControl?.SetDocSearchStatus("ℹ️ Easybill nicht konfiguriert"));
+                return;
+            }
+            try
+            {
+                Dispatcher.Invoke(() => DashboardControl?.SetDocSearchStatus("⏳ Lade Dokumente …"));
+                var allDocs = await easybillService.GetAllDocumentsAsync();
+                Dispatcher.Invoke(() => DashboardControl?.UpdateDocuments(allDocs));
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.Invoke(() => DashboardControl?.SetDocSearchStatus($"⚠️ Fehler: {ex.Message}"));
+            }
+        }
+
+        private void DashboardViewPurchases_Click(object sender, RoutedEventArgs e)
+        {
+            // Einkauf Tab navigieren (nach Tickets-Tab)
+            for (int i = 0; i < MainTabControl.Items.Count; i++)
+            {
+                if (MainTabControl.Items[i] is System.Windows.Controls.TabItem ti && ti.Header?.ToString()?.Contains("Einkauf") == true)
+                {
+                    MainTabControl.SelectedIndex = i;
+                    break;
+                }
+            }
+        }
+
+        #endregion
+
+        #region Notifications
+
+        private async System.Threading.Tasks.Task LoadNotificationsAsync()
+        {
+            try
+            {
+                var dbConfig = DatabaseConfig.Load();
+                if (!dbConfig.IsConfigured()) return;
+
+                var svc = new NotificationService(dbConfig.GetConnectionString());
+                _cachedNotifications = await svc.GetNotificationsAsync();
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    var count = _cachedNotifications.Count;
+                    NotificationBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                    NotificationBadgeText.Text = count > 9 ? "9+" : count.ToString();
+                    NotificationStatusText.Text = count > 0
+                        ? $"{count} Benachrichtigung{(count == 1 ? "" : "en")}"
+                        : string.Empty;
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Benachrichtigungen laden fehlgeschlagen: {ex.Message}");
+            }
+        }
+
+        private void NotificationBell_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new NotificationsDialog(_cachedNotifications) { Owner = this };
+            dialog.ShowDialog();
+            // Mark notifications as read — clear the badge
+            NotificationBadge.Visibility = Visibility.Collapsed;
+            NotificationStatusText.Text = string.Empty;
+        }
+
+        #endregion
+
+        #region Audit Log
+
+        private void AuditLog_Click(object sender, RoutedEventArgs e)
+        {
+            new AuditLogDialog { Owner = this }.ShowDialog();
+        }
+
+        #endregion
+
+        #region Timer
+
+        private void TimerStart_Click(object sender, RoutedEventArgs e)
+        {
+            if (TimerProjectCombo.SelectedItem is not Project project)
+            {
+                MessageBox.Show("Bitte wählen Sie zuerst ein Projekt aus.", "Kein Projekt",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var activity = TimerActivityBox.Text.Trim();
+            _timerService.Start(project.Id, project.Name, activity);
+
+            TimerStartBtn.Visibility = Visibility.Collapsed;
+            TimerStopBtn.Visibility = Visibility.Visible;
+            TimerRunningDot.Visibility = Visibility.Visible;
+            TimerProjectCombo.IsEnabled = false;
+            TimerActivityBox.IsEnabled = false;
+            TimerCustomerCombo.IsEnabled = false;
+        }
+
+        private async void TimerStop_Click(object sender, RoutedEventArgs e)
+        {
+            var elapsed = _timerService.Stop();
+
+            TimerStartBtn.Visibility = Visibility.Visible;
+            TimerStopBtn.Visibility = Visibility.Collapsed;
+            TimerRunningDot.Visibility = Visibility.Collapsed;
+            TimerProjectCombo.IsEnabled = true;
+            TimerActivityBox.IsEnabled = true;
+            TimerCustomerCombo.IsEnabled = true;
+
+            if (elapsed.TotalMinutes < 1)
+            {
+                var save = MessageBox.Show(
+                    "Die gemessene Zeit beträgt weniger als 1 Minute. Trotzdem speichern?",
+                    "Kurze Zeiterfassung",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (save == MessageBoxResult.No)
+                {
+                    TimerDisplay.Text = "00:00:00";
+                    _timerService.Reset();
+                    return;
+                }
+            }
+
+            if (viewModel == null) return;
+
+            var selectedCustomer = TimerCustomerCombo.SelectedItem as Customer;
+
+            var entry = new TimeEntry
+            {
+                ProjectId = _timerService.CurrentProjectId,
+                ProjectName = _timerService.CurrentProject,
+                EmployeeName = AuthenticationService.CurrentUser?.Username ?? "",
+                ClientName = selectedCustomer?.DisplayName ?? "",
+                EasybillCustomerId = selectedCustomer?.EasybillCustomerId,
+                Date = _timerService.StartTime.Date,
+                Duration = elapsed,
+                Activity = TimerActivityBox.Text.Trim(),
+                Description = "",
+                CreatedAt = DateTime.Now
+            };
+
+            try
+            {
+                var db = new DatabaseService();
+                await db.AddTimeEntryAsync(entry);
+                await viewModel.LoadAllDataAsync();
+
+                TimerDisplay.Text = "00:00:00";
+                _timerService.Reset();
+                TimerActivityBox.Text = "";
+                TimerCustomerCombo.SelectedItem = null;
+
+                MessageBox.Show(
+                    $"Zeiteintrag gespeichert: {elapsed.TotalHours:F2} Stunden auf \"{entry.ProjectName}\".",
+                    "Gespeichert",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Fehler beim Speichern:\n{ex.Message}",
+                    "Fehler",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        #endregion
+
+            }
+        }

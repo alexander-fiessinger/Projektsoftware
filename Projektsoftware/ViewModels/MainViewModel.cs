@@ -72,9 +72,9 @@ namespace Projektsoftware.ViewModels
             Milestones = new ObservableCollection<Milestone>();
             Customers = new ObservableCollection<Customer>();
 
-            // Auto-Sync Timer (alle 5 Sekunden)
+            // Auto-Sync Timer (alle 60 Sekunden)
             syncTimer = new DispatcherTimer();
-            syncTimer.Interval = TimeSpan.FromSeconds(5);
+            syncTimer.Interval = TimeSpan.FromSeconds(60);
             syncTimer.Tick += async (s, e) => await RefreshDataAsync();
             syncTimer.Start();
 
@@ -136,6 +136,24 @@ namespace Projektsoftware.ViewModels
                 foreach (var customer in customers)
                     Customers.Add(customer);
 
+                // Finanzdaten werden separat (async) geladen – beim Refresh nicht überschreiben
+                var prevStats = dashboardStats;
+                if (prevStats?.IsFinancialDataLoaded == true)
+                {
+                    stats.IsFinancialDataLoaded = true;
+                    stats.EasybillConfigured = prevStats.EasybillConfigured;
+                    stats.TotalRevenuePaid = prevStats.TotalRevenuePaid;
+                    stats.ThisMonthRevenue = prevStats.ThisMonthRevenue;
+                    stats.OpenInvoicesCount = prevStats.OpenInvoicesCount;
+                    stats.OpenInvoicesAmount = prevStats.OpenInvoicesAmount;
+                    stats.OverdueInvoicesCount = prevStats.OverdueInvoicesCount;
+                    stats.OverdueInvoicesAmount = prevStats.OverdueInvoicesAmount;
+                    stats.DraftInvoicesCount = prevStats.DraftInvoicesCount;
+                    stats.OpenPurchaseOrdersCount = prevStats.OpenPurchaseOrdersCount;
+                    stats.TotalPurchaseDocumentsCount = prevStats.TotalPurchaseDocumentsCount;
+                    stats.SyncedPurchaseDocumentsCount = prevStats.SyncedPurchaseDocumentsCount;
+                    stats.TopBudgetProjects = prevStats.TopBudgetProjects;
+                }
                 DashboardStats = stats;
                 LastSyncTime = DateTime.Now;
             }
@@ -207,42 +225,54 @@ namespace Projektsoftware.ViewModels
 
                 if (result == MessageBoxResult.Yes)
                 {
-                    // Lösche zugehörige Easybill-Dokumente, falls vorhanden
+                    // Lösche verknüpftes Easybill-Projekt und zugehörige Dokumente, falls vorhanden
                     if (project.EasybillProjectId.HasValue)
                     {
                         try
                         {
                             var easybillService = new EasybillService();
 
-                            // Hole alle Dokumente des Projekts
-                            var allDocuments = await easybillService.GetAllDocumentsAsync();
-                            var projectDocuments = allDocuments.FindAll(d => d.ProjectId == project.EasybillProjectId.Value);
+                            var deleteEasybillResult = MessageBox.Show(
+                                $"Das Projekt ist mit einem Easybill-Projekt verknüpft (ID: {project.EasybillProjectId.Value}).\n\n" +
+                                $"Möchten Sie das Projekt auch in Easybill löschen?",
+                                "Easybill-Projekt löschen",
+                                MessageBoxButton.YesNo,
+                                MessageBoxImage.Question);
 
-                            if (projectDocuments.Count > 0)
+                            if (deleteEasybillResult == MessageBoxResult.Yes)
                             {
-                                var deleteDocsResult = MessageBox.Show(
-                                    $"Es wurden {projectDocuments.Count} Easybill-Dokument(e) zu diesem Projekt gefunden.\n\n" +
-                                    $"Möchten Sie diese auch in Easybill löschen?",
-                                    "Easybill-Dokumente löschen",
-                                    MessageBoxButton.YesNo,
-                                    MessageBoxImage.Question);
+                                // Hole alle Dokumente des Projekts
+                                var allDocuments = await easybillService.GetAllDocumentsAsync();
+                                var projectDocuments = allDocuments.FindAll(d => d.ProjectId == project.EasybillProjectId.Value);
 
-                                if (deleteDocsResult == MessageBoxResult.Yes)
+                                if (projectDocuments.Count > 0)
                                 {
-                                    foreach (var doc in projectDocuments)
+                                    var deleteDocsResult = MessageBox.Show(
+                                        $"Es wurden {projectDocuments.Count} Easybill-Dokument(e) zu diesem Projekt gefunden.\n\n" +
+                                        $"Möchten Sie diese auch in Easybill löschen?",
+                                        "Easybill-Dokumente löschen",
+                                        MessageBoxButton.YesNo,
+                                        MessageBoxImage.Question);
+
+                                    if (deleteDocsResult == MessageBoxResult.Yes)
                                     {
-                                        if (doc.Id.HasValue)
+                                        foreach (var doc in projectDocuments)
                                         {
-                                            await easybillService.DeleteDocumentAsync(doc.Id.Value);
+                                            if (doc.Id.HasValue)
+                                            {
+                                                await easybillService.DeleteDocumentAsync(doc.Id.Value);
+                                            }
                                         }
                                     }
                                 }
+
+                                await easybillService.DeleteProjectAsync(project.EasybillProjectId.Value);
                             }
                         }
                         catch (Exception easybillEx)
                         {
                             MessageBox.Show(
-                                $"Hinweis: Easybill-Dokumente konnten nicht gelöscht werden:\n\n{easybillEx.Message}\n\n" +
+                                $"Hinweis: Easybill-Projekt konnte nicht gelöscht werden:\n\n{easybillEx.Message}\n\n" +
                                 "Das Projekt wird trotzdem lokal gelöscht.",
                                 "Warnung",
                                 MessageBoxButton.OK,

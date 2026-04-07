@@ -14,7 +14,7 @@ namespace Projektsoftware.Views
 
         private readonly List<Project> projects;
         private readonly Meeting? existingMeeting;
-        private readonly WebexService webexService;
+        private WebexService webexService;
         private bool webexMeetingCreated = false;
 
         public MeetingDialog(List<Project> projects, Meeting? meetingToEdit = null)
@@ -273,6 +273,26 @@ namespace Projektsoftware.Views
                         await webexService.UpdateMeetingAsync(meeting.WebexMeetingId!, meeting);
                         WebexStatusTextBlock.Text = "✅ Webex-Meeting aktualisiert.";
                     }
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    var result = MessageBox.Show(
+                        $"{ex.Message}\n\n" +
+                        "Möchten Sie die Webex-Konfiguration jetzt öffnen, um den Token zu aktualisieren?",
+                        "Webex-Authentifizierung fehlgeschlagen", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+                    SaveButton.IsEnabled = true;
+                    SaveButton.Content = "Speichern";
+
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        var configDialog = new WebexConfigDialog();
+                        if (configDialog.ShowDialog() == true)
+                        {
+                            webexService = new WebexService();
+                        }
+                    }
+                    return;
                 }
                 catch (Exception ex)
                 {

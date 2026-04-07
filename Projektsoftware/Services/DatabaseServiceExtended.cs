@@ -382,6 +382,37 @@ namespace Projektsoftware.Services
             var employeesResult = await cmd5.ExecuteScalarAsync();
             stats.ActiveEmployees = employeesResult != DBNull.Value ? Convert.ToInt32(employeesResult) : 0;
 
+            // Budget-Auslastung: Top 5 Projekte mit Budget, geordnet nach Auslastung
+            string budgetQuery = @"
+                SELECT p.id, p.name, p.budget,
+                       COALESCE(SUM(TIME_TO_SEC(te.duration))/3600, 0) AS logged_hours
+                FROM projects p
+                LEFT JOIN time_entries te ON te.project_id = p.id
+                WHERE p.budget > 0 AND p.status IN ('Aktiv', 'In Bearbeitung')
+                GROUP BY p.id, p.name, p.budget
+                ORDER BY logged_hours / p.budget DESC
+                LIMIT 5";
+            using var cmd6 = new MySqlCommand(budgetQuery, connection);
+            using var reader6 = await cmd6.ExecuteReaderAsync();
+            while (await reader6.ReadAsync())
+            {
+                var budget = reader6.GetDecimal(reader6.GetOrdinal("budget"));
+                var hours  = Convert.ToDecimal(reader6["logged_hours"]);
+                // Estimate: treat budget as EUR, derive budgeted hours at 100 €/h fallback
+                var avgRate = 100m;
+                var budgetedHours = avgRate > 0 ? budget / avgRate : 0;
+                var usagePct = budgetedHours > 0 ? Math.Min(hours / budgetedHours * 100m, 150m) : 0m;
+                stats.TopBudgetProjects.Add(new ProjectBudgetStat
+                {
+                    ProjectId   = reader6.GetInt32(reader6.GetOrdinal("id")),
+                    ProjectName = reader6.GetString(reader6.GetOrdinal("name")),
+                    Budget      = budget,
+                    LoggedHours = hours,
+                    BudgetUsagePercent = Math.Round(usagePct, 1)
+                });
+            }
+            reader6.Close();
+
             return stats;
         }
 
@@ -396,9 +427,11 @@ namespace Projektsoftware.Services
             await connection.OpenAsync();
 
             string query = @"SELECT t.*, 
-                            CONCAT(e.first_name, ' ', e.last_name) as employee_name
+                            CONCAT(e.first_name, ' ', e.last_name) as employee_name,
+                            p.name as project_name
                             FROM tickets t
                             LEFT JOIN employees e ON t.assigned_to_employee_id = e.id
+                            LEFT JOIN projects p ON t.project_id = p.id
                             ORDER BY t.created_at DESC";
 
             using var cmd = new MySqlCommand(query, connection);
@@ -422,6 +455,8 @@ namespace Projektsoftware.Services
                     UserAgent = reader.IsDBNull(reader.GetOrdinal("user_agent")) ? "" : reader.GetString(reader.GetOrdinal("user_agent")),
                     AssignedToEmployeeId = reader.IsDBNull(reader.GetOrdinal("assigned_to_employee_id")) ? null : reader.GetInt32(reader.GetOrdinal("assigned_to_employee_id")),
                     AssignedToEmployeeName = reader.IsDBNull(reader.GetOrdinal("employee_name")) ? "" : reader.GetString(reader.GetOrdinal("employee_name")),
+                    ProjectId = reader.IsDBNull(reader.GetOrdinal("project_id")) ? null : reader.GetInt32(reader.GetOrdinal("project_id")),
+                    ProjectName = reader.IsDBNull(reader.GetOrdinal("project_name")) ? "" : reader.GetString(reader.GetOrdinal("project_name")),
                     Resolution = reader.IsDBNull(reader.GetOrdinal("resolution")) ? "" : reader.GetString(reader.GetOrdinal("resolution")),
                     ResolvedAt = reader.IsDBNull(reader.GetOrdinal("resolved_at")) ? null : reader.GetDateTime(reader.GetOrdinal("resolved_at")),
                     CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
@@ -439,11 +474,11 @@ namespace Projektsoftware.Services
 
             string query = @"INSERT INTO tickets (customer_name, customer_email, customer_phone, customer_id, 
                            subject, description, priority, status, category, 
-                           ip_address, user_agent, assigned_to_employee_id, resolution, resolved_at, 
+                           ip_address, user_agent, assigned_to_employee_id, project_id, resolution, resolved_at, 
                            created_at, updated_at)
                            VALUES (@customerName, @customerEmail, @customerPhone, @customerId, 
                            @subject, @description, @priority, @status, @category,
-                           @ipAddress, @userAgent, @assignedToEmployeeId, @resolution, @resolvedAt,
+                           @ipAddress, @userAgent, @assignedToEmployeeId, @projectId, @resolution, @resolvedAt,
                            @createdAt, @updatedAt);
                            SELECT LAST_INSERT_ID();";
 
@@ -460,6 +495,7 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@ipAddress", ticket.IpAddress ?? "");
             cmd.Parameters.AddWithValue("@userAgent", ticket.UserAgent ?? "");
             cmd.Parameters.AddWithValue("@assignedToEmployeeId", ticket.AssignedToEmployeeId.HasValue ? (object)ticket.AssignedToEmployeeId.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@projectId", ticket.ProjectId.HasValue ? (object)ticket.ProjectId.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@resolution", ticket.Resolution ?? "");
             cmd.Parameters.AddWithValue("@resolvedAt", ticket.ResolvedAt.HasValue ? (object)ticket.ResolvedAt.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@createdAt", ticket.CreatedAt);
@@ -479,7 +515,8 @@ namespace Projektsoftware.Services
                            customer_phone=@customerPhone, customer_id=@customerId,
                            subject=@subject, description=@description, 
                            priority=@priority, status=@status, category=@category,
-                           assigned_to_employee_id=@assignedToEmployeeId, 
+                           assigned_to_employee_id=@assignedToEmployeeId,
+                           project_id=@projectId,
                            resolution=@resolution, resolved_at=@resolvedAt,
                            updated_at=@updatedAt
                            WHERE id=@id";
@@ -496,6 +533,7 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@status", (int)ticket.Status);
             cmd.Parameters.AddWithValue("@category", (int)ticket.Category);
             cmd.Parameters.AddWithValue("@assignedToEmployeeId", ticket.AssignedToEmployeeId.HasValue ? (object)ticket.AssignedToEmployeeId.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@projectId", ticket.ProjectId.HasValue ? (object)ticket.ProjectId.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@resolution", ticket.Resolution ?? "");
             cmd.Parameters.AddWithValue("@resolvedAt", ticket.ResolvedAt.HasValue ? (object)ticket.ResolvedAt.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@updatedAt", DateTime.Now);
@@ -706,6 +744,38 @@ namespace Projektsoftware.Services
             using var cmd3 = new MySqlCommand(avgQuery, connection);
             var avgResult = await cmd3.ExecuteScalarAsync();
             stats.AverageResolutionTimeHours = avgResult != DBNull.Value ? Convert.ToDouble(avgResult) : 0;
+
+            // SLA compliance
+            // SLA targets: Urgent=4h, High=8h, Medium=24h, Low=72h
+            // Breached: open tickets past their deadline
+            // Compliant: resolved/closed tickets that met their deadline
+            string slaQuery = @"SELECT
+                IFNULL(SUM(CASE
+                    WHEN status NOT IN (3,4) AND priority = 3 AND TIMESTAMPDIFF(HOUR, created_at, NOW()) > 4  THEN 1
+                    WHEN status NOT IN (3,4) AND priority = 2 AND TIMESTAMPDIFF(HOUR, created_at, NOW()) > 8  THEN 1
+                    WHEN status NOT IN (3,4) AND priority = 1 AND TIMESTAMPDIFF(HOUR, created_at, NOW()) > 24 THEN 1
+                    WHEN status NOT IN (3,4) AND priority = 0 AND TIMESTAMPDIFF(HOUR, created_at, NOW()) > 72 THEN 1
+                    ELSE 0 END), 0) as sla_breached,
+                IFNULL(SUM(CASE
+                    WHEN status IN (3,4) AND resolved_at IS NOT NULL AND priority = 3 AND TIMESTAMPDIFF(HOUR, created_at, resolved_at) <= 4  THEN 1
+                    WHEN status IN (3,4) AND resolved_at IS NOT NULL AND priority = 2 AND TIMESTAMPDIFF(HOUR, created_at, resolved_at) <= 8  THEN 1
+                    WHEN status IN (3,4) AND resolved_at IS NOT NULL AND priority = 1 AND TIMESTAMPDIFF(HOUR, created_at, resolved_at) <= 24 THEN 1
+                    WHEN status IN (3,4) AND resolved_at IS NOT NULL AND priority = 0 AND TIMESTAMPDIFF(HOUR, created_at, resolved_at) <= 72 THEN 1
+                    ELSE 0 END), 0) as sla_compliant,
+                IFNULL(COUNT(CASE WHEN status IN (3,4) AND resolved_at IS NOT NULL THEN 1 END), 0) as total_resolved
+                FROM tickets";
+
+            using var cmdSla = new MySqlCommand(slaQuery, connection);
+            using var readerSla = await cmdSla.ExecuteReaderAsync();
+            if (await readerSla.ReadAsync())
+            {
+                stats.SlaBreachedCount = readerSla.GetInt32(0);
+                stats.SlaCompliantCount = readerSla.GetInt32(1);
+                var totalResolved = readerSla.GetInt32(2);
+                stats.SlaComplianceRate = totalResolved > 0
+                    ? (double)stats.SlaCompliantCount / totalResolved * 100
+                    : 100;
+            }
 
             return stats;
         }

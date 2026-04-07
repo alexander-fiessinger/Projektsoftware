@@ -1,49 +1,103 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Modern Color Palette -->
-    <SolidColorBrush x:Key="PrimaryBrush" Color="#1976D2"/>
-    <SolidColorBrush x:Key="PrimaryDarkBrush" Color="#0D47A1"/>
-    <SolidColorBrush x:Key="AccentBrush" Color="#FFC107"/>
-    <SolidColorBrush x:Key="SuccessBrush" Color="#4CAF50"/>
-    <SolidColorBrush x:Key="WarningBrush" Color="#FF9800"/>
-    <SolidColorBrush x:Key="DangerBrush" Color="#F44336"/>
-    <SolidColorBrush x:Key="BackgroundBrush" Color="#F5F5F5"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF"/>
-    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#212121"/>
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#757575"/>
-    <SolidColorBrush x:Key="BorderBrush" Color="#E0E0E0"/>
+    <!-- ═══════════════════════════════════════════════════════════
+         Professional Color Palette
+         ═══════════════════════════════════════════════════════════ -->
+    <SolidColorBrush x:Key="PrimaryBrush"         Color="#2563EB"/>   <!-- Corporate blue -->
+    <SolidColorBrush x:Key="PrimaryDarkBrush"     Color="#1D4ED8"/>   <!-- Blue hover -->
+    <SolidColorBrush x:Key="PrimaryLightBrush"    Color="#DBEAFE"/>   <!-- Blue tint -->
+    <SolidColorBrush x:Key="AccentBrush"          Color="#2563EB"/>
+    <SolidColorBrush x:Key="SuccessBrush"         Color="#16A34A"/>   <!-- Muted green -->
+    <SolidColorBrush x:Key="SuccessLightBrush"    Color="#DCFCE7"/>
+    <SolidColorBrush x:Key="WarningBrush"         Color="#D97706"/>   <!-- Amber -->
+    <SolidColorBrush x:Key="WarningLightBrush"    Color="#FEF3C7"/>
+    <SolidColorBrush x:Key="DangerBrush"          Color="#DC2626"/>   <!-- Red -->
+    <SolidColorBrush x:Key="DangerLightBrush"     Color="#FEE2E2"/>
+    <SolidColorBrush x:Key="NeutralBrush"         Color="#475569"/>   <!-- Slate grey -->
+    <SolidColorBrush x:Key="NeutralLightBrush"    Color="#F1F5F9"/>
+    <SolidColorBrush x:Key="BackgroundBrush"      Color="#F8FAFC"/>   <!-- Near-white -->
+    <SolidColorBrush x:Key="SurfaceBrush"         Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush"     Color="#0F172A"/>   <!-- Near-black -->
+    <SolidColorBrush x:Key="TextSecondaryBrush"   Color="#64748B"/>   <!-- Muted grey -->
+    <SolidColorBrush x:Key="BorderBrush"          Color="#E2E8F0"/>
 
-    <!-- Modern Button Style -->
+    <!-- ═══════════════════════════════════════════════════════════
+         Primary Button – solid fill, for main toolbar actions
+         ═══════════════════════════════════════════════════════════ -->
     <Style x:Key="ModernButton" TargetType="Button">
-        <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
-        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Background"      Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="Foreground"      Value="White"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="16,8"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="FontSize" Value="14"/>
-        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Padding"         Value="14,7"/>
+        <Setter Property="FontWeight"      Value="SemiBold"/>
+        <Setter Property="FontSize"        Value="13"/>
+        <Setter Property="Cursor"          Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border Background="{TemplateBinding Background}"
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="4">
-                        <Border.Effect>
-                            <DropShadowEffect BlurRadius="8" ShadowDepth="2" Opacity="0.3" Color="#000000"/>
-                        </Border.Effect>
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                        Margin="{TemplateBinding Padding}"/>
+                            CornerRadius="5">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="{StaticResource PrimaryDarkBrush}"/>
+                            <Setter TargetName="Root" Property="Opacity" Value="0.87"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter Property="RenderTransform">
                                 <Setter.Value>
                                     <ScaleTransform ScaleX="0.98" ScaleY="0.98"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Action Button – compact outline, for DataGrid row actions
+         ═══════════════════════════════════════════════════════════ -->
+    <Style x:Key="ActionButton" TargetType="Button">
+        <Setter Property="Background"      Value="Transparent"/>
+        <Setter Property="Foreground"      Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding"         Value="8,3"/>
+        <Setter Property="FontSize"        Value="12"/>
+        <Setter Property="FontWeight"      Value="Normal"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource NeutralLightBrush}"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#94A3B8"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="RenderTransform">
+                                <Setter.Value>
+                                    <ScaleTransform ScaleX="0.97" ScaleY="0.97"/>
                                 </Setter.Value>
                             </Setter>
                         </Trigger>
@@ -53,59 +107,33 @@
         </Setter>
     </Style>
 
-    <!-- Modern Card Style -->
-    <Style x:Key="ModernCard" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+    <!-- ═══════════════════════════════════════════════════════════
+         Danger Action Button – outline red, for destructive actions
+         ═══════════════════════════════════════════════════════════ -->
+    <Style x:Key="DangerActionButton" TargetType="Button">
+        <Setter Property="Background"      Value="Transparent"/>
+        <Setter Property="Foreground"      Value="{StaticResource DangerBrush}"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="8"/>
-        <Setter Property="Padding" Value="16"/>
-        <Setter Property="Effect">
-            <Setter.Value>
-                <DropShadowEffect BlurRadius="10" ShadowDepth="3" Opacity="0.15" Color="#000000"/>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!-- Modern DataGrid Style -->
-    <Style x:Key="ModernDataGrid" TargetType="DataGrid">
-        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="RowBackground" Value="White"/>
-        <Setter Property="AlternatingRowBackground" Value="#FAFAFA"/>
-        <Setter Property="GridLinesVisibility" Value="Horizontal"/>
-        <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource BorderBrush}"/>
-        <Setter Property="AutoGenerateColumns" Value="False"/>
-        <Setter Property="CanUserAddRows" Value="False"/>
-        <Setter Property="SelectionMode" Value="Single"/>
-        <Setter Property="FontSize" Value="13"/>
-    </Style>
-
-    <!-- Modern TabControl Style -->
-    <Style x:Key="ModernTabControl" TargetType="TabControl">
-        <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
-        <Setter Property="BorderThickness" Value="0"/>
-    </Style>
-
-    <Style x:Key="ModernTabItem" TargetType="TabItem">
+        <Setter Property="Padding"         Value="8,3"/>
+        <Setter Property="FontSize"        Value="12"/>
+        <Setter Property="Cursor"          Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="TabItem">
-                    <Border Name="Border" Background="Transparent" BorderThickness="0" 
-                            Padding="20,10" Margin="0,0,4,0" CornerRadius="8,8,0,0">
-                        <ContentPresenter ContentSource="Header" 
-                                        HorizontalAlignment="Center" 
-                                        VerticalAlignment="Center"/>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}"/>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-                            <Setter Property="FontWeight" Value="SemiBold"/>
-                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="#E3F2FD"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource DangerLightBrush}"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -113,15 +141,93 @@
         </Setter>
     </Style>
 
-    <!-- Modern Menu Style -->
+    <!-- ═══════════════════════════════════════════════════════════
+         Card
+         ═══════════════════════════════════════════════════════════ -->
+    <Style x:Key="ModernCard" TargetType="Border">
+        <Setter Property="Background"      Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius"    Value="8"/>
+        <Setter Property="Padding"         Value="16"/>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.07" Color="#000000"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         DataGrid
+         ═══════════════════════════════════════════════════════════ -->
+    <Style x:Key="ModernDataGrid" TargetType="DataGrid">
+        <Setter Property="Background"               Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="BorderBrush"              Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness"          Value="1"/>
+        <Setter Property="RowBackground"            Value="White"/>
+        <Setter Property="AlternatingRowBackground" Value="#FAFBFC"/>
+        <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
+        <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="AutoGenerateColumns"      Value="False"/>
+        <Setter Property="CanUserAddRows"           Value="False"/>
+        <Setter Property="SelectionMode"            Value="Single"/>
+        <Setter Property="FontSize"                 Value="13"/>
+        <Setter Property="HeadersVisibility"        Value="Column"/>
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         TabControl / TabItem – bottom-border indicator
+         ═══════════════════════════════════════════════════════════ -->
+    <Style x:Key="ModernTabControl" TargetType="TabControl">
+        <Setter Property="Background"      Value="{StaticResource BackgroundBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding"         Value="0"/>
+    </Style>
+
+    <Style x:Key="ModernTabItem" TargetType="TabItem">
+        <Setter Property="FontSize"   Value="13"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="Border"
+                            Background="Transparent"
+                            BorderThickness="0,0,0,2"
+                            BorderBrush="Transparent"
+                            Padding="18,10"
+                            Margin="0,0,2,0">
+                        <ContentPresenter ContentSource="Header"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="Border" Property="Background"  Value="{StaticResource SurfaceBrush}"/>
+                            <Setter Property="Foreground"  Value="{StaticResource PrimaryBrush}"/>
+                            <Setter Property="FontWeight"  Value="SemiBold"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="{StaticResource NeutralLightBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Menu
+         ═══════════════════════════════════════════════════════════ -->
     <Style x:Key="ModernMenu" TargetType="Menu">
-        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Background"      Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="Padding"         Value="4,2"/>
     </Style>
 
     <Style x:Key="ModernMenuItem" TargetType="MenuItem">
-        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="Padding"  Value="12,6"/>
         <Setter Property="FontSize" Value="13"/>
     </Style>
 

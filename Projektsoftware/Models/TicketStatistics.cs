@@ -25,6 +25,12 @@ namespace Projektsoftware.Models
         public int WeekTickets { get; set; }
         public int MonthTickets { get; set; }
 
+        public int SlaBreachedCount { get; set; }
+        public int SlaCompliantCount { get; set; }
+        public double SlaComplianceRate { get; set; }
+
+        public string SlaComplianceText => $"{SlaComplianceRate:F0} %";
+
         public string AverageResolutionTimeText
         {
             get

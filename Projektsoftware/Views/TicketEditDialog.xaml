@@ -127,6 +127,12 @@
                                   DisplayMemberPath="FullName"
                                   SelectedValuePath="Id"/>
 
+                        <Label Content="Projekt (für Abrechnung):"/>
+                        <ComboBox x:Name="ProjectComboBox"
+                                  Margin="5"
+                                  DisplayMemberPath="Name"
+                                  SelectedValuePath="Id"/>
+
                         <Label Content="Lösung/Kommentar:"/>
                         <TextBox x:Name="ResolutionTextBox" 
                                  Height="100" 

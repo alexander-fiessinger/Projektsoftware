@@ -332,6 +332,179 @@ namespace Projektsoftware.Services
             await cmd9.ExecuteNonQueryAsync();
             System.Diagnostics.Debug.WriteLine("✅ Tabelle 'meetings' erstellt/geprüft");
 
+            // Kundendokumente Tabelle
+            string createCustomerDocumentsTable = @"
+                CREATE TABLE IF NOT EXISTS customer_documents (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    customer_id INT NOT NULL,
+                    file_name VARCHAR(500) NOT NULL,
+                    file_path VARCHAR(1000) NOT NULL,
+                    file_type VARCHAR(100),
+                    file_size BIGINT DEFAULT 0,
+                    description TEXT,
+                    uploaded_by VARCHAR(255),
+                    uploaded_at DATETIME NOT NULL,
+                    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+                    INDEX idx_customer_id (customer_id)
+                )";
+
+            using var cmd10 = new MySqlCommand(createCustomerDocumentsTable, connection);
+            await cmd10.ExecuteNonQueryAsync();
+            System.Diagnostics.Debug.WriteLine("✅ Tabelle 'customer_documents' erstellt/geprüft");
+
+            // Projektdokumente Tabelle
+            string createProjectDocumentsTable = @"
+                CREATE TABLE IF NOT EXISTS project_documents (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    project_id INT NOT NULL,
+                    file_name VARCHAR(500) NOT NULL,
+                    file_path VARCHAR(1000) NOT NULL,
+                    file_type VARCHAR(100),
+                    file_size BIGINT DEFAULT 0,
+                    description TEXT,
+                    uploaded_by VARCHAR(255),
+                    uploaded_at DATETIME NOT NULL,
+                    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                    INDEX idx_project_id (project_id)
+                )";
+
+            using var cmd11 = new MySqlCommand(createProjectDocumentsTable, connection);
+            await cmd11.ExecuteNonQueryAsync();
+            System.Diagnostics.Debug.WriteLine("✅ Tabelle 'project_documents' erstellt/geprüft");
+
+            // Lieferanten Tabelle
+            string createSuppliersTable = @"
+                CREATE TABLE IF NOT EXISTS suppliers (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    contact_person VARCHAR(255),
+                    email VARCHAR(255),
+                    phone VARCHAR(50),
+                    address VARCHAR(255),
+                    zip_code VARCHAR(20),
+                    city VARCHAR(100),
+                    country VARCHAR(100) DEFAULT 'Deutschland',
+                    tax_number VARCHAR(50),
+                    bank_iban VARCHAR(50),
+                    bank_bic VARCHAR(20),
+                    notes TEXT,
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME,
+                    INDEX idx_name (name)
+                )";
+
+            using var cmdS1 = new MySqlCommand(createSuppliersTable, connection);
+            await cmdS1.ExecuteNonQueryAsync();
+            System.Diagnostics.Debug.WriteLine("✅ Tabelle 'suppliers' erstellt/geprüft");
+
+            // Bestellungen Tabelle
+            string createPurchaseOrdersTable = @"
+                CREATE TABLE IF NOT EXISTS purchase_orders (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    supplier_id INT,
+                    order_number VARCHAR(100),
+                    order_date DATE NOT NULL,
+                    delivery_date_expected DATE,
+                    delivery_date_actual DATE,
+                    status VARCHAR(50) DEFAULT 'Offen',
+                    total_net DECIMAL(12,2) DEFAULT 0,
+                    total_gross DECIMAL(12,2) DEFAULT 0,
+                    notes TEXT,
+                    created_at DATETIME NOT NULL,
+                    FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL,
+                    INDEX idx_status (status),
+                    INDEX idx_supplier_id (supplier_id)
+                )";
+
+            using var cmdS2 = new MySqlCommand(createPurchaseOrdersTable, connection);
+            await cmdS2.ExecuteNonQueryAsync();
+            System.Diagnostics.Debug.WriteLine("✅ Tabelle 'purchase_orders' erstellt/geprüft");
+
+            // Bestellpositionen Tabelle
+            string createPurchaseOrderItemsTable = @"
+                CREATE TABLE IF NOT EXISTS purchase_order_items (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    purchase_order_id INT NOT NULL,
+                    description VARCHAR(500) NOT NULL,
+                    quantity DECIMAL(10,2) DEFAULT 1,
+                    unit VARCHAR(50) DEFAULT 'Stk.',
+                    unit_price_net DECIMAL(12,4) DEFAULT 0,
+                    total_net DECIMAL(12,2) DEFAULT 0,
+                    vat_percent DECIMAL(5,2) DEFAULT 19,
+                    FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE CASCADE
+                )";
+
+            using var cmdS3 = new MySqlCommand(createPurchaseOrderItemsTable, connection);
+            await cmdS3.ExecuteNonQueryAsync();
+            System.Diagnostics.Debug.WriteLine("✅ Tabelle 'purchase_order_items' erstellt/geprüft");
+
+            // Eingangsrechnungen Tabelle
+            string createPurchaseInvoicesTable = @"
+                CREATE TABLE IF NOT EXISTS purchase_invoices (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    supplier_id INT,
+                    invoice_number VARCHAR(100) NOT NULL,
+                    invoice_date DATE NOT NULL,
+                    due_date DATE,
+                    total_net DECIMAL(12,2) DEFAULT 0,
+                    total_gross DECIMAL(12,2) DEFAULT 0,
+                    status VARCHAR(50) DEFAULT 'Offen',
+                    payment_date DATE,
+                    purchase_order_id INT,
+                    notes TEXT,
+                    created_at DATETIME NOT NULL,
+                    FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL,
+                    FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE SET NULL,
+                    INDEX idx_status (status),
+                    INDEX idx_due_date (due_date)
+                )";
+
+            using var cmdS4 = new MySqlCommand(createPurchaseInvoicesTable, connection);
+            await cmdS4.ExecuteNonQueryAsync();
+            System.Diagnostics.Debug.WriteLine("✅ Tabelle 'purchase_invoices' erstellt/geprüft");
+
+            // Belegablage Tabelle
+            string createPurchaseDocumentsTable = @"
+                CREATE TABLE IF NOT EXISTS purchase_documents (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    supplier_id INT NULL,
+                    document_name VARCHAR(255) NOT NULL DEFAULT '',
+                    document_type VARCHAR(50) NOT NULL DEFAULT 'Rechnung',
+                    document_date DATE NOT NULL,
+                    original_file_name VARCHAR(255) NULL,
+                    local_file_path VARCHAR(1000) NULL,
+                    notes TEXT NULL,
+                    created_at DATETIME NOT NULL,
+                    easybill_attachment_id BIGINT NULL,
+                    easybill_synced_at DATETIME NULL,
+                    FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL,
+                    INDEX idx_document_date (document_date),
+                    INDEX idx_supplier_id (supplier_id)
+                )";
+
+            using var cmdS5 = new MySqlCommand(createPurchaseDocumentsTable, connection);
+            await cmdS5.ExecuteNonQueryAsync();
+            System.Diagnostics.Debug.WriteLine("✅ Tabelle 'purchase_documents' erstellt/geprüft");
+
+            // Audit-Log Tabelle
+            string createAuditLogTable = @"
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    timestamp DATETIME NOT NULL,
+                    user_name VARCHAR(100) NOT NULL,
+                    entity_type VARCHAR(50) NOT NULL,
+                    entity_id VARCHAR(50),
+                    action VARCHAR(50) NOT NULL,
+                    details TEXT,
+                    INDEX idx_timestamp (timestamp),
+                    INDEX idx_entity_type (entity_type),
+                    INDEX idx_user_name (user_name)
+                )";
+
+            using var cmdAudit = new MySqlCommand(createAuditLogTable, connection);
+            await cmdAudit.ExecuteNonQueryAsync();
+            System.Diagnostics.Debug.WriteLine("✅ Tabelle 'audit_log' erstellt/geprüft");
+
             // Überprüfe ob users Tabelle tatsächlich erstellt wurde
             string checkUsersTable = @"
                 SELECT COUNT(*) 
@@ -519,6 +692,92 @@ namespace Projektsoftware.Services
                     using var alterCmd8 = new MySqlCommand(addProjectIdColumn, connection);
                     await alterCmd8.ExecuteNonQueryAsync();
                 }
+
+                // Migration für tickets Tabelle - project_id
+                string checkTicketProjectIdColumn = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'tickets' 
+                    AND COLUMN_NAME = 'project_id'";
+
+                using var checkCmd9 = new MySqlCommand(checkTicketProjectIdColumn, connection);
+                var ticketProjectIdExists = Convert.ToInt32(await checkCmd9.ExecuteScalarAsync()) > 0;
+
+                if (!ticketProjectIdExists)
+                {
+                    string addTicketProjectId = "ALTER TABLE tickets ADD COLUMN project_id INT NULL, ADD INDEX idx_ticket_project_id (project_id)";
+                    using var alterCmd9 = new MySqlCommand(addTicketProjectId, connection);
+                    await alterCmd9.ExecuteNonQueryAsync();
+                }
+
+                // Migration für suppliers Tabelle - easybill_customer_id
+                string checkSuppliersEasybillColumn = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'suppliers' 
+                    AND COLUMN_NAME = 'easybill_customer_id'";
+
+                using var checkSuppEb = new MySqlCommand(checkSuppliersEasybillColumn, connection);
+                if (Convert.ToInt32(await checkSuppEb.ExecuteScalarAsync()) == 0)
+                {
+                    using var alterSuppEb = new MySqlCommand(
+                        "ALTER TABLE suppliers ADD COLUMN easybill_customer_id BIGINT NULL, ADD COLUMN easybill_synced_at DATETIME NULL",
+                        connection);
+                    await alterSuppEb.ExecuteNonQueryAsync();
+                }
+
+                // Migration für purchase_invoices Tabelle - easybill_document_id
+                string checkInvEasybillColumn = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'purchase_invoices' 
+                    AND COLUMN_NAME = 'easybill_document_id'";
+
+                using var checkInvEb = new MySqlCommand(checkInvEasybillColumn, connection);
+                if (Convert.ToInt32(await checkInvEb.ExecuteScalarAsync()) == 0)
+                {
+                    using var alterInvEb = new MySqlCommand(
+                        "ALTER TABLE purchase_invoices ADD COLUMN easybill_document_id BIGINT NULL, ADD COLUMN easybill_synced_at DATETIME NULL",
+                        connection);
+                    await alterInvEb.ExecuteNonQueryAsync();
+                }
+
+                // Migration für purchase_invoices - easybill_attachment_id
+                string checkInvAttColumn = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'purchase_invoices' 
+                    AND COLUMN_NAME = 'easybill_attachment_id'";
+
+                using var checkInvAtt = new MySqlCommand(checkInvAttColumn, connection);
+                if (Convert.ToInt32(await checkInvAtt.ExecuteScalarAsync()) == 0)
+                {
+                    using var alterInvAtt = new MySqlCommand(
+                        "ALTER TABLE purchase_invoices ADD COLUMN easybill_attachment_id BIGINT NULL",
+                        connection);
+                    await alterInvAtt.ExecuteNonQueryAsync();
+                }
+
+                // Migration für purchase_orders Tabelle - easybill_document_id
+                string checkOrderEasybillColumn = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'purchase_orders' 
+                    AND COLUMN_NAME = 'easybill_document_id'";
+
+                using var checkOrderEb = new MySqlCommand(checkOrderEasybillColumn, connection);
+                if (Convert.ToInt32(await checkOrderEb.ExecuteScalarAsync()) == 0)
+                {
+                    using var alterOrderEb = new MySqlCommand(
+                        "ALTER TABLE purchase_orders ADD COLUMN easybill_document_id BIGINT NULL, ADD COLUMN easybill_synced_at DATETIME NULL",
+                        connection);
+                    await alterOrderEb.ExecuteNonQueryAsync();
+                }
             }
             catch (Exception ex)
             {
@@ -581,7 +840,9 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@createdAt", project.CreatedAt);
 
             var result = await cmd.ExecuteScalarAsync();
-            return Convert.ToInt32(result);
+            var newId = Convert.ToInt32(result);
+            _ = new AuditLogService(connectionString).LogAsync("Projekt", newId.ToString(), "Erstellt", project.Name);
+            return newId;
         }
 
         public async Task UpdateProjectAsync(Project project)
@@ -607,6 +868,7 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@budget", project.Budget);
 
             await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Projekt", project.Id.ToString(), "Aktualisiert", project.Name);
         }
 
         public async Task DeleteProjectAsync(int projectId)
@@ -619,6 +881,7 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@id", projectId);
 
             await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Projekt", projectId.ToString(), "Gelöscht", string.Empty);
         }
 
         #endregion
@@ -995,6 +1258,7 @@ namespace Projektsoftware.Services
 
                 // Update last login
                 await UpdateLastLoginAsync(user.Id);
+                _ = new AuditLogService(connectionString).LogAsync("Benutzer", user.Id.ToString(), "Angemeldet", user.Username);
 
                 return user;
             }
@@ -1206,6 +1470,7 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@is_active", customer.IsActive);
 
             customer.Id = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            _ = new AuditLogService(connectionString).LogAsync("Kunde", customer.Id.ToString(), "Erstellt", customer.CompanyName ?? customer.LastName ?? "");
             return customer;
         }
 
@@ -1255,6 +1520,7 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@is_active", customer.IsActive);
 
             await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Kunde", customer.Id.ToString(), "Aktualisiert", customer.CompanyName ?? customer.LastName ?? "");
         }
 
         /// <summary>
@@ -1271,6 +1537,7 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@id", customer.Id);
 
             await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Kunde", customer.Id.ToString(), "Gelöscht", customer.CompanyName ?? customer.LastName ?? "");
         }
 
         /// <summary>
@@ -1319,6 +1586,142 @@ namespace Projektsoftware.Services
             }
 
             return null;
+        }
+
+        #endregion
+
+        #region Customer Document Methods
+
+        public async Task<List<CustomerDocument>> GetCustomerDocumentsAsync(int customerId)
+        {
+            var documents = new List<CustomerDocument>();
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = "SELECT * FROM customer_documents WHERE customer_id = @customerId ORDER BY uploaded_at DESC";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@customerId", customerId);
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                documents.Add(new CustomerDocument
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("id")),
+                    CustomerId = reader.GetInt32(reader.GetOrdinal("customer_id")),
+                    FileName = reader.GetString(reader.GetOrdinal("file_name")),
+                    FilePath = reader.GetString(reader.GetOrdinal("file_path")),
+                    FileType = reader.IsDBNull(reader.GetOrdinal("file_type")) ? "" : reader.GetString(reader.GetOrdinal("file_type")),
+                    FileSize = reader.IsDBNull(reader.GetOrdinal("file_size")) ? 0 : reader.GetInt64(reader.GetOrdinal("file_size")),
+                    Description = reader.IsDBNull(reader.GetOrdinal("description")) ? "" : reader.GetString(reader.GetOrdinal("description")),
+                    UploadedBy = reader.IsDBNull(reader.GetOrdinal("uploaded_by")) ? "" : reader.GetString(reader.GetOrdinal("uploaded_by")),
+                    UploadedAt = reader.GetDateTime(reader.GetOrdinal("uploaded_at"))
+                });
+            }
+
+            return documents;
+        }
+
+        public async Task<int> AddCustomerDocumentAsync(CustomerDocument document)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = @"INSERT INTO customer_documents (customer_id, file_name, file_path, file_type, file_size, description, uploaded_by, uploaded_at)
+                           VALUES (@customerId, @fileName, @filePath, @fileType, @fileSize, @description, @uploadedBy, @uploadedAt);
+                           SELECT LAST_INSERT_ID();";
+
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@customerId", document.CustomerId);
+            cmd.Parameters.AddWithValue("@fileName", document.FileName);
+            cmd.Parameters.AddWithValue("@filePath", document.FilePath);
+            cmd.Parameters.AddWithValue("@fileType", document.FileType ?? "");
+            cmd.Parameters.AddWithValue("@fileSize", document.FileSize);
+            cmd.Parameters.AddWithValue("@description", document.Description ?? "");
+            cmd.Parameters.AddWithValue("@uploadedBy", document.UploadedBy ?? "");
+            cmd.Parameters.AddWithValue("@uploadedAt", document.UploadedAt);
+
+            var result = await cmd.ExecuteScalarAsync();
+            return Convert.ToInt32(result);
+        }
+
+        public async Task DeleteCustomerDocumentAsync(int documentId)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = "DELETE FROM customer_documents WHERE id = @id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@id", documentId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        #endregion
+
+        #region Project Document Methods
+
+        public async Task<List<ProjectDocument>> GetProjectDocumentsAsync(int projectId)
+        {
+            var documents = new List<ProjectDocument>();
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = "SELECT * FROM project_documents WHERE project_id = @projectId ORDER BY uploaded_at DESC";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@projectId", projectId);
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                documents.Add(new ProjectDocument
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("id")),
+                    ProjectId = reader.GetInt32(reader.GetOrdinal("project_id")),
+                    FileName = reader.GetString(reader.GetOrdinal("file_name")),
+                    FilePath = reader.GetString(reader.GetOrdinal("file_path")),
+                    FileType = reader.IsDBNull(reader.GetOrdinal("file_type")) ? "" : reader.GetString(reader.GetOrdinal("file_type")),
+                    FileSize = reader.IsDBNull(reader.GetOrdinal("file_size")) ? 0 : reader.GetInt64(reader.GetOrdinal("file_size")),
+                    Description = reader.IsDBNull(reader.GetOrdinal("description")) ? "" : reader.GetString(reader.GetOrdinal("description")),
+                    UploadedBy = reader.IsDBNull(reader.GetOrdinal("uploaded_by")) ? "" : reader.GetString(reader.GetOrdinal("uploaded_by")),
+                    UploadedAt = reader.GetDateTime(reader.GetOrdinal("uploaded_at"))
+                });
+            }
+
+            return documents;
+        }
+
+        public async Task<int> AddProjectDocumentAsync(ProjectDocument document)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = @"INSERT INTO project_documents (project_id, file_name, file_path, file_type, file_size, description, uploaded_by, uploaded_at)
+                           VALUES (@projectId, @fileName, @filePath, @fileType, @fileSize, @description, @uploadedBy, @uploadedAt);
+                           SELECT LAST_INSERT_ID();";
+
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@projectId", document.ProjectId);
+            cmd.Parameters.AddWithValue("@fileName", document.FileName);
+            cmd.Parameters.AddWithValue("@filePath", document.FilePath);
+            cmd.Parameters.AddWithValue("@fileType", document.FileType ?? "");
+            cmd.Parameters.AddWithValue("@fileSize", document.FileSize);
+            cmd.Parameters.AddWithValue("@description", document.Description ?? "");
+            cmd.Parameters.AddWithValue("@uploadedBy", document.UploadedBy ?? "");
+            cmd.Parameters.AddWithValue("@uploadedAt", document.UploadedAt);
+
+            var result = await cmd.ExecuteScalarAsync();
+            return Convert.ToInt32(result);
+        }
+
+        public async Task DeleteProjectDocumentAsync(int documentId)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = "DELETE FROM project_documents WHERE id = @id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@id", documentId);
+            await cmd.ExecuteNonQueryAsync();
         }
 
         #endregion

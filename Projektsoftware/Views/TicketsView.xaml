@@ -1,0 +1,256 @@
+<UserControl x:Class="Projektsoftware.Views.TicketsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="Segoe UI, Segoe UI Emoji"
+             Loaded="UserControl_Loaded">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- KPI Tiles -->
+        <UniformGrid Grid.Row="0" Columns="6" Margin="0,0,0,14">
+            <Border Background="#2563EB" CornerRadius="8" Margin="0,0,6,0" Padding="14,10">
+                <StackPanel>
+                    <TextBlock Text="Gesamt" Foreground="White" FontSize="11" FontWeight="SemiBold" Opacity="0.85"/>
+                    <TextBlock x:Name="TotalTicketsText" Text="–" Foreground="White" FontSize="26" FontWeight="Bold" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Background="#D97706" CornerRadius="8" Margin="0,0,6,0" Padding="14,10">
+                <StackPanel>
+                    <TextBlock Text="🆕 Neu" Foreground="White" FontSize="11" FontWeight="SemiBold" Opacity="0.85"/>
+                    <TextBlock x:Name="NewTicketsText" Text="–" Foreground="White" FontSize="26" FontWeight="Bold" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Background="#0284C7" CornerRadius="8" Margin="0,0,6,0" Padding="14,10">
+                <StackPanel>
+                    <TextBlock Text="🔧 In Bearbeitung" Foreground="White" FontSize="11" FontWeight="SemiBold" Opacity="0.85"/>
+                    <TextBlock x:Name="InProgressText" Text="–" Foreground="White" FontSize="26" FontWeight="Bold" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Background="#DC2626" CornerRadius="8" Margin="0,0,6,0" Padding="14,10">
+                <StackPanel>
+                    <TextBlock Text="🚨 Dringend" Foreground="White" FontSize="11" FontWeight="SemiBold" Opacity="0.85"/>
+                    <TextBlock x:Name="UrgentText" Text="–" Foreground="White" FontSize="26" FontWeight="Bold" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Background="#16A34A" CornerRadius="8" Margin="0,0,6,0" Padding="14,10">
+                <StackPanel>
+                    <TextBlock Text="✅ Gelöst" Foreground="White" FontSize="11" FontWeight="SemiBold" Opacity="0.85"/>
+                    <TextBlock x:Name="ResolvedText" Text="–" Foreground="White" FontSize="26" FontWeight="Bold" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Background="#475569" CornerRadius="8" Padding="14,10">
+                <StackPanel>
+                    <TextBlock Text="🔒 Geschlossen" Foreground="White" FontSize="11" FontWeight="SemiBold" Opacity="0.85"/>
+                    <TextBlock x:Name="ClosedText" Text="–" Foreground="White" FontSize="26" FontWeight="Bold" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <!-- Search Bar -->
+        <Border Grid.Row="1"
+                Background="{StaticResource NeutralLightBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="5"
+                Padding="10,6"
+                Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="SearchBox"
+                         Grid.Column="0"
+                         Height="32"
+                         VerticalContentAlignment="Center"
+                         FontSize="13"
+                         TextChanged="SearchBox_TextChanged">
+                    <TextBox.Style>
+                        <Style TargetType="TextBox">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="TextBox">
+                                        <Border Background="White"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="4">
+                                            <Grid>
+                                                <ScrollViewer x:Name="PART_ContentHost" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="🔍  Suche nach Ticket #, Kunde, E-Mail, Betreff …"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           Margin="10,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           IsHitTestVisible="False">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </TextBox.Style>
+                </TextBox>
+                <Button Grid.Column="1" Content="✕" Width="32" Height="32" Margin="6,0,0,0"
+                        Style="{StaticResource ActionButton}"
+                        Click="ClearSearch_Click" ToolTip="Suche löschen"/>
+                <CheckBox x:Name="AutoRefreshCheckBox"
+                          Grid.Column="2"
+                          Content="Auto-Refresh (30s)"
+                          VerticalAlignment="Center"
+                          Margin="14,0,0,0"
+                          Checked="AutoRefresh_Changed"
+                          Unchecked="AutoRefresh_Changed"/>
+            </Grid>
+        </Border>
+
+        <!-- Toolbar -->
+        <Grid Grid.Row="2" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Action buttons -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Button Content="+ Neues Ticket" Style="{StaticResource ModernButton}"
+                        Background="{StaticResource SuccessBrush}" Foreground="White"
+                        Padding="12,6" Margin="0,0,6,0"
+                        Click="NewTicket_Click"/>
+                <Button x:Name="EditButton" Content="✏️ Bearbeiten"
+                        Style="{StaticResource ActionButton}"
+                        Foreground="{StaticResource PrimaryBrush}"
+                        Padding="10,6" Margin="0,0,6,0"
+                        IsEnabled="False"
+                        Click="EditTicket_Click"/>
+                <Button x:Name="ViewDetailsButton" Content="👁️ Details"
+                        Style="{StaticResource ActionButton}"
+                        Padding="10,6" Margin="0,0,6,0"
+                        IsEnabled="False"
+                        Click="ViewDetails_Click"/>
+                <Button x:Name="DeleteButton" Content="🗑️ Löschen"
+                        Style="{StaticResource DangerActionButton}"
+                        Padding="10,6" Margin="0,0,0,0"
+                        IsEnabled="False"
+                        Click="DeleteTicket_Click"/>
+            </StackPanel>
+
+            <!-- Filters -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <TextBlock Text="Status:" VerticalAlignment="Center" Margin="0,0,5,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                <ComboBox x:Name="StatusFilterComboBox" Width="140" Height="32" Margin="0,0,10,0"
+                          SelectionChanged="FilterChanged" SelectedIndex="0">
+                    <ComboBoxItem Content="Alle"/>
+                    <ComboBoxItem Content="Neu"/>
+                    <ComboBoxItem Content="In Bearbeitung"/>
+                    <ComboBoxItem Content="Gelöst"/>
+                    <ComboBoxItem Content="Geschlossen"/>
+                </ComboBox>
+                <TextBlock Text="Priorität:" VerticalAlignment="Center" Margin="0,0,5,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                <ComboBox x:Name="PriorityFilterComboBox" Width="120" Height="32" Margin="0,0,10,0"
+                          SelectionChanged="FilterChanged" SelectedIndex="0">
+                    <ComboBoxItem Content="Alle"/>
+                    <ComboBoxItem Content="Niedrig"/>
+                    <ComboBoxItem Content="Mittel"/>
+                    <ComboBoxItem Content="Hoch"/>
+                    <ComboBoxItem Content="Dringend"/>
+                </ComboBox>
+                <TextBlock Text="Kategorie:" VerticalAlignment="Center" Margin="0,0,5,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                <ComboBox x:Name="CategoryFilterComboBox" Width="140" Height="32" Margin="0,0,10,0"
+                          SelectionChanged="FilterChanged" SelectedIndex="0">
+                    <ComboBoxItem Content="Alle"/>
+                    <ComboBoxItem Content="Allgemein"/>
+                    <ComboBoxItem Content="Technisch"/>
+                    <ComboBoxItem Content="Abrechnung"/>
+                    <ComboBoxItem Content="Feature-Anfrage"/>
+                    <ComboBoxItem Content="Fehler"/>
+                </ComboBox>
+                <Button Content="🔄" Style="{StaticResource ActionButton}"
+                        Width="32" Height="32" Margin="0,0,6,0"
+                        Click="Refresh_Click" ToolTip="Aktualisieren"/>
+                <Button Content="CSV" Style="{StaticResource ActionButton}"
+                        Padding="10,6" Margin="0,0,6,0"
+                        Click="Export_Click" ToolTip="Nach CSV exportieren"/>
+                <Button Content="PDF" Style="{StaticResource ActionButton}"
+                        Padding="10,6"
+                        Click="ExportPdf_Click" ToolTip="Als PDF exportieren"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- DataGrid -->
+        <DataGrid Grid.Row="3"
+                  x:Name="TicketsDataGrid"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  SelectionMode="Single"
+                  SelectionChanged="TicketsDataGrid_SelectionChanged"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  AlternatingRowBackground="#FAFAFA"
+                  MouseDoubleClick="TicketsDataGrid_MouseDoubleClick">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Ticket #"    Binding="{Binding TicketNumber}"                                   Width="100"/>
+                <DataGridTextColumn Header="Erstellt"    Binding="{Binding CreatedAt, StringFormat={}{0:dd.MM.yyyy HH:mm}}" Width="130"/>
+                <DataGridTextColumn Header="Kunde"       Binding="{Binding CustomerName}"                                   Width="150"/>
+                <DataGridTextColumn Header="E-Mail"      Binding="{Binding CustomerEmail}"                                  Width="180"/>
+                <DataGridTextColumn Header="Betreff"     Binding="{Binding Subject}"                                        Width="*"/>
+                <DataGridTextColumn Header="Kategorie"   Binding="{Binding CategoryText}"                                   Width="120"/>
+                <DataGridTextColumn Header="Priorität"   Binding="{Binding PriorityText}"                                   Width="100"/>
+                <DataGridTextColumn Header="Status"      Binding="{Binding StatusText}"                                     Width="120"/>
+                <DataGridTextColumn Header="Zugewiesen"  Binding="{Binding AssignedToEmployeeName}"                         Width="150"/>
+            </DataGrid.Columns>
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Priority}" Value="3">
+                            <Setter Property="Background" Value="#FEF2F2"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Priority}" Value="2">
+                            <Setter Property="Background" Value="#FFFBEB"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Status}" Value="3">
+                            <Setter Property="Background" Value="#F0FDF4"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Status}" Value="4">
+                            <Setter Property="Background" Value="#F8FAFC"/>
+                            <Setter Property="Foreground" Value="#94A3B8"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                    <EventSetter Event="MouseDoubleClick" Handler="TicketsDataGrid_MouseDoubleClick"/>
+                </Style>
+            </DataGrid.RowStyle>
+        </DataGrid>
+
+        <!-- Status Bar -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,8,0,0">
+            <TextBlock x:Name="StatusTextBlock" Text="Tickets werden geladen …"
+                       FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                       VerticalAlignment="Center"/>
+            <TextBlock Text=" · " FontSize="12" Foreground="{StaticResource BorderBrush}" VerticalAlignment="Center"/>
+            <TextBlock x:Name="LastUpdateTextBlock" Text=""
+                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                       VerticalAlignment="Center"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -204,7 +204,7 @@ namespace Projektsoftware.Services
         {
             try
             {
-                var json = JsonSerializer.Serialize(customer);
+                var json = JsonSerializer.Serialize(customer, jsonOptions);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await httpClient.PostAsync("customers", content);
@@ -231,7 +231,7 @@ namespace Projektsoftware.Services
         {
             try
             {
-                var json = JsonSerializer.Serialize(customer);
+                var json = JsonSerializer.Serialize(customer, jsonOptions);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await httpClient.PutAsync($"customers/{customerId}", content);
@@ -489,6 +489,54 @@ namespace Projektsoftware.Services
             }
         }
 
+        /// <summary>
+        /// Aktualisiert ein Projekt in Easybill
+        /// </summary>
+        public async Task<EasybillProject> UpdateProjectAsync(long projectId, EasybillProject project)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(project);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await httpClient.PutAsync($"projects/{projectId}", content);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
+                }
+
+                var resultJson = await response.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<EasybillProject>(resultJson, jsonOptions);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Fehler beim Aktualisieren des Projekts: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Löscht ein Projekt in Easybill
+        /// </summary>
+        public async Task DeleteProjectAsync(long projectId)
+        {
+            try
+            {
+                var response = await httpClient.DeleteAsync($"projects/{projectId}");
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Fehler beim Löschen des Projekts: {ex.Message}", ex);
+            }
+        }
+
         #endregion
 
         #region Time Tracking Methods
@@ -651,6 +699,7 @@ namespace Projektsoftware.Services
                     }
 
                     var json = await response.Content.ReadAsStringAsync();
+
                     var result = JsonSerializer.Deserialize<EasybillDocumentList>(json, jsonOptions);
 
                     if (result?.Items != null)
@@ -702,9 +751,6 @@ namespace Projektsoftware.Services
             try
             {
                 var json = JsonSerializer.Serialize(document, jsonOptions);
-
-                // DEBUG: Log the JSON to verify price conversion
-                System.Diagnostics.Debug.WriteLine($"[CreateDocumentAsync] Sending JSON: {json}");
 
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
@@ -854,14 +900,28 @@ namespace Projektsoftware.Services
         }
 
         /// <summary>
-        /// Dokument als bezahlt markieren
+        /// Dokument als bezahlt markieren (erstellt eine Zahlung über den vollen Bruttobetrag)
         /// </summary>
         public async Task<EasybillDocument> MarkDocumentAsPaidAsync(long documentId, string paidAt = null)
         {
             try
             {
                 var paidDate = paidAt ?? DateTime.Now.ToString("yyyy-MM-dd");
-                var response = await httpClient.PutAsync($"documents/{documentId}/paid-date/{paidDate}", null);
+
+                var document = await GetDocumentAsync(documentId);
+
+                var payment = new EasybillPayment
+                {
+                    DocumentId = documentId,
+                    Amount = document.TotalGross ?? 0m,
+                    Type = "BANK_TRANSFER",
+                    PaymentAt = paidDate
+                };
+
+                var json = JsonSerializer.Serialize(payment, jsonOptions);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await httpClient.PostAsync("document-payments?paid=true", content);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -869,8 +929,7 @@ namespace Projektsoftware.Services
                     throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
                 }
 
-                var resultJson = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<EasybillDocument>(resultJson, jsonOptions);
+                return await GetDocumentAsync(documentId);
             }
             catch (Exception ex)
             {
@@ -899,6 +958,52 @@ namespace Projektsoftware.Services
             catch (Exception ex)
             {
                 throw new Exception($"Fehler beim Stornieren des Dokuments: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Konvertiert ein bestehendes Dokument in einen anderen Typ (z.B. Angebot → Auftragsbestätigung)
+        /// </summary>
+        public async Task<EasybillDocument> ConvertDocumentAsync(EasybillDocument sourceDocument, string targetType, bool isDraft = true)
+        {
+            try
+            {
+                var items = sourceDocument.Items?.Select((item, index) => new EasybillDocumentItem
+                {
+                    Number = item.Number,
+                    Description = item.Description,
+                    Quantity = item.Quantity,
+                    Unit = item.Unit,
+                    Type = item.Type,
+                    Position = index + 1,
+                    SinglePriceNet = item.SinglePriceNet,
+                    VatPercent = item.VatPercent,
+                    Discount = item.Discount,
+                    DiscountType = item.DiscountType,
+                }).ToArray();
+
+                var newDoc = new EasybillDocument
+                {
+                    Type = targetType,
+                    CustomerId = sourceDocument.CustomerId,
+                    DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
+                    Subject = sourceDocument.Subject,
+                    Text = sourceDocument.Text,
+                    TextSuffix = sourceDocument.TextSuffix,
+                    Discount = sourceDocument.Discount,
+                    DiscountType = sourceDocument.DiscountType,
+                    IsDraft = isDraft,
+                    Items = items,
+                };
+
+                if (targetType == "INVOICE")
+                    newDoc.DueInDays = 14;
+
+                return await CreateDocumentAsync(newDoc);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Fehler beim Konvertieren des Dokuments: {ex.Message}", ex);
             }
         }
 
@@ -979,7 +1084,7 @@ namespace Projektsoftware.Services
         {
             try
             {
-                var json = JsonSerializer.Serialize(product);
+                var json = JsonSerializer.Serialize(product, jsonOptions);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await httpClient.PostAsync("positions", content);
@@ -1006,7 +1111,7 @@ namespace Projektsoftware.Services
         {
             try
             {
-                var json = JsonSerializer.Serialize(product);
+                var json = JsonSerializer.Serialize(product, jsonOptions);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await httpClient.PutAsync($"positions/{productId}", content);
@@ -1464,6 +1569,84 @@ namespace Projektsoftware.Services
             catch (Exception ex)
             {
                 throw new Exception($"Fehler beim Herunterladen des Anhangs: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Lädt eine Datei als globalen Beleg (ohne Kontext) hoch – erscheint in Easybill unter Belege → Uploads
+        /// </summary>
+        public async Task<EasybillAttachment> UploadGlobalAttachmentAsync(string fileName, byte[] fileData)
+        {
+            try
+            {
+                using var content = new MultipartFormDataContent();
+                var fileContent = new ByteArrayContent(fileData);
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+                content.Add(fileContent, "file", fileName);
+
+                var response = await httpClient.PostAsync("attachments", content);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
+                }
+
+                var resultJson = await response.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<EasybillAttachment>(resultJson, jsonOptions);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Fehler beim Hochladen des Belegs: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Aktualisiert einen globalen Anhang (z.B. customer_id zuweisen, um ihn einem Lieferanten zuzuordnen)
+        /// </summary>
+        public async Task<EasybillAttachment> UpdateAttachmentAsync(long attachmentId, long? customerId)
+        {
+            try
+            {
+                var attachment = new EasybillAttachment { CustomerId = customerId };
+                var json = JsonSerializer.Serialize(attachment, jsonOptions);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await httpClient.PutAsync($"attachments/{attachmentId}", content);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
+                }
+
+                var resultJson2 = await response.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<EasybillAttachment>(resultJson2, jsonOptions);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Fehler beim Aktualisieren des Anhangs: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Löscht einen globalen Anhang
+        /// </summary>
+        public async Task DeleteGlobalAttachmentAsync(long attachmentId)
+        {
+            try
+            {
+                var response = await httpClient.DeleteAsync($"attachments/{attachmentId}");
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Fehler beim Löschen des Anhangs: {ex.Message}", ex);
             }
         }
 
@@ -2087,6 +2270,91 @@ namespace Projektsoftware.Services
             }
         }
 
+        /// <summary>
+        /// Erstellt eine Proforma-Rechnung aus Zeiteinträgen eines Projekts
+        /// </summary>
+        public async Task<EasybillDocument> CreateProformaFromTimeEntriesAsync(
+            Project project,
+            List<TimeEntry> timeEntries,
+            decimal hourlyRate,
+            string proformaText = null,
+            int validityDays = 30,
+            bool isDraft = false,
+            int vatPercent = 19,
+            string vatSuffix = null)
+        {
+            try
+            {
+                if (!project.EasybillCustomerId.HasValue)
+                {
+                    throw new Exception("Projekt hat keine Easybill-Kunden-ID!");
+                }
+
+                var items = new List<EasybillDocumentItem>();
+                int position = 1;
+
+                foreach (var entry in timeEntries)
+                {
+                    var hours = (decimal)entry.Duration.TotalHours;
+                    var singlePriceNet = hourlyRate;
+                    var totalPriceNet = hours * singlePriceNet;
+
+                    items.Add(new EasybillDocumentItem
+                    {
+                        Type = "POSITION",
+                        Position = position++,
+                        Number = $"ZE-{entry.Date:yyyyMMdd}",
+                        Description = $"{entry.Activity ?? "Zeiterfassung"} - {entry.Date:dd.MM.yyyy}\n{entry.Description}",
+                        Quantity = hours,
+                        Unit = "Stunden",
+                        SinglePriceNet = singlePriceNet,
+                        VatPercent = vatPercent,
+                        TotalPriceNet = totalPriceNet,
+                        ExportIdentifier = $"TimeEntry-{entry.Id}"
+                    });
+                }
+
+                var defaultSuffix = $"Diese Proforma-Rechnung ist g\u00fcltig bis {DateTime.Now.AddDays(validityDays):dd.MM.yyyy}.\n\nBitte beachten Sie, dass es sich hierbei um keine steuerlich wirksame Rechnung handelt.";
+                var textSuffix = !string.IsNullOrEmpty(vatSuffix)
+                    ? $"{vatSuffix}\n\n{defaultSuffix}"
+                    : defaultSuffix;
+
+                var proforma = new EasybillDocument
+                {
+                    Type = "PROFORMA_INVOICE",
+                    CustomerId = project.EasybillCustomerId.Value,
+                    ProjectId = project.EasybillProjectId,
+                    DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
+                    Title = $"Proforma-Rechnung f\u00fcr Projekt: {project.Name}",
+                    Subject = $"Proforma-Rechnung {project.Name}",
+                    Text = proformaText ?? $"Sehr geehrte Damen und Herren,\n\nhiermit \u00fcbersenden wir Ihnen die Proforma-Rechnung f\u00fcr die erbrachten Leistungen im Rahmen des Projekts '{project.Name}':",
+                    TextSuffix = textSuffix,
+                    Status = "DRAFT",
+                    Currency = "EUR",
+                    ServiceDate = new ServiceDate
+                    {
+                        Type = "FROM_TO",
+                        DateFrom = timeEntries.Min(e => e.Date).ToString("yyyy-MM-dd"),
+                        DateTo = timeEntries.Max(e => e.Date).ToString("yyyy-MM-dd")
+                    },
+                    Items = items.ToArray()
+                };
+
+                var result = await CreateDocumentAsync(proforma);
+
+                if (!isDraft && result.Id.HasValue)
+                {
+                    result = await FinalizeDocumentAsync(result.Id.Value);
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Fehler beim Erstellen der Proforma-Rechnung aus Zeiteintr\u00e4gen: {ex.Message}", ex);
+            }
+        }
+
         #endregion
 
         #region Customer Sync Helper Methods
@@ -2106,7 +2374,7 @@ namespace Projektsoftware.Services
                 Street = customer.Street,
                 Zipcode = customer.ZipCode,
                 City = customer.City,
-                Country = customer.Country,
+                Country = ToIsoCountryCode(customer.Country),
                 VatId = customer.VatId,
                 Note = customer.Note
             };
@@ -2151,6 +2419,121 @@ namespace Projektsoftware.Services
                 // Neuer Kunde - erstellen
                 return await CreateCustomerAsync(easybillCustomer);
             }
+        }
+
+        /// <summary>
+        /// Konvertiert einen lokalen Lieferanten in einen EasybillCustomer
+        /// </summary>
+        public static EasybillCustomer ConvertSupplierToEasybillCustomer(Supplier supplier)
+        {
+            var noteParts = new System.Collections.Generic.List<string> { "Lieferant" };
+            if (!string.IsNullOrWhiteSpace(supplier.TaxNumber))
+                noteParts.Add($"USt-IdNr.: {supplier.TaxNumber}");
+            if (!string.IsNullOrWhiteSpace(supplier.BankIban))
+                noteParts.Add($"IBAN: {supplier.BankIban}");
+            if (!string.IsNullOrWhiteSpace(supplier.Notes))
+                noteParts.Add(supplier.Notes);
+
+            return new EasybillCustomer
+            {
+                CompanyName = supplier.Name,
+                FirstName = null,
+                LastName = null,
+                Emails = !string.IsNullOrEmpty(supplier.Email) ? new[] { supplier.Email } : null,
+                Phone1 = supplier.Phone,
+                Street = supplier.Address,
+                Zipcode = supplier.ZipCode,
+                City = supplier.City,
+                Country = ToIsoCountryCode(supplier.Country),
+                Note = string.Join(" | ", noteParts)
+            };
+        }
+
+        /// <summary>
+        /// Synchronisiert einen lokalen Lieferanten zu Easybill (als Kundeneintrag mit Kontakt)
+        /// </summary>
+        public async Task<EasybillCustomer> SyncSupplierToEasybillAsync(Supplier supplier)
+        {
+            var customer = ConvertSupplierToEasybillCustomer(supplier);
+
+            EasybillCustomer result;
+            if (supplier.EasybillCustomerId.HasValue)
+            {
+                customer.Id = supplier.EasybillCustomerId.Value;
+                result = await UpdateCustomerAsync(supplier.EasybillCustomerId.Value, customer);
+            }
+            else
+            {
+                result = await CreateCustomerAsync(customer);
+            }
+
+            if (!string.IsNullOrWhiteSpace(supplier.ContactPerson) && result?.Id > 0)
+            {
+                await SyncSupplierContactAsync(supplier, result.Id);
+            }
+
+            return result;
+        }
+
+        private async Task SyncSupplierContactAsync(Supplier supplier, long easybillCustomerId)
+        {
+            try
+            {
+                var parts = supplier.ContactPerson.Trim().Split(' ', 2);
+                var firstName = parts.Length > 1 ? parts[0] : "";
+                var lastName = parts.Length > 1 ? parts[1] : parts[0];
+
+                var existingContacts = await GetContactsByCustomerAsync(easybillCustomerId);
+                if (existingContacts?.Count > 0)
+                {
+                    var existing = existingContacts[0];
+                    if (existing.Id.HasValue)
+                    {
+                        await UpdateContactAsync(easybillCustomerId, existing.Id.Value, new EasybillContact
+                        {
+                            CustomerId = easybillCustomerId,
+                            FirstName = firstName,
+                            LastName = lastName,
+                            Email = supplier.Email,
+                            Phone1 = supplier.Phone
+                        });
+                        return;
+                    }
+                }
+
+                await CreateContactAsync(new EasybillContact
+                {
+                    CustomerId = easybillCustomerId,
+                    FirstName = firstName,
+                    LastName = lastName,
+                    Email = supplier.Email,
+                    Phone1 = supplier.Phone
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Kontakt-Sync Fehler für {supplier.Name}: {ex.Message}");
+            }
+        }
+
+        private static string ToIsoCountryCode(string country)
+        {
+            if (string.IsNullOrWhiteSpace(country)) return "DE";
+            if (country.Length == 2) return country.ToUpperInvariant();
+            return country.Trim().ToLowerInvariant() switch
+            {
+                "deutschland" or "germany" => "DE",
+                "österreich" or "oesterreich" or "austria" => "AT",
+                "schweiz" or "switzerland" or "suisse" or "svizzera" => "CH",
+                "frankreich" or "france" => "FR",
+                "niederlande" or "netherlands" or "holland" => "NL",
+                "belgien" or "belgium" or "belgique" => "BE",
+                "italien" or "italy" or "italia" => "IT",
+                "spanien" or "spain" or "españa" => "ES",
+                "vereinigtes königreich" or "united kingdom" or "großbritannien" => "GB",
+                "vereinigte staaten" or "united states" or "usa" => "US",
+                _ => "DE"
+            };
         }
 
         #endregion
@@ -2634,74 +3017,132 @@ namespace Projektsoftware.Services
         }
 
         /// <summary>
-        /// Erstellt eine Auftragsbestätigung
+        /// Erstellt eine Auftragsbestätigung.
+        /// Hinweis: Die Easybill REST API v1 bietet keinen Dokumenttyp für Auftragsbestätigungen.
+        /// ORDER entspricht einer Bestellung, nicht einer Auftragsbestätigung.
         /// </summary>
-        public async Task<EasybillDocument> CreateOrderConfirmationAsync(EasybillDocument orderConfirmation)
+        public Task<EasybillDocument> CreateOrderConfirmationAsync(EasybillDocument orderConfirmation)
         {
-            try
-            {
-                orderConfirmation.Type = "ORDER"; // Korrekter Easybill-Typ für Auftragsbestätigung
-                return await CreateDocumentAsync(orderConfirmation);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Erstellen der Auftragsbestätigung: {ex.Message}", ex);
-            }
+            throw new NotSupportedException(
+                "Die Easybill REST API unterstützt keinen Dokumenttyp für Auftragsbestätigungen.\n" +
+                "'ORDER' entspricht einer Bestellung.\n" +
+                "Bitte erstellen Sie die Auftragsbestätigung manuell in der Easybill Web-Oberfläche.");
         }
 
         /// <summary>
-        /// Erstellt eine Auftragsbestätigung aus einem Angebot
+        /// Erstellt eine Auftragsbestätigung aus einem Angebot.
+        /// Hinweis: Die Easybill REST API v1 bietet keinen Dokumenttyp für Auftragsbestätigungen.
+        /// ORDER entspricht einer Bestellung, nicht einer Auftragsbestätigung.
         /// </summary>
-        public async Task<EasybillDocument> CreateOrderConfirmationFromOfferAsync(long offerId, string confirmationText = null, bool isDraft = false)
+        public Task<EasybillDocument> CreateOrderConfirmationFromOfferAsync(long offerId, string confirmationText = null, bool isDraft = false)
         {
-            try
+            throw new NotSupportedException(
+                "Die Easybill REST API unterstützt keinen Dokumenttyp für Auftragsbestätigungen.\n" +
+                "'ORDER' entspricht einer Bestellung.\n" +
+                "Bitte erstellen Sie die Auftragsbestätigung manuell in der Easybill Web-Oberfläche.");
+        }
+
+        #endregion
+
+        #region Purchase Invoice Sync Methods
+
+        /// <summary>
+        /// Synchronisiert den Lieferanten einer Eingangsrechnung zu Easybill.
+        /// Hinweis: Die Easybill REST API v1 bietet keinen Endpunkt für Eingangsrechnungen/Belegerfassung.
+        /// Die PDF-Ablage erfolgt über den Anhang-Endpunkt (POST /attachments + PUT /attachments/{id}).
+        /// </summary>
+        public async Task<EasybillDocument?> SyncPurchaseInvoiceToEasybillAsync(PurchaseInvoice invoice, Supplier? supplier)
+        {
+            if (supplier != null && !supplier.EasybillCustomerId.HasValue)
             {
-                var offer = await GetDocumentAsync(offerId);
+                var syncedCustomer = await SyncSupplierToEasybillAsync(supplier);
+                if (syncedCustomer?.Id > 0)
+                    supplier.EasybillCustomerId = syncedCustomer.Id;
+            }
+            return null;
+        }
 
-                var orderConfirmation = new EasybillDocument
+        /// <summary>
+        /// Synchronisiert eine Bestellung zu Easybill (erstellt oder aktualisiert das Dokument).
+        /// Die Bestellnummer wird von Easybill automatisch vergeben.
+        /// </summary>
+        public async Task<EasybillDocument> SyncPurchaseOrderToEasybillAsync(PurchaseOrder order, Supplier? supplier, bool isDraft = false)
+        {
+            // Lieferant zuerst synchronisieren, falls noch keine Easybill-ID vorhanden
+            if (supplier != null && !supplier.EasybillCustomerId.HasValue)
+            {
+                var syncedCustomer = await SyncSupplierToEasybillAsync(supplier);
+                if (syncedCustomer?.Id > 0)
+                    supplier.EasybillCustomerId = syncedCustomer.Id;
+            }
+
+            EasybillDocumentItem[] items;
+            if (order.Items != null && order.Items.Count > 0)
+            {
+                items = order.Items.Select((item, index) => new EasybillDocumentItem
                 {
-                    Type = "ORDER", // Korrekter Easybill-Typ für Auftragsbestätigung
-                    CustomerId = offer.CustomerId,
-                    ProjectId = offer.ProjectId,
-                    DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
-                    Title = $"Auftragsbestätigung zu Angebot {offer.Number}",
-                    Subject = offer.Subject,
-                    Text = confirmationText ?? $"Vielen Dank für Ihren Auftrag!\n\nHiermit bestätigen wir Ihnen die Ausführung der folgenden Leistungen gemäß Angebot {offer.Number} vom {offer.DocumentDate}:",
-                    TextSuffix = "Wir freuen uns auf die Zusammenarbeit und werden Sie über den Projektfortschritt auf dem Laufenden halten.",
-                    Items = offer.Items,
-                    ServiceDate = offer.ServiceDate,
-                    BuyerReference = offer.Number, // Referenz zum Original-Angebot
-                    IsDraft = isDraft
-                };
+                    Type = "POSITION",
+                    Position = index + 1,
+                    Description = item.Description,
+                    Quantity = item.Quantity,
+                    Unit = string.IsNullOrWhiteSpace(item.Unit) ? null : item.Unit,
+                    SinglePriceNet = item.UnitPriceNet,
+                    VatPercent = (int)item.VatPercent
+                    // TotalPriceNet wird von Easybill selbst berechnet – NICHT senden
+                }).ToArray();
+            }
+            else
+            {
+                decimal net = order.TotalNet > 0 ? order.TotalNet : Math.Round(order.TotalGross / 1.19m, 2);
+                items =
+                [
+                    new EasybillDocumentItem
+                    {
+                        Type = "POSITION",
+                        Position = 1,
+                        Description = $"Bestellung bei {order.SupplierName}",
+                        Quantity = 1,
+                        SinglePriceNet = net,
+                        VatPercent = 19
+                    }
+                ];
+            }
 
-                System.Diagnostics.Debug.WriteLine($"[CreateOrderConfirmationFromOfferAsync] Erstelle Auftragsbestätigung:");
-                System.Diagnostics.Debug.WriteLine($"  Type: {orderConfirmation.Type}");
-                System.Diagnostics.Debug.WriteLine($"  CustomerId: {orderConfirmation.CustomerId}");
-                System.Diagnostics.Debug.WriteLine($"  Title: {orderConfirmation.Title}");
-                System.Diagnostics.Debug.WriteLine($"  BuyerReference: {orderConfirmation.BuyerReference}");
-                System.Diagnostics.Debug.WriteLine($"  IsDraft: {isDraft}");
+            var doc = new EasybillDocument
+            {
+                Type = "ORDER",
+                CustomerId = supplier?.EasybillCustomerId,
+                DocumentDate = order.OrderDate.ToString("yyyy-MM-dd"),
+                Title = $"Bestellung {order.SupplierName}",
+                Text = string.IsNullOrWhiteSpace(order.Notes) ? null : order.Notes,
+                IsDraft = isDraft,
+                Items = items
+            };
 
-                var result = await CreateDocumentAsync(orderConfirmation);
+            if (order.EasybillDocumentId.HasValue)
+            {
+                doc.Id = order.EasybillDocumentId.Value;
+                var result = await UpdateDocumentAsync(order.EasybillDocumentId.Value, doc);
 
-                System.Diagnostics.Debug.WriteLine($"[CreateOrderConfirmationFromOfferAsync] Ergebnis:");
-                System.Diagnostics.Debug.WriteLine($"  ID: {result.Id}");
-                System.Diagnostics.Debug.WriteLine($"  Type: {result.Type}");
-                System.Diagnostics.Debug.WriteLine($"  Number: {result.Number}");
-                System.Diagnostics.Debug.WriteLine($"  Status: {result.Status}");
-
-                // Wenn nicht als Entwurf gewünscht, Dokument abschließen
-                if (!isDraft && result.Id.HasValue)
+                // Wenn noch ein Entwurf und kein Entwurf gewünscht → Dokument abschließen → Easybill vergibt die Bestellnummer
+                if (!isDraft && result.IsDraft && result.Id.HasValue)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[CreateOrderConfirmationFromOfferAsync] Schließe Dokument ab...");
                     result = await FinalizeDocumentAsync(result.Id.Value);
-                    System.Diagnostics.Debug.WriteLine($"[CreateOrderConfirmationFromOfferAsync] Dokument abgeschlossen. Status: {result.Status}");
                 }
 
                 return result;
             }
-            catch (Exception ex)
+            else
             {
-                throw new Exception($"Fehler beim Erstellen der Auftragsbestätigung: {ex.Message}", ex);
+                var result = await CreateDocumentAsync(doc);
+
+                // Wenn nicht als Entwurf gewünscht, Dokument abschließen → Easybill vergibt die Bestellnummer
+                if (!isDraft && result.Id.HasValue)
+                {
+                    result = await FinalizeDocumentAsync(result.Id.Value);
+                }
+
+                return result;
             }
         }
 

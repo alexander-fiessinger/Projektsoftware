@@ -105,7 +105,8 @@ namespace Projektsoftware.Models
         [JsonPropertyName("updated_at")]
         public string? UpdatedAt { get; set; }
 
-        // Display Properties
+        // Display Properties (JsonIgnore: these are local-only, not part of the Easybill API)
+        [JsonIgnore]
         public string DisplayType => Type switch
         {
             "INVOICE" => "Rechnung",
@@ -115,22 +116,46 @@ namespace Projektsoftware.Models
             "CREDIT" => "Gutschrift",
             "DUNNING" => "Mahnung",
             "INVOICE_CANCELLATION" => "Storno",
+            "PROFORMA_INVOICE" => "Proforma-Rechnung",
             _ => Type
         };
 
-        public string DisplayStatus => Status switch
+        [JsonIgnore]
+        public string DisplayStatus
         {
-            "DRAFT" => "Entwurf",
-            "SENT" => "Gesendet",
-            "PAID" => "Bezahlt",
-            "CANCELLED" => "Storniert",
-            "OVERDUE" => "Überfällig",
-            "PARTIALLY_PAID" => "Teilweise bezahlt",
-            _ => Status
-        };
+            get
+            {
+                if (IsDraft) return "Entwurf";
+                return Status switch
+                {
+                    "DRAFT" => "Entwurf",
+                    "SENT" => "Gesendet",
+                    "PAID" => "Bezahlt",
+                    "CANCELLED" => "Storniert",
+                    "OVERDUE" => "Überfällig",
+                    "PARTIALLY_PAID" => "Teilweise bezahlt",
+                    null or "" => "–",
+                    _ => Status
+                };
+            }
+        }
 
         // Helper property for DataGrid display
+        [JsonIgnore]
         public string? CustomerDisplay { get; set; }
+
+        [JsonIgnore]
+        public string TotalGrossDisplay
+        {
+            get
+            {
+                var amount = TotalGross
+                    ?? Items?.Sum(item => item.TotalPriceGross ?? 0m);
+                return amount.HasValue
+                    ? amount.Value.ToString("C2", new System.Globalization.CultureInfo("de-DE"))
+                    : "–";
+            }
+        }
     }
 
     public class ServiceDate

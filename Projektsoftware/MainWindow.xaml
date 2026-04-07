@@ -7,7 +7,9 @@
         xmlns:views="clr-namespace:Projektsoftware.Views"
         xmlns:converters="clr-namespace:Projektsoftware.Converters"
         mc:Ignorable="d"
-        Title="Projektierungssoftware Professional" Height="750" Width="1400"
+        Title="Projektierungssoftware Professional" Height="950" Width="1600"
+        MinHeight="700" MinWidth="1200"
+        WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BackgroundBrush}">
     <Window.Resources>
@@ -27,6 +29,9 @@
                 <Separator/>
                 <MenuItem Header="Support-Tickets" Click="ManageTickets_Click" Style="{StaticResource ModernMenuItem}"/>
                 <MenuItem Header="Ticket-Dashboard" Click="ShowTicketDashboard_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="Ticket-SMTP E-Mail" Style="{StaticResource ModernMenuItem}">
+                    <MenuItem Header="Konfiguration" Click="ConfigureTicketSmtp_Click" Style="{StaticResource ModernMenuItem}"/>
+                </MenuItem>
                 <Separator/>
                 <MenuItem Header="Datenbank" Style="{StaticResource ModernMenuItem}">
                     <MenuItem Header="Verbindung konfigurieren" Click="ConfigureDatabase_Click" Style="{StaticResource ModernMenuItem}"/>
@@ -35,6 +40,9 @@
                 </MenuItem>
                 <MenuItem Header="Webex" Style="{StaticResource ModernMenuItem}">
                     <MenuItem Header="Konfiguration" Click="ConfigureWebex_Click" Style="{StaticResource ModernMenuItem}"/>
+                </MenuItem>
+                <MenuItem Header="SMTP E-Mail" Style="{StaticResource ModernMenuItem}">
+                    <MenuItem Header="Konfiguration" Click="ConfigureExchange_Click" Style="{StaticResource ModernMenuItem}"/>
                 </MenuItem>
                 <MenuItem Header="Easybill" Style="{StaticResource ModernMenuItem}">
                     <MenuItem Header="Konfiguration" Click="ConfigureEasybill_Click" Style="{StaticResource ModernMenuItem}"/>
@@ -45,14 +53,156 @@
                 <MenuItem Header="Updates" Style="{StaticResource ModernMenuItem}">
                     <MenuItem Header="Nach Updates suchen" Click="CheckForUpdates_Click" Style="{StaticResource ModernMenuItem}"/>
                 </MenuItem>
+                <MenuItem Header="📋 _Audit-Log" Click="AuditLog_Click" Style="{StaticResource ModernMenuItem}"/>
                 <Separator/>
                 <MenuItem Header="Abmelden" Click="Logout_Click" Style="{StaticResource ModernMenuItem}" Foreground="Orange"/>
+            </MenuItem>
+            <MenuItem Header="📦 _Produkte" Style="{StaticResource ModernMenuItem}" Click="ShowEasybillProducts_Click"/>
+            <MenuItem Header="📄 _Dokumente" Style="{StaticResource ModernMenuItem}">
+                <MenuItem Header="📄 Rechnung erstellen" Click="CreateDocument_Invoice_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="🧾 Proforma-Rechnung erstellen" Click="CreateDocument_Proforma_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="📋 Angebot erstellen" Click="CreateDocument_Offer_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="✓ Auftragsbestätigung erstellen" Click="CreateDocument_OrderConfirmation_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="📦 Lieferschein erstellen" Click="CreateDocument_DeliveryNote_Click" Style="{StaticResource ModernMenuItem}"/>
+                <Separator/>
+                <MenuItem Header="⚠️ Mahnung erstellen" Click="CreateDocument_Dunning_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="💳 Gutschrift erstellen" Click="CreateDocument_CreditNote_Click" Style="{StaticResource ModernMenuItem}"/>
             </MenuItem>
             <MenuItem Header="_Hilfe" Style="{StaticResource ModernMenuItem}">
                 <MenuItem Header="Über" Click="About_Click" Style="{StaticResource ModernMenuItem}"/>
             </MenuItem>
         </Menu>
-        
+
+        <!-- Notification toolbar -->
+        <Border DockPanel.Dock="Top"
+                Background="#F5F5F5"
+                BorderBrush="#E0E0E0"
+                BorderThickness="0,0,0,1"
+                Height="36">
+            <DockPanel Margin="10,0">
+                <Button x:Name="NotificationBellButton"
+                        DockPanel.Dock="Right"
+                        Click="NotificationBell_Click"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        ToolTip="Benachrichtigungen anzeigen"
+                        Padding="6,2">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🔔" FontSize="16" VerticalAlignment="Center"/>
+                        <Border x:Name="NotificationBadge"
+                                Background="#F44336"
+                                CornerRadius="8"
+                                MinWidth="18"
+                                Height="18"
+                                Margin="2,0,0,0"
+                                Visibility="Collapsed"
+                                VerticalAlignment="Center">
+                            <TextBlock x:Name="NotificationBadgeText"
+                                       Text="0"
+                                       Foreground="White"
+                                       FontSize="10"
+                                       FontWeight="Bold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="4,0"/>
+                        </Border>
+                    </StackPanel>
+                </Button>
+                <TextBlock x:Name="NotificationStatusText"
+                           DockPanel.Dock="Right"
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           Foreground="#666"
+                           Margin="0,0,8,0"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Timer Leiste -->
+        <Border DockPanel.Dock="Top"
+                Background="#F1F8E9"
+                BorderBrush="#C8E6C9"
+                BorderThickness="0,0,0,1"
+                Height="46">
+            <DockPanel Margin="10,0" VerticalAlignment="Center">
+                <Button x:Name="TimerStopBtn"
+                        DockPanel.Dock="Right"
+                        Content="⏹ Stoppen"
+                        Click="TimerStop_Click"
+                        Visibility="Collapsed"
+                        Background="#F44336" Foreground="White"
+                        BorderThickness="0" Cursor="Hand"
+                        Padding="10,4" Margin="4,0" Height="30"/>
+                <Button x:Name="TimerStartBtn"
+                        DockPanel.Dock="Right"
+                        Content="▶ Starten"
+                        Click="TimerStart_Click"
+                        Background="#4CAF50" Foreground="White"
+                        BorderThickness="0" Cursor="Hand"
+                        Padding="10,4" Margin="4,0" Height="30"/>
+                <TextBlock x:Name="TimerDisplay"
+                           DockPanel.Dock="Right"
+                           Text="00:00:00"
+                           FontFamily="Consolas"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="#2E7D32"
+                           VerticalAlignment="Center"
+                           Margin="8,0"/>
+                <Ellipse x:Name="TimerRunningDot"
+                         DockPanel.Dock="Right"
+                         Width="10" Height="10"
+                         Fill="#4CAF50"
+                         VerticalAlignment="Center"
+                         Margin="4,0"
+                         Visibility="Collapsed"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="⏱ Timer:" FontWeight="SemiBold" VerticalAlignment="Center"
+                               Margin="0,0,10,0" Foreground="#33691E"/>
+                    <TextBlock Text="Projekt:" VerticalAlignment="Center"
+                               Foreground="#555" FontSize="11" Margin="0,0,4,0"/>
+                    <ComboBox x:Name="TimerProjectCombo"
+                              Width="200" Height="30"
+                              DisplayMemberPath="Name"
+                              ItemsSource="{Binding Projects}"
+                              ToolTip="Projekt auswählen"
+                              Margin="0,0,12,0"/>
+                    <TextBlock Text="Tätigkeit:" VerticalAlignment="Center"
+                               Foreground="#555" FontSize="11" Margin="0,0,4,0"/>
+                    <Grid Width="200" Height="30" Margin="0,0,12,0">
+                        <TextBox x:Name="TimerActivityBox"
+                                 VerticalContentAlignment="Center"
+                                 ToolTip="Tätigkeit eingeben"/>
+                        <TextBlock Text="z.B. Entwicklung..."
+                                   IsHitTestVisible="False"
+                                   Foreground="Gray"
+                                   VerticalAlignment="Center"
+                                   Margin="5,0,0,0"
+                                   FontStyle="Italic">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=TimerActivityBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                    <TextBlock Text="Kunde:" VerticalAlignment="Center"
+                               Foreground="#555" FontSize="11" Margin="0,0,4,0"/>
+                    <ComboBox x:Name="TimerCustomerCombo"
+                              Width="180" Height="30"
+                              DisplayMemberPath="DisplayName"
+                              ItemsSource="{Binding Customers}"
+                              ToolTip="Kunde auswählen (optional)"
+                              Margin="0,0,8,0"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
         <!-- Main Content Area -->
         <Grid Margin="10">
         <TabControl x:Name="MainTabControl"
@@ -74,8 +224,9 @@
                     CreateDunningClicked="DashboardCreateDunning_Click"
                     ShowDocumentsClicked="ShowEasybillDocuments_Click"
                     ManageCustomersClicked="ManageCustomers_Click"
-                    ShowProductsClicked="ShowEasybillProducts_Click"
-                    ExportTimesClicked="ExportTimesToEasybill_Click"/>
+                    ExportTimesClicked="ExportTimesToEasybill_Click"
+                    RefreshFinancialClicked="DashboardRefreshFinancial_Click"
+                    ViewPurchasesClicked="DashboardViewPurchases_Click"/>
             </TabItem>
 
             <!-- Kunden Tab -->
@@ -89,11 +240,11 @@
                         <Button Content="+ Neuer Kunde" Style="{StaticResource ModernButton}"
                                 Padding="12,6" Margin="0,0,8,0"
                                 Click="AddCustomer_Click"
-                                Background="#4CAF50" Foreground="White"/>
-                        <Button Content="Von Easybill importieren" Style="{StaticResource ModernButton}"
+                                Background="{StaticResource SuccessBrush}" Foreground="White"/>
+                        <Button Content="📥 Von Easybill importieren" Style="{StaticResource ModernButton}"
                                 Padding="12,6"
                                 Click="ImportCustomersFromEasybill_Click"
-                                Background="#2196F3" Foreground="White"/>
+                                Background="{StaticResource NeutralBrush}" Foreground="White"/>
                     </StackPanel>
                     <DataGrid x:Name="CustomersDataGrid"
                               Grid.Row="1"
@@ -105,6 +256,7 @@
                         <DataGrid.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Bearbeiten" Click="EditCustomer_Click"/>
+                                <MenuItem Header="📄 Dokumente" Click="DocumentsCustomer_Click"/>
                                 <MenuItem Header="Synchronisieren" Click="SyncCustomer_Click"/>
                                 <Separator/>
                                 <MenuItem Header="Löschen" Click="DeleteCustomer_Click" Foreground="Red"/>
@@ -116,20 +268,23 @@
                             <DataGridTextColumn Header="Telefon" Binding="{Binding Phone}" Width="1.2*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Stadt" Binding="{Binding City}" Width="1.2*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Easybill-Status" Binding="{Binding SyncStatus}" Width="1.5*" IsReadOnly="True"/>
-                            <DataGridTemplateColumn Header="Aktionen" Width="150">
+                            <DataGridTemplateColumn Header="Aktionen" Width="270">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                            <Button Content="Bearbeiten" ToolTip="Kunde bearbeiten"
-                                                    Style="{StaticResource ModernButton}"
-                                                    Margin="2" Padding="8,4"
-                                                    Click="EditCustomer_Click"
-                                                    Background="#2196F3" Foreground="White"/>
-                                            <Button Content="Sync" ToolTip="Zu Easybill synchronisieren"
-                                                    Style="{StaticResource ModernButton}"
-                                                    Margin="2" Padding="8,4"
-                                                    Click="SyncCustomer_Click"
-                                                    Background="#FF9800" Foreground="White"/>
+                                            <Button Content="✏️ Bearbeiten" ToolTip="Kunde bearbeiten"
+                                                    Style="{StaticResource ActionButton}"
+                                                    Foreground="{StaticResource PrimaryBrush}"
+                                                    Margin="2"
+                                                    Click="EditCustomer_Click"/>
+                                            <Button Content="📄" ToolTip="Dokumente"
+                                                    Style="{StaticResource ActionButton}"
+                                                    Margin="2"
+                                                    Click="DocumentsCustomer_Click"/>
+                                            <Button Content="🔄" ToolTip="Zu Easybill synchronisieren"
+                                                    Style="{StaticResource ActionButton}"
+                                                    Margin="2"
+                                                    Click="SyncCustomer_Click"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -150,7 +305,7 @@
                         <Button Content="+ Neues Projekt" Style="{StaticResource ModernButton}"
                                 Padding="12,6"
                                 Click="AddProject_Click"
-                                Background="#4CAF50" Foreground="White"/>
+                                Background="{StaticResource SuccessBrush}" Foreground="White"/>
                     </StackPanel>
                     <DataGrid x:Name="ProjectsDataGrid"
                               Grid.Row="1"
@@ -162,8 +317,10 @@
                         <DataGrid.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Bearbeiten" Click="EditProject_Click"/>
+                                <MenuItem Header="📄 Dokumente" Click="DocumentsProject_Click"/>
                                 <MenuItem Header="Angebot erstellen" Click="CreateOfferFromProject_Click"/>
                                 <MenuItem Header="Rechnung erstellen" Click="CreateInvoiceFromProject_Click"/>
+                                <MenuItem Header="Proforma-Rechnung erstellen" Click="CreateProformaFromProject_Click"/>
                                 <Separator/>
                                 <MenuItem Header="Löschen" Click="DeleteProject_Click" Foreground="Red"/>
                             </ContextMenu>
@@ -174,25 +331,31 @@
                             <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="1*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Start" Binding="{Binding StartDate, StringFormat=dd.MM.yyyy}" Width="0.8*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Budget" Binding="{Binding Budget, Converter={StaticResource EuroCurrencyConverter}}" Width="0.8*" IsReadOnly="True"/>
-                            <DataGridTemplateColumn Header="Aktionen" Width="220">
+                            <DataGridTemplateColumn Header="Aktionen" Width="250">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                            <Button Content="Bearbeiten" ToolTip="Projekt bearbeiten"
-                                                    Style="{StaticResource ModernButton}"
-                                                    Margin="2" Padding="8,4"
-                                                    Click="EditProject_Click"
-                                                    Background="#2196F3" Foreground="White"/>
+                                            <Button Content="✏️" ToolTip="Projekt bearbeiten"
+                                                    Style="{StaticResource ActionButton}"
+                                                    Foreground="{StaticResource PrimaryBrush}"
+                                                    Margin="2"
+                                                    Click="EditProject_Click"/>
+                                            <Button Content="📄" ToolTip="Dokumente"
+                                                    Style="{StaticResource ActionButton}"
+                                                    Margin="2"
+                                                    Click="DocumentsProject_Click"/>
                                             <Button Content="Angebot" ToolTip="Angebot erstellen"
-                                                    Style="{StaticResource ModernButton}"
-                                                    Margin="2" Padding="8,4"
-                                                    Click="CreateOfferFromProject_Click"
-                                                    Background="#FF9800" Foreground="White"/>
+                                                    Style="{StaticResource ActionButton}"
+                                                    Margin="2"
+                                                    Click="CreateOfferFromProject_Click"/>
                                             <Button Content="Rechnung" ToolTip="Rechnung erstellen"
-                                                    Style="{StaticResource ModernButton}"
-                                                    Margin="2" Padding="8,4"
-                                                    Click="CreateInvoiceFromProject_Click"
-                                                    Background="#009688" Foreground="White"/>
+                                                    Style="{StaticResource ActionButton}"
+                                                    Margin="2"
+                                                    Click="CreateInvoiceFromProject_Click"/>
+                                            <Button Content="Proforma" ToolTip="Proforma-Rechnung erstellen"
+                                                    Style="{StaticResource ActionButton}"
+                                                    Margin="2"
+                                                    Click="CreateProformaFromProject_Click"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -214,7 +377,7 @@
                             HorizontalAlignment="Left"
                             Padding="12,6" Margin="0,0,0,15"
                             Click="AddTimeEntry_Click"
-                            Background="#4CAF50" Foreground="White"/>
+                            Background="{StaticResource SuccessBrush}" Foreground="White"/>
                     <DataGrid x:Name="TimeEntriesDataGrid"
                               Grid.Row="1"
                               ItemsSource="{Binding TimeEntries}"
@@ -254,7 +417,7 @@
                             HorizontalAlignment="Left"
                             Padding="12,6" Margin="0,0,0,15"
                             Click="AddMeetingProtocol_Click"
-                            Background="#4CAF50" Foreground="White"/>
+                            Background="{StaticResource SuccessBrush}" Foreground="White"/>
                     <DataGrid x:Name="MeetingProtocolsDataGrid"
                               Grid.Row="1"
                               ItemsSource="{Binding MeetingProtocols}"
@@ -290,7 +453,7 @@
                         <Button Content="+ Neue Aufgabe" Style="{StaticResource ModernButton}"
                                 Padding="12,6" Margin="0,0,10,0"
                                 Click="AddTask_Click"
-                                Background="#FF9800" Foreground="White"/>
+                                Background="{StaticResource SuccessBrush}" Foreground="White"/>
                         <TextBox x:Name="TaskSearchBox"
                                  Width="250" Height="32"
                                  Margin="10,0,0,0"
@@ -322,14 +485,14 @@
                             <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="1*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Priorität" Binding="{Binding Priority}" Width="1*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Fällig" Binding="{Binding DueDate, StringFormat=dd.MM.yyyy}" Width="0.9*" IsReadOnly="True"/>
-                            <DataGridTemplateColumn Header="Aktionen" Width="100">
+                            <DataGridTemplateColumn Header="Aktion" Width="80">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Button Content="Bearbeiten" ToolTip="Aufgabe bearbeiten"
-                                                Style="{StaticResource ModernButton}"
-                                                Margin="2" Padding="8,4"
-                                                Click="EditTask_Click"
-                                                Background="#2196F3" Foreground="White"/>
+                                        <Button Content="✏️" ToolTip="Aufgabe bearbeiten"
+                                                Style="{StaticResource ActionButton}"
+                                                Foreground="{StaticResource PrimaryBrush}"
+                                                Margin="2"
+                                                Click="EditTask_Click"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -337,7 +500,17 @@
                     </DataGrid>
                 </Grid>
             </TabItem>
-            
+
+            <!-- Tickets Tab -->
+            <TabItem Header="🎫 Tickets" Style="{StaticResource ModernTabItem}">
+                <views:TicketsView x:Name="TicketsView" Margin="10"/>
+            </TabItem>
+
+            <!-- Einkauf Tab -->
+            <TabItem Header="🛒 Einkauf" Style="{StaticResource ModernTabItem}">
+                <views:PurchaseView x:Name="PurchaseView" Margin="0"/>
+            </TabItem>
+
             <!-- Mitarbeiter Tab -->
             <TabItem Header="👥 Mitarbeiter" Style="{StaticResource ModernTabItem}">
                 <Grid Margin="10">
@@ -349,7 +522,7 @@
                         <Button Content="+ Neuer Mitarbeiter" Style="{StaticResource ModernButton}"
                                 Padding="12,6"
                                 Click="AddEmployee_Click"
-                                Background="#9C27B0" Foreground="White"/>
+                                Background="{StaticResource SuccessBrush}" Foreground="White"/>
                     </StackPanel>
                     <DataGrid x:Name="EmployeesDataGrid"
                               Grid.Row="1"
@@ -372,14 +545,14 @@
                             <DataGridTextColumn Header="E-Mail" Binding="{Binding Email}" Width="2*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Stundensatz" Binding="{Binding HourlyRate, Converter={StaticResource EuroCurrencyConverter}}" Width="1*" IsReadOnly="True"/>
                             <DataGridCheckBoxColumn Header="Aktiv" Binding="{Binding IsActive}" Width="0.6*" IsReadOnly="True"/>
-                            <DataGridTemplateColumn Header="Aktionen" Width="100">
+                            <DataGridTemplateColumn Header="Aktion" Width="80">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Button Content="Bearbeiten" ToolTip="Mitarbeiter bearbeiten"
-                                                Style="{StaticResource ModernButton}"
-                                                Margin="2" Padding="8,4"
-                                                Click="EditEmployee_Click"
-                                                Background="#2196F3" Foreground="White"/>
+                                        <Button Content="✏️" ToolTip="Mitarbeiter bearbeiten"
+                                                Style="{StaticResource ActionButton}"
+                                                Foreground="{StaticResource PrimaryBrush}"
+                                                Margin="2"
+                                                Click="EditEmployee_Click"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>

@@ -1,0 +1,100 @@
+<Window x:Class="Projektsoftware.Views.TimeEntryTemplatesDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Zeiterfassungs-Vorlagen" Height="520" Width="700"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BackgroundBrush}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="⏱ Vorlagen verwalten" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+            <Button Content="+ Neue Vorlage" Style="{StaticResource ModernButton}"
+                    Background="{StaticResource SuccessBrush}" Foreground="White"
+                    Padding="12,6" Margin="20,0,0,0" Click="NewTemplate_Click"/>
+        </StackPanel>
+
+        <!-- List -->
+        <Border Grid.Row="1" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="5">
+            <DataGrid x:Name="TemplatesGrid"
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      SelectionMode="Single"
+                      HeadersVisibility="Column">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Projekt" Binding="{Binding ProjectName}" Width="2*" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Aktivität" Binding="{Binding Activity}" Width="1.5*" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Dauer" Binding="{Binding DurationDisplay}" Width="80" IsReadOnly="True"/>
+                    <DataGridTemplateColumn Header="Aktionen" Width="130">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="✏️" ToolTip="Bearbeiten"
+                                            Style="{StaticResource ActionButton}" Margin="2"
+                                            Click="EditTemplate_Click"/>
+                                    <Button Content="🗑️" ToolTip="Löschen"
+                                            Style="{StaticResource ActionButton}" Margin="2"
+                                            Foreground="{StaticResource DangerBrush}"
+                                            Click="DeleteTemplate_Click"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- Edit Form -->
+        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                CornerRadius="6" Padding="14" Margin="0,12,0,0"
+                x:Name="EditForm" Visibility="Collapsed">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="90"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Name *" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                    <TextBox x:Name="NameBox" Height="30" Padding="6,4"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Aktivität" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                    <TextBox x:Name="ActivityBox" Height="30" Padding="6,4"/>
+                </StackPanel>
+                <StackPanel Grid.Column="4">
+                    <TextBlock Text="Dauer (HH:mm)" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                    <TextBox x:Name="DurationBox" Height="30" Padding="6,4" Text="01:00"/>
+                </StackPanel>
+                <Button Grid.Column="6" Content="Speichern"
+                        Style="{StaticResource ModernButton}"
+                        Background="{StaticResource PrimaryBrush}"
+                        Height="30" VerticalAlignment="Bottom"
+                        Click="SaveTemplate_Click"/>
+            </Grid>
+        </Border>
+
+        <!-- Footer buttons -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Vorlage verwenden" Width="150" Height="35"
+                    Click="UseTemplate_Click"
+                    Background="#4CAF50" Foreground="White"
+                    Style="{StaticResource ModernButton}" Margin="0,0,10,0"/>
+            <Button Content="Schließen" Width="100" Height="35"
+                    Click="Close_Click"
+                    Style="{StaticResource ModernButton}"/>
+        </StackPanel>
+    </Grid>
+</Window>

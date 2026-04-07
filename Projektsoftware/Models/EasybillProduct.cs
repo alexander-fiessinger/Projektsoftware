@@ -87,7 +87,9 @@ namespace Projektsoftware.Models
         public string UpdatedAt { get; set; }
 
         // Display Properties
+        [JsonIgnore]
         public string DisplayType => Type == "SERVICE" ? "Dienstleistung" : "Produkt";
+        [JsonIgnore]
         public string DisplayInfo => $"{Number} - {Description}";
     }
 

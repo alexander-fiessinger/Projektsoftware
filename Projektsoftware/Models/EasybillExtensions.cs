@@ -181,7 +181,13 @@ namespace Projektsoftware.Models
         public long? Id { get; set; }
 
         [JsonPropertyName("document_id")]
-        public long DocumentId { get; set; }
+        public long? DocumentId { get; set; }
+
+        [JsonPropertyName("customer_id")]
+        public long? CustomerId { get; set; }
+
+        [JsonPropertyName("project_id")]
+        public long? ProjectId { get; set; }
 
         [JsonPropertyName("file_name")]
         public string FileName { get; set; }

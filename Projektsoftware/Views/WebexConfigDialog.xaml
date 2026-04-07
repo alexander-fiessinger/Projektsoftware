@@ -2,9 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Webex Konfiguration"
-        Height="480" Width="560"
+        Height="700" Width="560"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BackgroundBrush}">
+        Background="{StaticResource BackgroundBrush}"
+        Loaded="Window_Loaded">
     <Grid Margin="25">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -18,8 +19,8 @@
                        FontSize="20" FontWeight="Bold"
                        Foreground="{StaticResource PrimaryBrush}"/>
             <TextBlock FontSize="13" Foreground="#666" Margin="0,5,0,0" TextWrapping="Wrap">
-                Geben Sie Ihr Webex Personal Access Token ein, um Meetings direkt aus der
-                Software zu erstellen. Das Token erhalten Sie unter developer.webex.com.
+                Verbinden Sie Ihr Webex-Konto über OAuth, um Meetings direkt aus der
+                Software zu erstellen. Client ID und Client Secret finden Sie unter developer.webex.com.
             </TextBlock>
         </StackPanel>
 
@@ -27,26 +28,85 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel>
 
-                <!-- Access Token -->
-                <TextBlock Text="Personal Access Token *" FontWeight="SemiBold" Margin="0,0,0,5"/>
-                <PasswordBox x:Name="AccessTokenBox"
-                             Height="35" Margin="0,0,0,5"
+                <!-- OAuth Section -->
+                <TextBlock Text="OAuth-Anmeldung (empfohlen)" FontSize="14" FontWeight="Bold"
+                           Foreground="{StaticResource PrimaryBrush}" Margin="0,0,0,10"/>
+
+                <!-- Client ID -->
+                <TextBlock Text="Client ID *" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <TextBox x:Name="ClientIdBox"
+                         Height="35" Margin="0,0,0,10"
+                         VerticalContentAlignment="Center"
+                         FontFamily="Consolas"/>
+
+                <!-- Client Secret -->
+                <TextBlock Text="Client Secret *" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <PasswordBox x:Name="ClientSecretBox"
+                             Height="35" Margin="0,0,0,15"
                              VerticalContentAlignment="Center"
                              FontFamily="Consolas"/>
-                <TextBlock FontSize="11" Foreground="#888" Margin="0,0,0,15" TextWrapping="Wrap">
-                    Token unter https://developer.webex.com/docs/getting-started abrufen.
-                    Personal Access Tokens sind 12 Stunden gültig. Für dauerhaften Zugriff
-                    bitte eine Integration (OAuth) oder einen Bot erstellen.
-                </TextBlock>
 
-                <!-- Bot Name -->
+                <!-- Step 1 -->
+                <Button x:Name="OpenBrowserButton"
+                        Content="1.  Browser &#246;ffnen &amp; anmelden"
+                        Height="36" HorizontalAlignment="Left" Padding="15,0"
+                        Click="OpenBrowser_Click"
+                        Background="#2196F3" Foreground="White"
+                        BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"
+                        Margin="0,0,0,10"/>
+
+                <!-- Step 2 -->
+                <TextBlock FontSize="11" Foreground="#555" Margin="0,0,0,5" TextWrapping="Wrap">
+                    2. Nach der Anmeldung leitet der Browser auf eine Fehlerseite (http://localhost?code=&#8230;) weiter.
+                    Kopieren Sie die vollst&#228;ndige URL aus der Adressleiste und f&#252;gen Sie sie ein:
+                </TextBlock>
+                <TextBox x:Name="RedirectUrlBox"
+                         Height="50" Margin="0,0,0,10"
+                         VerticalContentAlignment="Top"
+                         TextWrapping="Wrap"
+                         FontFamily="Consolas" FontSize="11"/>
+
+                <!-- Step 3 -->
+                <Button x:Name="ExchangeCodeButton"
+                        Content="3.  Anmelden"
+                        Height="36" HorizontalAlignment="Left" Padding="15,0"
+                        Click="ExchangeCode_Click"
+                        Background="#4CAF50" Foreground="White"
+                        BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"
+                        Margin="0,0,0,15"/>
+
+                <Separator Margin="0,0,0,15"/>
+
+                <!-- Manual Token Expander -->
+                <Expander Header="Manuell (Personal Access Token)" Margin="0,0,0,15">
+                    <StackPanel Margin="0,10,0,0">
+                        <TextBlock Text="Personal Access Token" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                        <PasswordBox x:Name="AccessTokenBox"
+                                     Height="35" Margin="0,0,0,5"
+                                     VerticalContentAlignment="Center"
+                                     FontFamily="Consolas"/>
+                        <TextBlock FontSize="11" Foreground="#888" Margin="0,0,0,10" TextWrapping="Wrap">
+                            Token unter https://developer.webex.com/docs/getting-started abrufen. G&#252;ltig f&#252;r 12 Stunden.
+                        </TextBlock>
+                        <Button x:Name="TestButton"
+                                Content="Verbindung testen"
+                                Height="36" HorizontalAlignment="Left" Padding="15,0"
+                                Click="Test_Click"
+                                Background="#2196F3" Foreground="White"
+                                BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Expander>
+
+                <Separator Margin="0,0,0,15"/>
+
+                <!-- Settings -->
+                <TextBlock Text="Einstellungen" FontSize="14" FontWeight="Bold"
+                           Foreground="{StaticResource PrimaryBrush}" Margin="0,0,0,10"/>
                 <TextBlock Text="Anzeigename (optional)" FontWeight="SemiBold" Margin="0,0,0,5"/>
                 <TextBox x:Name="BotNameBox"
                          Height="35" Margin="0,0,0,15"
                          VerticalContentAlignment="Center"
                          Text="Projektierungssoftware"/>
-
-                <!-- Send Invite Emails -->
                 <CheckBox x:Name="SendEmailsCheckBox"
                           Content="Einladungs-E-Mails an Teilnehmer senden"
                           IsChecked="True" Margin="0,0,0,20"/>
@@ -59,13 +119,6 @@
                                FontSize="13" TextWrapping="Wrap" Foreground="White"/>
                 </Border>
 
-                <!-- Verbindung testen -->
-                <Button x:Name="TestButton"
-                        Content="Verbindung testen"
-                        Height="36" HorizontalAlignment="Left" Padding="15,0"
-                        Click="Test_Click"
-                        Background="#2196F3" Foreground="White"
-                        BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"/>
             </StackPanel>
         </ScrollViewer>
 

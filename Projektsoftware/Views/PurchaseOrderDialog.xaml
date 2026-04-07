@@ -1,0 +1,133 @@
+<Window x:Class="Projektsoftware.Views.PurchaseOrderDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Bestellung" Width="700" Height="620"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
+        ShowInTaskbar="False">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" x:Name="TitleText" Text="🛒 Neue Bestellung"
+                   FontSize="18" FontWeight="Bold" Foreground="#1A237E" Margin="0,0,0,16"/>
+
+        <!-- Header Fields -->
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Lieferant *" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <ComboBox x:Name="SupplierCombo" Height="32" FontSize="13"
+                          DisplayMemberPath="Name" SelectedValuePath="Id"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Bestell-Nr." FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBox x:Name="OrderNumberBox" Height="32" Padding="6,4" FontSize="13"/>
+            </StackPanel>
+            <StackPanel Grid.Column="4">
+                <TextBlock Text="Bestelldatum" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <DatePicker x:Name="OrderDatePicker" Height="32" FontSize="13"/>
+            </StackPanel>
+            <StackPanel Grid.Column="6">
+                <TextBlock Text="Lieferdatum (erw.)" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <DatePicker x:Name="DeliveryDatePicker" Height="32" FontSize="13"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Status + Notes -->
+        <Grid Grid.Row="3" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="160"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Status" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <ComboBox x:Name="StatusCombo" Height="32" FontSize="13">
+                    <ComboBoxItem Content="Offen" IsSelected="True"/>
+                    <ComboBoxItem Content="Bestellt"/>
+                    <ComboBoxItem Content="Teilweise geliefert"/>
+                    <ComboBoxItem Content="Geliefert"/>
+                    <ComboBoxItem Content="Storniert"/>
+                </ComboBox>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Notizen" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBox x:Name="NotesBox" Height="54" Padding="6,4" FontSize="13"
+                         TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Items Grid -->
+        <Grid Grid.Row="2" Margin="0,0,0,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                <TextBlock Text="📋 Positionen" FontSize="14" FontWeight="Bold" Foreground="#1A237E" VerticalAlignment="Center"/>
+                <Button Content="+ Position hinzufügen" DockPanel.Dock="Right"
+                        Height="28" Padding="10,2" Background="#1A237E" Foreground="White"
+                        BorderThickness="0" Click="AddItem_Click"/>
+            </DockPanel>
+
+            <DataGrid Grid.Row="1" x:Name="ItemsGrid" AutoGenerateColumns="False"
+                      CanUserAddRows="False" MinHeight="120" MaxHeight="200"
+                      HeadersVisibility="Column" RowBackground="White"
+                      AlternatingRowBackground="#F5F5F5" GridLinesVisibility="Horizontal">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*" IsReadOnly="False"/>
+                    <DataGridTextColumn Header="Menge" Binding="{Binding Quantity, StringFormat=N2}" Width="70" IsReadOnly="False"/>
+                    <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="70" IsReadOnly="False"/>
+                    <DataGridTextColumn Header="EP Netto" Binding="{Binding UnitPriceNet, StringFormat=N2}" Width="90" IsReadOnly="False"/>
+                    <DataGridTextColumn Header="MwSt. %" Binding="{Binding VatPercent, StringFormat=N0}" Width="70" IsReadOnly="False"/>
+                    <DataGridTextColumn Header="Gesamt Netto" Binding="{Binding TotalNetDisplay}" Width="100" IsReadOnly="True"/>
+                    <DataGridTemplateColumn Width="40">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="✕" Foreground="Red" Background="Transparent"
+                                        BorderThickness="0" FontSize="12" Padding="2"
+                                        Click="DeleteItem_Click"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <Grid Grid.Row="2" Margin="0,6,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                    <TextBlock x:Name="TotalNetText" FontSize="13" FontWeight="SemiBold" Foreground="#333"/>
+                    <TextBlock x:Name="TotalGrossText" FontSize="14" FontWeight="Bold" Foreground="#1A237E"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <CheckBox x:Name="EasybillDraftCheckBox" Content="☁ Als Entwurf in Easybill anlegen"
+                      VerticalAlignment="Center" Margin="0,0,20,0" FontSize="12"/>
+            <Button Content="Abbrechen" Width="100" Height="36" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click"/>
+            <Button Content="💾 Speichern" Width="120" Height="36"
+                    Background="#1A237E" Foreground="White" BorderThickness="0"
+                    IsDefault="True" Click="Save_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

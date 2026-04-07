@@ -2,6 +2,8 @@ using Projektsoftware.Models;
 using Projektsoftware.Services;
 using System;
 using System.Globalization;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -29,6 +31,45 @@ namespace Projektsoftware.Views
             else
             {
                 Title = "Neues Produkt";
+                Loaded += async (s, e) => await GenerateArticleNumberAsync();
+            }
+        }
+
+        private async System.Threading.Tasks.Task GenerateArticleNumberAsync()
+        {
+            try
+            {
+                NumberTextBox.IsEnabled = false;
+                NumberTextBox.Text = "Wird generiert...";
+
+                var easybillService = new EasybillService();
+                if (easybillService.IsConfigured)
+                {
+                    var products = await easybillService.GetAllProductsAsync();
+
+                    int maxNumber = products
+                        .Select(p => Regex.Match(p.Number ?? string.Empty, @"\d+$"))
+                        .Where(m => m.Success)
+                        .Select(m => int.Parse(m.Value))
+                        .DefaultIfEmpty(0)
+                        .Max();
+
+                    NumberTextBox.Text = $"ART-{maxNumber + 1:D4}";
+                }
+                else
+                {
+                    NumberTextBox.Text = "ART-0001";
+                }
+            }
+            catch
+            {
+                NumberTextBox.Text = "ART-0001";
+            }
+            finally
+            {
+                NumberTextBox.IsEnabled = true;
+                NumberTextBox.SelectAll();
+                NumberTextBox.Focus();
             }
         }
 

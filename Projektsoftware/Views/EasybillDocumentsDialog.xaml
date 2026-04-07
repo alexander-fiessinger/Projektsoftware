@@ -44,6 +44,7 @@
                           SelectionChanged="TypeFilterComboBox_SelectionChanged">
                     <ComboBoxItem Content="Alle Dokumente" IsSelected="True" Tag=""/>
                     <ComboBoxItem Content="📄 Rechnungen" Tag="INVOICE"/>
+                    <ComboBoxItem Content="🧾 Proforma-Rechnungen" Tag="PROFORMA_INVOICE"/>
                     <ComboBoxItem Content="📋 Angebote" Tag="OFFER"/>
                     <ComboBoxItem Content="✓ Auftragsbestätigungen" Tag="ORDER_CONFIRMATION"/>
                     <ComboBoxItem Content="📦 Lieferscheine" Tag="DELIVERY_NOTE"/>
@@ -112,7 +113,7 @@
                     <DataGridTextColumn Header="Kunde" Binding="{Binding CustomerSnapshot.CompanyName}" Width="200"/>
                     <DataGridTextColumn Header="Datum" Binding="{Binding DocumentDate}" Width="100"/>
                     <DataGridTextColumn Header="Betreff" Binding="{Binding Subject}" Width="*" MinWidth="150"/>
-                    <DataGridTextColumn Header="Betrag" Binding="{Binding TotalGross, StringFormat='{}{0:N2} €'}" Width="100">
+                    <DataGridTextColumn Header="Betrag" Binding="{Binding TotalGrossDisplay}" Width="100">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="TextAlignment" Value="Right"/>
@@ -122,14 +123,15 @@
                     </DataGridTextColumn>
                     <DataGridTextColumn Header="Status" Binding="{Binding DisplayStatus}" Width="120"/>
                     
-                    <DataGridTemplateColumn Header="Aktionen" Width="280">
+                    <DataGridTemplateColumn Header="Aktionen" Width="450">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                     <Button Content="📄 PDF" 
-                                            Width="60" 
+                                            Width="52" 
                                             Height="28"
                                             Margin="2"
+                                            ToolTip="PDF herunterladen"
                                             Click="DownloadPdf_Click"
                                             Background="#2196F3"
                                             Foreground="White"
@@ -137,7 +139,7 @@
                                             Cursor="Hand"
                                             FontSize="11"/>
                                     <Button Content="📧 Senden" 
-                                            Width="75" 
+                                            Width="65" 
                                             Height="28"
                                             Margin="2"
                                             Click="SendDocument_Click"
@@ -146,8 +148,41 @@
                                             BorderThickness="0"
                                             Cursor="Hand"
                                             FontSize="11"/>
+                                    <Button Content="✔ Fertigstellen"
+                                            Width="88"
+                                            Height="28"
+                                            Margin="2"
+                                            ToolTip="Entwurf fertigstellen"
+                                            Click="FinalizeDocument_Click"
+                                            Background="#009688"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            FontSize="11">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDraft}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="🔄 Umwandeln"
+                                            Width="88"
+                                            Height="28"
+                                            Margin="2"
+                                            ToolTip="Dokument konvertieren"
+                                            Click="Convert_Click"
+                                            Background="#9C27B0"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            FontSize="11"/>
                                     <Button Content="✓ Bezahlt" 
-                                            Width="70" 
+                                            Width="60" 
                                             Height="28"
                                             Margin="2"
                                             Click="MarkAsPaid_Click"
@@ -157,7 +192,7 @@
                                             Cursor="Hand"
                                             FontSize="11"/>
                                     <Button Content="❌ Löschen" 
-                                            Width="75" 
+                                            Width="65" 
                                             Height="28"
                                             Margin="2"
                                             Click="DeleteDocument_Click"

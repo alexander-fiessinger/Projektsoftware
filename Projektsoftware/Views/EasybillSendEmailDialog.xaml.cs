@@ -11,14 +11,17 @@ namespace Projektsoftware.Views
         public string EmailSubject { get; private set; } = string.Empty;
         public string Message { get; private set; } = string.Empty;
 
-        public EasybillSendEmailDialog(EasybillDocument document)
+        public EasybillSendEmailDialog(EasybillDocument document, string customerEmail = "")
         {
             InitializeComponent();
 
             DocumentInfoTextBlock.Text = $"Dokument: {document.DisplayType} {document.Number}";
             SubjectTextBox.Text = $"{document.DisplayType} {document.Number}";
             MessageTextBox.Text = $"Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie {document.DisplayType} {document.Number}.\n\nMit freundlichen Grüßen";
-            
+
+            if (!string.IsNullOrEmpty(customerEmail))
+                ToTextBox.Text = customerEmail;
+
             ToTextBox.Focus();
         }
 

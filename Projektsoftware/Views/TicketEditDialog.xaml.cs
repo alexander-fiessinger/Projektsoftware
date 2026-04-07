@@ -10,11 +10,20 @@ namespace Projektsoftware.Views
         private Ticket ticket;
         private DatabaseService db;
 
+        // Zustand vor dem Speichern merken
+        private TicketStatus _previousStatus;
+        private string _previousResolution = string.Empty;
+
         public TicketEditDialog(Ticket ticket)
         {
             InitializeComponent();
             this.ticket = ticket;
             db = new DatabaseService();
+
+            // Aktuellen Zustand als Vergleichsbasis speichern
+            _previousStatus = ticket.Status;
+            _previousResolution = ticket.Resolution ?? string.Empty;
+
             Loaded += async (s, e) => await LoadDataAsync();
         }
 
@@ -42,13 +51,18 @@ namespace Projektsoftware.Views
                 AssignedToComboBox.ItemsSource = employees;
 
                 if (ticket.AssignedToEmployeeId.HasValue)
-                {
                     AssignedToComboBox.SelectedValue = ticket.AssignedToEmployeeId.Value;
-                }
                 else
-                {
                     AssignedToComboBox.SelectedIndex = 0;
-                }
+
+                var projects = await db.GetAllProjectsAsync();
+                projects.Insert(0, new Project { Id = 0, Name = "— kein Projekt —" });
+                ProjectComboBox.ItemsSource = projects;
+
+                if (ticket.ProjectId.HasValue)
+                    ProjectComboBox.SelectedValue = ticket.ProjectId.Value;
+                else
+                    ProjectComboBox.SelectedIndex = 0;
             }
             catch (Exception ex)
             {
@@ -71,6 +85,9 @@ namespace Projektsoftware.Views
                 var selectedEmployeeId = (int)AssignedToComboBox.SelectedValue;
                 ticket.AssignedToEmployeeId = selectedEmployeeId == 0 ? null : selectedEmployeeId;
 
+                var selectedProjectId = ProjectComboBox.SelectedValue is int pid ? pid : 0;
+                ticket.ProjectId = selectedProjectId > 0 ? selectedProjectId : (int?)null;
+
                 if (ticket.Status == TicketStatus.Resolved && !ticket.ResolvedAt.HasValue)
                 {
                     ticket.ResolvedAt = DateTime.Now;
@@ -83,6 +100,10 @@ namespace Projektsoftware.Views
                 ticket.UpdatedAt = DateTime.Now;
 
                 await db.UpdateTicketAsync(ticket);
+
+                // Kundenbenachrichtigung bei Status- oder Lösungsänderung (im Hintergrund)
+                _ = TicketNotificationService.SendUpdateNotificationAsync(
+                    ticket, _previousStatus, _previousResolution);
 
                 MessageBox.Show(
                     "Ticket wurde erfolgreich aktualisiert.",

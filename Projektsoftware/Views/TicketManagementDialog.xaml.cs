@@ -344,6 +344,7 @@ namespace Projektsoftware.Views
             EditButton.IsEnabled = hasSelection;
             ViewDetailsButton.IsEnabled = hasSelection;
             DeleteButton.IsEnabled = hasSelection;
+            SendEmailButton.IsEnabled = hasSelection;
         }
 
         private void TicketsDataGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -352,6 +353,21 @@ namespace Projektsoftware.Views
             {
                 ViewDetails_Click(sender, null);
             }
+        }
+
+        private void SendEmail_Click(object sender, RoutedEventArgs e)
+        {
+            if (TicketsDataGrid.SelectedItem is Ticket ticket)
+            {
+                var dialog = new TicketEmailDialog(ticket);
+                dialog.ShowDialog();
+            }
+        }
+
+        private void ConfigureTicketSmtp_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new TicketSmtpSettingsDialog();
+            dialog.ShowDialog();
         }
 
         protected override void OnClosed(EventArgs e)

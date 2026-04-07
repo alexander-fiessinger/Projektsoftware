@@ -1,3 +1,4 @@
+using Projektsoftware.Converters;
 using System.Text.Json.Serialization;
 
 namespace Projektsoftware.Models
@@ -14,13 +15,11 @@ namespace Projektsoftware.Models
         public long DocumentId { get; set; }
 
         [JsonPropertyName("amount")]
+        [JsonConverter(typeof(EasybillPriceConverterNotNullable))]
         public decimal Amount { get; set; }
 
         [JsonPropertyName("type")]
         public string? Type { get; set; } // BANK_TRANSFER, BANK_CARD, CASH, CREDIT_NOTE, PAYPAL, DIRECT_DEBIT, MISC
-
-        [JsonPropertyName("currency")]
-        public string? Currency { get; set; } // EUR, USD, etc.
 
         [JsonPropertyName("payment_at")]
         public string? PaymentAt { get; set; } // yyyy-MM-dd
@@ -28,8 +27,8 @@ namespace Projektsoftware.Models
         [JsonPropertyName("reference")]
         public string? Reference { get; set; }
 
-        [JsonPropertyName("note")]
-        public string? Note { get; set; }
+        [JsonPropertyName("notice")]
+        public string? Notice { get; set; }
 
         [JsonPropertyName("provider")]
         public string? Provider { get; set; }

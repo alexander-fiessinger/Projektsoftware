@@ -103,6 +103,12 @@ namespace Projektsoftware.Views
                     {
                         CustomerComboBox.Text = currentText;
                     }
+
+                    // Checkbox für neue Projekte automatisch aktivieren
+                    if (Project.Id == 0)
+                    {
+                        CreateInEasybillCheckBox.IsChecked = true;
+                    }
                 }
             }
             catch

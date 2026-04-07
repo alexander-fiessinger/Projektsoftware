@@ -563,11 +563,122 @@ namespace Projektsoftware.Services
         {
             if (string.IsNullOrEmpty(text))
                 return "";
-            
+
             if (text.Length <= maxLength)
                 return text;
-            
+
             return text.Substring(0, maxLength - 3) + "...";
+        }
+
+        /// <summary>
+        /// Erzeugt ein PDF einer Eingangsrechnung als Byte-Array für den Easybill-Beleg-Upload
+        /// </summary>
+        public byte[] GeneratePurchaseInvoicePdfBytes(PurchaseInvoice invoice)
+        {
+            return Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(2, Unit.Centimetre);
+                    page.PageColor(Colors.White);
+                    page.DefaultTextStyle(x => x.FontSize(10));
+
+                    page.Header()
+                        .Background(Colors.Blue.Darken2)
+                        .Padding(15)
+                        .Column(col =>
+                        {
+                            col.Item().Text("Eingangsrechnung").FontSize(20).Bold().FontColor(Colors.White);
+                            col.Item().Text($"Rechnungsnummer: {invoice.InvoiceNumber}").FontSize(11).FontColor(Colors.White);
+                        });
+
+                    page.Content()
+                        .PaddingVertical(15)
+                        .Column(column =>
+                        {
+                            column.Item().PaddingBottom(12).Row(row =>
+                            {
+                                row.RelativeItem().Column(col =>
+                                {
+                                    col.Item().Text("Lieferant").Bold();
+                                    col.Item().Text(invoice.SupplierName).FontSize(12);
+                                });
+                                row.ConstantItem(200).Column(col =>
+                                {
+                                    col.Item().Text("Rechnungsdatum").Bold();
+                                    col.Item().Text(invoice.InvoiceDate.ToString("dd.MM.yyyy")).FontSize(12);
+                                    if (invoice.DueDate.HasValue)
+                                    {
+                                        col.Item().PaddingTop(4).Text("Fälligkeitsdatum").Bold();
+                                        col.Item().Text(invoice.DueDate.Value.ToString("dd.MM.yyyy")).FontSize(12);
+                                    }
+                                });
+                            });
+
+                            column.Item().PaddingVertical(6).LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+
+                            column.Item().PaddingBottom(12).Table(table =>
+                            {
+                                table.ColumnsDefinition(cols =>
+                                {
+                                    cols.RelativeColumn(4);
+                                    cols.RelativeColumn(2);
+                                });
+
+                                table.Header(header =>
+                                {
+                                    header.Cell().Background(Colors.Grey.Lighten2).Padding(6).Text("Beschreibung").Bold();
+                                    header.Cell().Background(Colors.Grey.Lighten2).Padding(6).AlignRight().Text("Betrag").Bold();
+                                });
+
+                                var desc = string.IsNullOrWhiteSpace(invoice.Notes) ? "Leistungen gemäß Rechnung" : invoice.Notes;
+                                table.Cell().Padding(6).Text(desc);
+                                table.Cell().Padding(6).AlignRight().Text(invoice.TotalNetDisplay);
+
+                                if (invoice.TotalGross != invoice.TotalNet && invoice.TotalNet > 0)
+                                {
+                                    var vat = invoice.TotalGross - invoice.TotalNet;
+                                    var vatRate = (int)Math.Round(vat / invoice.TotalNet * 100);
+                                    var vatCulture = new System.Globalization.CultureInfo("de-DE");
+                                    table.Cell().Padding(6).Text($"Umsatzsteuer ({vatRate}%)");
+                                    table.Cell().Padding(6).AlignRight().Text(vat.ToString("C2", vatCulture));
+                                }
+                            });
+
+                            column.Item().Background(Colors.Blue.Darken2).Padding(8).Row(row =>
+                            {
+                                row.RelativeItem().Text("Gesamtbetrag (Brutto)").FontColor(Colors.White).Bold();
+                                row.ConstantItem(120).AlignRight().Text(invoice.TotalGrossDisplay).FontColor(Colors.White).Bold().FontSize(13);
+                            });
+
+                            if (invoice.PaymentDate.HasValue)
+                            {
+                                column.Item().PaddingTop(10).Row(row =>
+                                {
+                                    row.RelativeItem().Column(col =>
+                                    {
+                                        col.Item().Text("Status").Bold();
+                                        col.Item().Text(invoice.Status);
+                                    });
+                                    row.RelativeItem().Column(col =>
+                                    {
+                                        col.Item().Text("Bezahlt am").Bold();
+                                        col.Item().Text(invoice.PaymentDate.Value.ToString("dd.MM.yyyy"));
+                                    });
+                                });
+                            }
+                        });
+
+                    page.Footer()
+                        .AlignCenter()
+                        .Text(text =>
+                        {
+                            text.Span("Projektsoftware | Erstellt am ");
+                            text.Span(DateTime.Now.ToString("dd.MM.yyyy HH:mm"));
+                        });
+                });
+            }).GeneratePdf();
         }
     }
 }

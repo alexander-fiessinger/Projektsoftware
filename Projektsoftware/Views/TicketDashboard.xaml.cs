@@ -51,6 +51,11 @@ namespace Projektsoftware.Views
                 {
                     AvgTimeText.Text = "Keine gelösten Tickets";
                 }
+
+                // SLA
+                SlaBreachedText.Text = stats.SlaBreachedCount.ToString();
+                SlaCompliantText.Text = stats.SlaCompliantCount.ToString();
+                SlaRateText.Text = stats.SlaComplianceText;
             }
             catch (Exception ex)
             {
