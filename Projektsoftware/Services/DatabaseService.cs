@@ -505,6 +505,82 @@ namespace Projektsoftware.Services
             await cmdAudit.ExecuteNonQueryAsync();
             System.Diagnostics.Debug.WriteLine("✅ Tabelle 'audit_log' erstellt/geprüft");
 
+// CRM Kontakte Tabelle
+string createCrmContactsTable = @"
+    CREATE TABLE IF NOT EXISTS crm_contacts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        customer_id INT NULL,
+        first_name VARCHAR(100) NOT NULL DEFAULT '',
+        last_name VARCHAR(100) NOT NULL DEFAULT '',
+        position VARCHAR(150),
+        email VARCHAR(255),
+        phone VARCHAR(50),
+        mobile VARCHAR(50),
+        notes TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME,
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+        INDEX idx_customer_id (customer_id),
+        INDEX idx_is_active (is_active)
+    )";
+
+using var cmdCrm1 = new MySqlCommand(createCrmContactsTable, connection);
+await cmdCrm1.ExecuteNonQueryAsync();
+System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_contacts' erstellt/geprüft");
+
+// CRM Aktivitäten Tabelle
+string createCrmActivitiesTable = @"
+    CREATE TABLE IF NOT EXISTS crm_activities (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        contact_id INT NULL,
+        customer_id INT NULL,
+        type INT NOT NULL DEFAULT 0,
+        subject VARCHAR(255) NOT NULL DEFAULT '',
+        notes TEXT,
+        due_date DATETIME,
+        completed_at DATETIME,
+        is_completed BOOLEAN DEFAULT FALSE,
+        created_by VARCHAR(100),
+        created_at DATETIME NOT NULL,
+        FOREIGN KEY (contact_id) REFERENCES crm_contacts(id) ON DELETE SET NULL,
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+        INDEX idx_contact_id (contact_id),
+        INDEX idx_is_completed (is_completed),
+        INDEX idx_due_date (due_date)
+    )";
+
+using var cmdCrm2 = new MySqlCommand(createCrmActivitiesTable, connection);
+await cmdCrm2.ExecuteNonQueryAsync();
+System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_activities' erstellt/geprüft");
+
+// CRM Deals Tabelle
+string createCrmDealsTable = @"
+    CREATE TABLE IF NOT EXISTS crm_deals (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        customer_id INT NULL,
+        contact_id INT NULL,
+        title VARCHAR(255) NOT NULL DEFAULT '',
+        value DECIMAL(12,2) DEFAULT 0,
+        stage INT NOT NULL DEFAULT 0,
+        probability INT DEFAULT 50,
+        expected_close_date DATE,
+        notes TEXT,
+        assigned_to VARCHAR(100),
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME,
+        won_at DATETIME,
+        lost_at DATETIME,
+        lost_reason VARCHAR(500),
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+        FOREIGN KEY (contact_id) REFERENCES crm_contacts(id) ON DELETE SET NULL,
+        INDEX idx_stage (stage),
+        INDEX idx_customer_id (customer_id)
+    )";
+
+using var cmdCrm3 = new MySqlCommand(createCrmDealsTable, connection);
+await cmdCrm3.ExecuteNonQueryAsync();
+System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_deals' erstellt/geprüft");
             // Überprüfe ob users Tabelle tatsächlich erstellt wurde
             string checkUsersTable = @"
                 SELECT COUNT(*) 

@@ -11,11 +11,36 @@ namespace Projektsoftware.Views
     {
         public Ticket? CreatedTicket { get; private set; }
 
+        private readonly InboxEmail? _prefillEmail;
+        private readonly Customer? _prefillCustomer;
+
         public TicketFormWindow()
         {
             InitializeComponent();
             Loaded += async (s, e) => await LoadProjectsAsync();
         }
+
+public TicketFormWindow(InboxEmail email, Customer? customer = null)
+{
+    InitializeComponent();
+    _prefillEmail = email;
+    _prefillCustomer = customer;
+    Loaded += async (s, e) =>
+    {
+        await LoadProjectsAsync();
+        PreFillFromEmail();
+    };
+}
+
+private void PreFillFromEmail()
+{
+    if (_prefillEmail == null) return;
+    CustomerNameTextBox.Text = _prefillCustomer?.DisplayName ?? _prefillEmail.FromName;
+    CustomerEmailTextBox.Text = _prefillEmail.FromEmail;
+    CustomerPhoneTextBox.Text = _prefillCustomer?.Phone ?? string.Empty;
+    SubjectTextBox.Text = _prefillEmail.Subject;
+    DescriptionTextBox.Text = _prefillEmail.Body;
+}
 
         private async System.Threading.Tasks.Task LoadProjectsAsync()
         {
@@ -45,6 +70,7 @@ namespace Projektsoftware.Views
                     CustomerName = CustomerNameTextBox.Text.Trim(),
                     CustomerEmail = CustomerEmailTextBox.Text.Trim(),
                     CustomerPhone = CustomerPhoneTextBox.Text.Trim(),
+                    CustomerId = _prefillCustomer?.Id > 0 ? _prefillCustomer?.Id : (int?)null,
                     Subject = SubjectTextBox.Text.Trim(),
                     Description = DescriptionTextBox.Text.Trim(),
                     Category = (TicketCategory)CategoryComboBox.SelectedIndex,

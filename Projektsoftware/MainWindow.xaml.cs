@@ -103,6 +103,12 @@ namespace Projektsoftware
                     _ = MeetingCalendarView.LoadAsync();
                 }
 
+                // CRM laden
+                if (CrmView != null)
+                {
+                    _ = CrmView.LoadAsync();
+                }
+
                 // Auf Updates prüfen (im Hintergrund, nach kurzer Verzögerung)
                 _ = CheckForUpdatesInBackgroundAsync();
 
@@ -123,6 +129,14 @@ namespace Projektsoftware
                     };
                     _ = LoadDocumentSearchAsync();
                 }
+
+// Posteingang im Dashboard
+if (DashboardControl != null)
+{
+    DashboardControl.OpenInboxClicked += (s, e) => OpenExchangeInbox_Click(s, e);
+    DashboardControl.InboxRefreshClicked += async (s, e) => await LoadInboxPreviewAsync();
+    _ = LoadInboxPreviewAsync();
+}
             }
             catch (Exception ex)
             {
@@ -631,6 +645,31 @@ namespace Projektsoftware
             var dialog = new ExchangeSettingsDialog { Owner = this };
             dialog.ShowDialog();
         }
+
+private void ConfigureEws_Click(object sender, RoutedEventArgs e)
+{
+    var dialog = new EwsSettingsDialog { Owner = this };
+    dialog.ShowDialog();
+}
+
+private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
+{
+    var config = EwsConfig.Load();
+    if (!config.IsConfigured)
+    {
+        var result = MessageBox.Show(
+            "Der Exchange Posteingang (EWS) ist noch nicht konfiguriert.\n\n" +
+            "Möchten Sie die EWS-Einstellungen jetzt öffnen?",
+            "Exchange EWS nicht konfiguriert",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (result == MessageBoxResult.Yes)
+            ConfigureEws_Click(sender, e);
+        return;
+    }
+    var dialog = new ExchangeInboxDialog { Owner = this };
+    dialog.ShowDialog();
+}
 
         private void ManageUsers_Click(object sender, RoutedEventArgs e)
         {
@@ -2106,6 +2145,34 @@ namespace Projektsoftware
                 Dispatcher.Invoke(() => DashboardControl?.SetDocSearchStatus($"⚠️ Fehler: {ex.Message}"));
             }
         }
+
+private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
+{
+    var ewsConfig = EwsConfig.Load();
+    if (!ewsConfig.IsConfigured)
+    {
+        Dispatcher.Invoke(() => DashboardControl?.UpdateInboxPreview([], "ℹ️ EWS nicht konfiguriert"));
+        return;
+    }
+
+    Dispatcher.Invoke(() => DashboardControl?.UpdateInboxPreview([], "⏳ Lade E-Mails…"));
+    try
+    {
+        var ewsService = new EwsService(ewsConfig);
+        var customers = viewModel?.Customers.ToList() ?? [];
+        var emails = await ewsService.FetchInboxEmailsAsync(customers, maxMessages: 10);
+        var unread = emails.Count(m => !m.IsRead);
+        var status = unread > 0
+            ? $"{unread} ungelesen von {emails.Count}"
+            : $"{emails.Count} E-Mail(s)";
+        Dispatcher.Invoke(() => DashboardControl?.UpdateInboxPreview(emails, status));
+    }
+    catch (Exception ex)
+    {
+        System.Diagnostics.Debug.WriteLine($"Inbox-Vorschau Fehler: {ex.Message}");
+        Dispatcher.Invoke(() => DashboardControl?.UpdateInboxPreview([], $"⚠️ {ex.Message}"));
+    }
+}
 
         private void DashboardViewPurchases_Click(object sender, RoutedEventArgs e)
         {

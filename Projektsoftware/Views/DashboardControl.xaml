@@ -185,6 +185,55 @@
                 </Border>
             </Grid>
 
+<!-- ═══ POSTEINGANG ════════════════════════════════════════════ -->
+<Grid Margin="0,0,0,12">
+    <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+    </Grid.ColumnDefinitions>
+    <TextBlock Text="📬 Posteingang" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/>
+    <StackPanel Grid.Column="1" Orientation="Horizontal">
+        <TextBlock x:Name="InboxStatusText" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                   VerticalAlignment="Center" Margin="0,0,10,0"/>
+        <Button Content="🔄" Style="{StaticResource ActionButton}" Padding="8,5" Margin="0,0,6,0"
+                Click="InboxRefresh_Click" ToolTip="E-Mails neu laden"/>
+        <Button Content="Posteingang öffnen" Style="{StaticResource ActionButton}" Padding="10,5"
+                Click="InboxOpen_Click"/>
+    </StackPanel>
+</Grid>
+<Border Style="{StaticResource ModernCard}" Margin="0,0,0,28">
+    <StackPanel>
+        <TextBlock x:Name="InboxEmptyText"
+                   Text="Noch nicht geladen – klicken Sie auf 🔄 um E-Mails zu laden"
+                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                   HorizontalAlignment="Center" Padding="0,8"/>
+        <DataGrid x:Name="InboxPreviewGrid" MaxHeight="220"
+                  AutoGenerateColumns="False" CanUserAddRows="False"
+                  IsReadOnly="True" SelectionMode="Single"
+                  HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                  CanUserResizeRows="False"
+                  MouseDoubleClick="InboxPreviewGrid_DoubleClick"
+                  Visibility="Collapsed">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsRead}" Value="False">
+                            <Setter Property="FontWeight" Value="Bold"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="●" Binding="{Binding ReadStatus}" Width="22" MinWidth="22"/>
+                <DataGridTextColumn Header="Datum" Binding="{Binding Date, StringFormat='{}{0:dd.MM.yyyy HH:mm}'}" Width="135"/>
+                <DataGridTextColumn Header="Von" Binding="{Binding FromDisplay}" Width="210"/>
+                <DataGridTextColumn Header="Betreff" Binding="{Binding Subject}" Width="*"/>
+                <DataGridTextColumn Header="Kunde" Binding="{Binding CustomerDisplay}" Width="160"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </StackPanel>
+</Border>
+
             <!-- ═══ FINANZIELLE ÜBERSICHT ══════════════════════════════════ -->
             <TextBlock Text="Finanzielle Übersicht" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
 

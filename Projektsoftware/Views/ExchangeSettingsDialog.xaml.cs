@@ -48,7 +48,7 @@ namespace Projektsoftware.Views
             if (result.Success)
                 ShowSuccess($"✅ Verbindung erfolgreich!\nServer: {SmtpServerTextBox.Text.Trim()}  Port: {PortTextBox.Text}");
             else
-                ShowError("Verbindung fehlgeschlagen: " + result.Error);
+ShowError("Verbindung fehlgeschlagen: " + result.Message);
         }
 
         private void Save_Click(object sender, RoutedEventArgs e)
@@ -100,7 +100,7 @@ namespace Projektsoftware.Views
             };
         }
 
-        private void ShowStatus(string msg) { StatusTextBlock.Text = msg; }
+private void ShowStatus(string msg) { StatusTextBlock.Text = msg; SuccessPanel.Visibility = System.Windows.Visibility.Collapsed; ErrorPanel.Visibility = System.Windows.Visibility.Collapsed; }
         private void ShowSuccess(string msg) { StatusTextBlock.Text = ""; SuccessPanel.Visibility = System.Windows.Visibility.Visible; SuccessText.Text = msg; ErrorPanel.Visibility = System.Windows.Visibility.Collapsed; }
         private void ShowError(string msg) { StatusTextBlock.Text = ""; ErrorPanel.Visibility = System.Windows.Visibility.Visible; ErrorText.Text = msg; SuccessPanel.Visibility = System.Windows.Visibility.Collapsed; }
     }

@@ -1,0 +1,245 @@
+<UserControl x:Class="Projektsoftware.Views.CrmView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- KPI Header -->
+        <UniformGrid Grid.Row="0" Rows="1" Margin="10,10,10,0">
+            <Border Style="{StaticResource ModernCard}" Margin="0,0,6,0">
+                <StackPanel>
+                    <TextBlock Text="👤 Kontakte" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                    <TextBlock x:Name="KpiContacts" Text="0" FontSize="26" FontWeight="Bold"
+                               Foreground="{StaticResource PrimaryBrush}"/>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource ModernCard}" Margin="3,0,3,0">
+                <StackPanel>
+                    <TextBlock Text="⏳ Offene Aktivitäten" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                    <TextBlock x:Name="KpiOpenActivities" Text="0" FontSize="26" FontWeight="Bold"
+                               Foreground="{StaticResource WarningBrush}"/>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource ModernCard}" Margin="3,0,3,0">
+                <StackPanel>
+                    <TextBlock Text="💼 Aktive Deals" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                    <TextBlock x:Name="KpiActiveDeals" Text="0" FontSize="26" FontWeight="Bold"
+                               Foreground="{StaticResource SuccessBrush}"/>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource ModernCard}" Margin="6,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="💰 Pipeline-Wert" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                    <TextBlock x:Name="KpiPipelineValue" Text="0,00 €" FontSize="22" FontWeight="Bold"
+                               Foreground="{StaticResource PrimaryBrush}"/>
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <!-- Tab-Bereich -->
+        <TabControl Grid.Row="1" Margin="10" Style="{StaticResource ModernTabControl}">
+
+            <!-- Kontakte -->
+            <TabItem Header="👤 Kontakte" Style="{StaticResource ModernTabItem}">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button Content="+ Neuer Kontakt" Style="{StaticResource ModernButton}"
+                                Padding="12,6" Margin="0,0,10,0"
+                                Background="{StaticResource SuccessBrush}" Foreground="White"
+                                Click="AddContact_Click"/>
+                        <TextBox x:Name="ContactSearchBox" Width="240" Height="32"
+                                 VerticalContentAlignment="Center" Padding="6,0"
+                                 TextChanged="ContactSearch_TextChanged"/>
+                        <CheckBox x:Name="ShowInactiveCheck" Content="Inaktive anzeigen"
+                                  VerticalAlignment="Center" Margin="12,0,0,0"
+                                  Checked="ShowInactive_Changed" Unchecked="ShowInactive_Changed"/>
+                    </StackPanel>
+                    <DataGrid x:Name="ContactsGrid" Grid.Row="1"
+                              Style="{StaticResource ModernDataGrid}"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
+                              SelectionMode="Single"
+                              MouseDoubleClick="ContactsGrid_DoubleClick">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Bearbeiten" Click="EditContact_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Deaktivieren" Click="DeleteContact_Click" Foreground="Red"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="1.5*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Position" Binding="{Binding Position}" Width="1.2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Unternehmen" Binding="{Binding CustomerName}" Width="1.5*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="E-Mail" Binding="{Binding Email}" Width="1.8*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Telefon" Binding="{Binding Phone}" Width="1*" IsReadOnly="True"/>
+                            <DataGridCheckBoxColumn Header="Aktiv" Binding="{Binding IsActive}" Width="0.6*" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Aktion" Width="70">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="✏️" ToolTip="Bearbeiten"
+                                                Style="{StaticResource ActionButton}"
+                                                Foreground="{StaticResource PrimaryBrush}"
+                                                Click="EditContact_Click"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- Aktivitäten -->
+            <TabItem Header="📋 Aktivitäten" Style="{StaticResource ModernTabItem}">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button Content="+ Neue Aktivität" Style="{StaticResource ModernButton}"
+                                Padding="12,6" Margin="0,0,10,0"
+                                Background="{StaticResource SuccessBrush}" Foreground="White"
+                                Click="AddActivity_Click"/>
+                        <TextBox x:Name="ActivitySearchBox" Width="240" Height="32"
+                                 VerticalContentAlignment="Center" Padding="6,0"
+                                 TextChanged="ActivitySearch_TextChanged"/>
+                        <CheckBox x:Name="ShowCompletedCheck" Content="Abgeschlossene anzeigen"
+                                  VerticalAlignment="Center" Margin="12,0,0,0"
+                                  Checked="ShowCompleted_Changed" Unchecked="ShowCompleted_Changed"/>
+                    </StackPanel>
+                    <DataGrid x:Name="ActivitiesGrid" Grid.Row="1"
+                              Style="{StaticResource ModernDataGrid}"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
+                              SelectionMode="Single"
+                              MouseDoubleClick="ActivitiesGrid_DoubleClick">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Bearbeiten" Click="EditActivity_Click"/>
+                                <MenuItem Header="Als erledigt markieren" Click="CompleteActivity_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Löschen" Click="DeleteActivity_Click" Foreground="Red"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Typ" Binding="{Binding TypeText}" Width="1*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Betreff" Binding="{Binding Subject}" Width="2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Kontakt" Binding="{Binding ContactName}" Width="1.2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Kunde" Binding="{Binding CustomerName}" Width="1.2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Fällig" Binding="{Binding DueDate, StringFormat=dd.MM.yyyy}" Width="0.9*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" Width="1*" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Aktion" Width="70">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="✏️" ToolTip="Bearbeiten"
+                                                Style="{StaticResource ActionButton}"
+                                                Foreground="{StaticResource PrimaryBrush}"
+                                                Click="EditActivity_Click"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- Deals / Pipeline -->
+            <TabItem Header="💼 Deals" Style="{StaticResource ModernTabItem}">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button Content="+ Neuer Deal" Style="{StaticResource ModernButton}"
+                                Padding="12,6" Margin="0,0,10,0"
+                                Background="{StaticResource SuccessBrush}" Foreground="White"
+                                Click="AddDeal_Click"/>
+                        <TextBox x:Name="DealSearchBox" Width="240" Height="32"
+                                 VerticalContentAlignment="Center" Padding="6,0"
+                                 TextChanged="DealSearch_TextChanged"/>
+                        <CheckBox x:Name="ShowClosedDealsCheck" Content="Gewonnene/Verlorene anzeigen"
+                                  VerticalAlignment="Center" Margin="12,0,0,0"
+                                  Checked="ShowClosedDeals_Changed" Unchecked="ShowClosedDeals_Changed"/>
+                    </StackPanel>
+
+                    <!-- Pipeline Übersicht -->
+                    <UniformGrid Grid.Row="1" Rows="1" Margin="0,0,0,10" x:Name="PipelinePanel">
+                        <Border Background="#EBF5FB" CornerRadius="6" Margin="0,0,4,0" Padding="10,6">
+                            <StackPanel>
+                                <TextBlock Text="🔵 Lead" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock x:Name="PipelineLead" Text="0 Deals" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="#FEF9E7" CornerRadius="6" Margin="2,0,2,0" Padding="10,6">
+                            <StackPanel>
+                                <TextBlock Text="🟡 Qualifiziert" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock x:Name="PipelineQualified" Text="0 Deals" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="#FEF5E7" CornerRadius="6" Margin="2,0,2,0" Padding="10,6">
+                            <StackPanel>
+                                <TextBlock Text="🟠 Angebot" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock x:Name="PipelineProposal" Text="0 Deals" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="#FDEDEC" CornerRadius="6" Margin="2,0,2,0" Padding="10,6">
+                            <StackPanel>
+                                <TextBlock Text="🔴 Verhandlung" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock x:Name="PipelineNegotiation" Text="0 Deals" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="#EAFAF1" CornerRadius="6" Margin="4,0,0,0" Padding="10,6">
+                            <StackPanel>
+                                <TextBlock Text="✅ Gewonnen" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock x:Name="PipelineWon" Text="0 Deals" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </Border>
+                    </UniformGrid>
+
+                    <DataGrid x:Name="DealsGrid" Grid.Row="2"
+                              Style="{StaticResource ModernDataGrid}"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
+                              SelectionMode="Single"
+                              MouseDoubleClick="DealsGrid_DoubleClick">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Bearbeiten" Click="EditDeal_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Löschen" Click="DeleteDeal_Click" Foreground="Red"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Titel" Binding="{Binding Title}" Width="2*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Kunde" Binding="{Binding CustomerName}" Width="1.5*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Phase" Binding="{Binding StageText}" Width="1.1*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Wert" Binding="{Binding Value, StringFormat={}{0:N2} €}" Width="1*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Gewichtet" Binding="{Binding WeightedValue, StringFormat={}{0:N2} €}" Width="1*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Wahrsch." Binding="{Binding Probability, StringFormat={}{0} %}" Width="0.8*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Abschluss" Binding="{Binding ExpectedCloseDate, StringFormat=dd.MM.yyyy}" Width="0.9*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Zugewiesen" Binding="{Binding AssignedTo}" Width="1*" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Aktion" Width="70">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="✏️" ToolTip="Bearbeiten"
+                                                Style="{StaticResource ActionButton}"
+                                                Foreground="{StaticResource PrimaryBrush}"
+                                                Click="EditDeal_Click"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

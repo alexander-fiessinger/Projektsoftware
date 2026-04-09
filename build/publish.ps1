@@ -126,11 +126,21 @@ Write-Host "    OK" -ForegroundColor Green
 # ── 5. csproj + manifest.json nach GitHub pushen ─────────────────────────────
 Write-Host "[5/6] Git commit & push (csproj + manifest.json) ..." -ForegroundColor Yellow
 $relPath = "Projektsoftware/Projektsoftware.csproj"
-git -C $root add manifest.json "$relPath"
+
+# Remote-Refs holen BEVOR wir committen (beruehrt Working-Tree nicht)
+Write-Host "    Fetche remote ..." -ForegroundColor DarkGray
+git -C $root fetch origin
+if ($LASTEXITCODE -ne 0) { throw "git fetch fehlgeschlagen (Exit: $LASTEXITCODE)" }
+
+# Alle neuen/geaenderten Dateien stagen (inkl. bisher untracked Source-Files)
+git -C $root add -A
 $staged = git -C $root diff --cached --name-only
 if ($staged) {
     git -C $root commit -m "Release v$Version"
     if ($LASTEXITCODE -ne 0) { throw "git commit fehlgeschlagen (Exit: $LASTEXITCODE)" }
+    # Rebase: nach git add -A gibt es keine untracked files mehr -> kein Konflikt
+    git -C $root rebase -X theirs origin/main
+    if ($LASTEXITCODE -ne 0) { throw "git rebase origin/main fehlgeschlagen (Exit: $LASTEXITCODE)" }
     git -C $root push
     if ($LASTEXITCODE -ne 0) { throw "git push fehlgeschlagen (Exit: $LASTEXITCODE)" }
     Write-Host "    OK  (gepusht: $($staged -join ', '))" -ForegroundColor Green

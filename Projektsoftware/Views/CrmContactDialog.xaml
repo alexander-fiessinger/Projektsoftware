@@ -1,0 +1,82 @@
+<Window x:Class="Projektsoftware.Views.CrmContactDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Kontakt"
+        Width="500" Height="560"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource BackgroundBrush}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" x:Name="TitleText" Text="Kontakt anlegen"
+                   FontSize="18" FontWeight="SemiBold"
+                   Foreground="{StaticResource PrimaryBrush}" Margin="0,0,0,16"/>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Kunde (optional)" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <ComboBox x:Name="CustomerCombo" Height="34" Margin="0,0,0,12"
+                          DisplayMemberPath="DisplayName"
+                          SelectedValuePath="Id"/>
+
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Vorname *" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBox x:Name="FirstNameBox" Height="34"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Nachname *" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBox x:Name="LastNameBox" Height="34"/>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Position / Titel" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <TextBox x:Name="PositionBox" Height="34" Margin="0,0,0,12"/>
+
+                <TextBlock Text="E-Mail" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <TextBox x:Name="EmailBox" Height="34" Margin="0,0,0,12"/>
+
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Telefon" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBox x:Name="PhoneBox" Height="34"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Mobil" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBox x:Name="MobileBox" Height="34"/>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Notizen" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <TextBox x:Name="NotesBox" Height="80" TextWrapping="Wrap"
+                         AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,12"/>
+
+                <CheckBox x:Name="IsActiveCheck" Content="Kontakt aktiv" IsChecked="True" Margin="0,0,0,8"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Abbrechen" Width="100" Height="34" Margin="0,0,10,0"
+                    Click="Cancel_Click"/>
+            <Button Content="Speichern" Width="100" Height="34"
+                    Style="{StaticResource ModernButton}"
+                    Background="{StaticResource SuccessBrush}" Foreground="White"
+                    Click="Save_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

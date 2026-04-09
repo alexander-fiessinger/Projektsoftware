@@ -48,7 +48,7 @@ namespace Projektsoftware.Views
             if (result.Success)
                 ShowSuccess($"✅ Verbindung erfolgreich!\nServer: {SmtpServerTextBox.Text.Trim()}  Port: {PortTextBox.Text}");
             else
-                ShowError("Verbindung fehlgeschlagen: " + result.Error);
+ShowError("Verbindung fehlgeschlagen: " + result.Message);
         }
 
         private void Save_Click(object sender, RoutedEventArgs e)

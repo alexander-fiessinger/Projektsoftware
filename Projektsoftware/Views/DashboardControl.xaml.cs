@@ -32,6 +32,8 @@ namespace Projektsoftware.Views
         public event RoutedEventHandler? ExportTimesClicked;
         public event RoutedEventHandler? RefreshFinancialClicked;
         public event RoutedEventHandler? ViewPurchasesClicked;
+public event RoutedEventHandler? OpenInboxClicked;
+public event RoutedEventHandler? InboxRefreshClicked;
         public DashboardControl()
         {
             InitializeComponent();
@@ -211,113 +213,135 @@ namespace Projektsoftware.Views
             FinancialLoadingText.Visibility = Visibility.Visible;
         }
 
-        public void UpdateDocuments(List<EasybillDocument> documents)
+public void UpdateInboxPreview(List<InboxEmail> emails, string statusText)
+{
+    InboxStatusText.Text = statusText;
+    if (emails.Count > 0)
+    {
+        InboxPreviewGrid.ItemsSource = emails;
+        InboxPreviewGrid.Visibility = Visibility.Visible;
+        InboxEmptyText.Visibility = Visibility.Collapsed;
+    }
+    else
+    {
+        InboxPreviewGrid.Visibility = Visibility.Collapsed;
+        InboxEmptyText.Visibility = Visibility.Visible;
+        InboxEmptyText.Text = string.IsNullOrWhiteSpace(statusText)
+            ? "Keine E-Mails gefunden"
+            : statusText;
+    }
+}
+
+public void UpdateDocuments(List<EasybillDocument> documents)
+{
+    _allDocuments = documents ?? [];
+    foreach (var doc in _allDocuments)
+    {
+        if (string.IsNullOrEmpty(doc.CustomerDisplay))
         {
-            _allDocuments = documents ?? [];
-            foreach (var doc in _allDocuments)
+            var snap = doc.CustomerSnapshot;
+            if (snap != null)
             {
-                if (string.IsNullOrEmpty(doc.CustomerDisplay))
-                {
-                    var snap = doc.CustomerSnapshot;
-                    if (snap != null)
-                    {
-                        var name = !string.IsNullOrEmpty(snap.CompanyName)
-                            ? snap.CompanyName
-                            : $"{snap.FirstName} {snap.LastName}".Trim();
-                        doc.CustomerDisplay = !string.IsNullOrEmpty(snap.Number)
-                            ? $"{snap.Number} – {name}" : name;
-                    }
-                }
+                var name = !string.IsNullOrEmpty(snap.CompanyName)
+                    ? snap.CompanyName
+                    : $"{snap.FirstName} {snap.LastName}".Trim();
+                doc.CustomerDisplay = !string.IsNullOrEmpty(snap.Number)
+                    ? $"{snap.Number} – {name}" : name;
             }
-            ApplyDocumentSearch();
         }
+    }
+    ApplyDocumentSearch();
+}
 
-        public void SetDocSearchStatus(string message)
+public void SetDocSearchStatus(string message)
+{
+    DocSearchStatusText.Text = message;
+}
+
+private void ApplyDocumentSearch()
+{
+    if (DocSearchBox == null || DocTypeFilter == null || DocSearchResultsGrid == null) return;
+
+    var query = DocSearchBox.Text.Trim();
+    var typeFilter = (DocTypeFilter.SelectedItem as ComboBoxItem)?.Content?.ToString();
+
+    var filtered = _allDocuments.AsEnumerable();
+
+    if (!string.IsNullOrEmpty(typeFilter) && typeFilter != "Alle Typen")
+    {
+        var apiType = typeFilter switch
         {
-            DocSearchStatusText.Text = message;
-        }
+            "Rechnung" => "INVOICE",
+            "Angebot" => "OFFER",
+            "Bestellung" => "ORDER",
+            "Lieferschein" => "DELIVERY_NOTE",
+            "Gutschrift" => "CREDIT",
+            "Mahnung" => "DUNNING",
+            "Proforma-Rechnung" => "PROFORMA_INVOICE",
+            _ => null
+        };
+        if (apiType != null)
+            filtered = filtered.Where(d => d.Type == apiType);
+    }
 
-        private void ApplyDocumentSearch()
-        {
-            if (DocSearchBox == null || DocTypeFilter == null || DocSearchResultsGrid == null) return;
+    if (!string.IsNullOrEmpty(query))
+    {
+        filtered = filtered.Where(d =>
+            (d.Number?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
+            (d.CustomerDisplay?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
+            (d.CustomerSnapshot?.Number?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
+            (d.Subject?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
+            (d.Title?.Contains(query, StringComparison.OrdinalIgnoreCase) == true));
+    }
 
-            var query = DocSearchBox.Text.Trim();
-            var typeFilter = (DocTypeFilter.SelectedItem as ComboBoxItem)?.Content?.ToString();
+    var results = filtered.Take(100).ToList();
+    var total = _allDocuments.Count;
 
-            var filtered = _allDocuments.AsEnumerable();
+    if (results.Count > 0 || !string.IsNullOrEmpty(query))
+    {
+        DocSearchResultsGrid.ItemsSource = results;
+        DocSearchResultsGrid.Visibility = Visibility.Visible;
+        DocSearchStatusText.Text = $"{results.Count} Treffer (von {total} Dokumenten)";
+    }
+    else if (total > 0)
+    {
+        DocSearchResultsGrid.Visibility = Visibility.Collapsed;
+        DocSearchStatusText.Text = $"{total} Dokumente geladen – Suchbegriff eingeben";
+    }
+}
 
-            if (!string.IsNullOrEmpty(typeFilter) && typeFilter != "Alle Typen")
-            {
-                var apiType = typeFilter switch
-                {
-                    "Rechnung" => "INVOICE",
-                    "Angebot" => "OFFER",
-                    "Bestellung" => "ORDER",
-                    "Lieferschein" => "DELIVERY_NOTE",
-                    "Gutschrift" => "CREDIT",
-                    "Mahnung" => "DUNNING",
-                    "Proforma-Rechnung" => "PROFORMA_INVOICE",
-                    _ => null
-                };
-                if (apiType != null)
-                    filtered = filtered.Where(d => d.Type == apiType);
-            }
+private void DocSearchRefresh_Click(object sender, RoutedEventArgs e)
+    => DocumentSearchRefreshClicked?.Invoke(this, e);
 
-            if (!string.IsNullOrEmpty(query))
-            {
-                filtered = filtered.Where(d =>
-                    (d.Number?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
-                    (d.CustomerDisplay?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
-                    (d.CustomerSnapshot?.Number?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
-                    (d.Subject?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
-                    (d.Title?.Contains(query, StringComparison.OrdinalIgnoreCase) == true));
-            }
+private void DocSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    => ApplyDocumentSearch();
 
-            var results = filtered.Take(100).ToList();
-            var total = _allDocuments.Count;
+private void DocTypeFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    => ApplyDocumentSearch();
 
-            if (results.Count > 0 || !string.IsNullOrEmpty(query))
-            {
-                DocSearchResultsGrid.ItemsSource = results;
-                DocSearchResultsGrid.Visibility = Visibility.Visible;
-                DocSearchStatusText.Text = $"{results.Count} Treffer (von {total} Dokumenten)";
-            }
-            else if (total > 0)
-            {
-                DocSearchResultsGrid.Visibility = Visibility.Collapsed;
-                DocSearchStatusText.Text = $"{total} Dokumente geladen – Suchbegriff eingeben";
-            }
-        }
+private void DocSearchResultsGrid_DoubleClick(object sender, MouseButtonEventArgs e)
+{
+    if (DocSearchResultsGrid.SelectedItem is EasybillDocument doc)
+        DocumentSelected?.Invoke(this, doc);
+}
 
-        private void DocSearchRefresh_Click(object sender, RoutedEventArgs e)
-            => DocumentSearchRefreshClicked?.Invoke(this, e);
-
-        private void DocSearchBox_TextChanged(object sender, TextChangedEventArgs e)
-            => ApplyDocumentSearch();
-
-        private void DocTypeFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
-            => ApplyDocumentSearch();
-
-        private void DocSearchResultsGrid_DoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            if (DocSearchResultsGrid.SelectedItem is EasybillDocument doc)
-                DocumentSelected?.Invoke(this, doc);
-        }
-
-        private void NewProject_Click(object sender, RoutedEventArgs e) => NewProjectClicked?.Invoke(this, e);
-        private void NewTask_Click(object sender, RoutedEventArgs e) => NewTaskClicked?.Invoke(this, e);
-        private void NewCustomer_Click(object sender, RoutedEventArgs e) => NewCustomerClicked?.Invoke(this, e);
-        private void TimeTracking_Click(object sender, RoutedEventArgs e) => TimeTrackingClicked?.Invoke(this, e);
-        private void CreateOffer_Click(object sender, RoutedEventArgs e) => CreateOfferClicked?.Invoke(this, e);
-        private void CreateInvoice_Click(object sender, RoutedEventArgs e) => CreateInvoiceClicked?.Invoke(this, e);
-        private void ShowDocuments_Click(object sender, RoutedEventArgs e) => ShowDocumentsClicked?.Invoke(this, e);
-        private void ManageCustomers_Click(object sender, RoutedEventArgs e) => ManageCustomersClicked?.Invoke(this, e);
-        private void ExportTimes_Click(object sender, RoutedEventArgs e) => ExportTimesClicked?.Invoke(this, e);
-        private void CreateDeliveryNote_Click(object sender, RoutedEventArgs e) => CreateDeliveryNoteClicked?.Invoke(this, e);
-        private void CreateCreditNote_Click(object sender, RoutedEventArgs e) => CreateCreditNoteClicked?.Invoke(this, e);
-        private void CreateDunning_Click(object sender, RoutedEventArgs e) => CreateDunningClicked?.Invoke(this, e);
-        private void CreateOrderConfirmation_Click(object sender, RoutedEventArgs e) => CreateOrderConfirmationClicked?.Invoke(this, e);
-        private void RefreshFinancial_Click(object sender, RoutedEventArgs e) => RefreshFinancialClicked?.Invoke(this, e);
-        private void ViewPurchases_Click(object sender, RoutedEventArgs e) => ViewPurchasesClicked?.Invoke(this, e);
-            }
-        }
+private void NewProject_Click(object sender, RoutedEventArgs e) => NewProjectClicked?.Invoke(this, e);
+private void NewTask_Click(object sender, RoutedEventArgs e) => NewTaskClicked?.Invoke(this, e);
+private void NewCustomer_Click(object sender, RoutedEventArgs e) => NewCustomerClicked?.Invoke(this, e);
+private void TimeTracking_Click(object sender, RoutedEventArgs e) => TimeTrackingClicked?.Invoke(this, e);
+private void CreateOffer_Click(object sender, RoutedEventArgs e) => CreateOfferClicked?.Invoke(this, e);
+private void CreateInvoice_Click(object sender, RoutedEventArgs e) => CreateInvoiceClicked?.Invoke(this, e);
+private void ShowDocuments_Click(object sender, RoutedEventArgs e) => ShowDocumentsClicked?.Invoke(this, e);
+private void ManageCustomers_Click(object sender, RoutedEventArgs e) => ManageCustomersClicked?.Invoke(this, e);
+private void ExportTimes_Click(object sender, RoutedEventArgs e) => ExportTimesClicked?.Invoke(this, e);
+private void CreateDeliveryNote_Click(object sender, RoutedEventArgs e) => CreateDeliveryNoteClicked?.Invoke(this, e);
+private void CreateCreditNote_Click(object sender, RoutedEventArgs e) => CreateCreditNoteClicked?.Invoke(this, e);
+private void CreateDunning_Click(object sender, RoutedEventArgs e) => CreateDunningClicked?.Invoke(this, e);
+private void CreateOrderConfirmation_Click(object sender, RoutedEventArgs e) => CreateOrderConfirmationClicked?.Invoke(this, e);
+private void RefreshFinancial_Click(object sender, RoutedEventArgs e) => RefreshFinancialClicked?.Invoke(this, e);
+private void ViewPurchases_Click(object sender, RoutedEventArgs e) => ViewPurchasesClicked?.Invoke(this, e);
+private void InboxOpen_Click(object sender, RoutedEventArgs e) => OpenInboxClicked?.Invoke(this, e);
+        private void InboxRefresh_Click(object sender, RoutedEventArgs e) => InboxRefreshClicked?.Invoke(this, e);
+        private void InboxPreviewGrid_DoubleClick(object sender, MouseButtonEventArgs e) => OpenInboxClicked?.Invoke(this, e);
+    }
+}

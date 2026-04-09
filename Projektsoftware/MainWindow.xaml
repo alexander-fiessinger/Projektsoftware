@@ -44,6 +44,10 @@
                 <MenuItem Header="SMTP E-Mail" Style="{StaticResource ModernMenuItem}">
                     <MenuItem Header="Konfiguration" Click="ConfigureExchange_Click" Style="{StaticResource ModernMenuItem}"/>
                 </MenuItem>
+<MenuItem Header="Exchange Posteingang" Style="{StaticResource ModernMenuItem}">
+    <MenuItem Header="EWS-Konfiguration" Click="ConfigureEws_Click" Style="{StaticResource ModernMenuItem}"/>
+    <MenuItem Header="Posteingang öffnen" Click="OpenExchangeInbox_Click" Style="{StaticResource ModernMenuItem}"/>
+</MenuItem>
                 <MenuItem Header="Easybill" Style="{StaticResource ModernMenuItem}">
                     <MenuItem Header="Konfiguration" Click="ConfigureEasybill_Click" Style="{StaticResource ModernMenuItem}"/>
                     <MenuItem Header="Dokumente anzeigen" Click="ShowEasybillDocuments_Click" Style="{StaticResource ModernMenuItem}"/>
@@ -505,6 +509,11 @@
             <TabItem Header="🎫 Tickets" Style="{StaticResource ModernTabItem}">
                 <views:TicketsView x:Name="TicketsView" Margin="10"/>
             </TabItem>
+
+<!-- CRM Tab -->
+<TabItem Header="🤝 CRM" Style="{StaticResource ModernTabItem}">
+    <views:CrmView x:Name="CrmView" Margin="0"/>
+</TabItem>
 
             <!-- Einkauf Tab -->
             <TabItem Header="🛒 Einkauf" Style="{StaticResource ModernTabItem}">

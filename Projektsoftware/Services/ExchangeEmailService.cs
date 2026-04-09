@@ -9,71 +9,81 @@ namespace Projektsoftware.Services
 {
     public class ExchangeEmailService
     {
-        private readonly ExchangeConfig config;
+private readonly ExchangeConfig _config;
 
-        public ExchangeEmailService()
-        {
-            config = ExchangeConfig.Load();
-        }
+public ExchangeEmailService()
+{
+    _config = ExchangeConfig.Load();
+}
 
         public ExchangeEmailService(ExchangeConfig config)
         {
-            this.config = config;
-        }
+    _config = config;
+}
 
-        public bool IsConfigured => config.IsConfigured;
+public bool IsConfigured => _config.IsConfigured;
 
-        public async Task SendEmailAsync(string to, string subject, string body, string? cc = null, string? bcc = null, string? pdfFileName = null, byte[]? pdfBytes = null)
-        {
-            var message = new MimeMessage();
-            var senderName = string.IsNullOrWhiteSpace(config.SenderName) ? config.Email : config.SenderName;
-            message.From.Add(new MailboxAddress(senderName, config.Email));
-            foreach (var addr in to.Split(';', ',').Select(a => a.Trim()).Where(a => a.Length > 0))
-                message.To.Add(MailboxAddress.Parse(addr));
-            if (!string.IsNullOrWhiteSpace(cc))
-                foreach (var addr in cc.Split(';', ',').Select(a => a.Trim()).Where(a => a.Length > 0))
-                    message.Cc.Add(MailboxAddress.Parse(addr));
-            if (!string.IsNullOrWhiteSpace(bcc))
-                foreach (var addr in bcc.Split(';', ',').Select(a => a.Trim()).Where(a => a.Length > 0))
-                    message.Bcc.Add(MailboxAddress.Parse(addr));
-            message.Subject = subject;
-            var builder = new BodyBuilder { TextBody = body };
-            if (pdfBytes != null && pdfBytes.Length > 0 && !string.IsNullOrWhiteSpace(pdfFileName))
-                builder.Attachments.Add(pdfFileName, pdfBytes, new ContentType("application", "pdf"));
-            message.Body = builder.ToMessageBody();
-            using var smtp = new SmtpClient();
-            if (config.AcceptInvalidCertificates)
-            {
-                smtp.ServerCertificateValidationCallback = (s, c, h, e) => true;
-                smtp.CheckCertificateRevocation = false;
-            }
-            var socketOptions = config.SmtpPort == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;
-            await smtp.ConnectAsync(config.SmtpServer, config.SmtpPort, socketOptions);
-            await smtp.AuthenticateAsync(config.Email, config.Password);
-            await smtp.SendAsync(message);
-            await smtp.DisconnectAsync(true);
-        }
+public async Task SendEmailAsync(
+    string to,
+    string subject,
+    string body,
+    string? cc = null,
+    string? bcc = null,
+    string? pdfFileName = null,
+    byte[]? pdfBytes = null)
+{
+    var message = new MimeMessage();
+    message.From.Add(new MailboxAddress(_config.SenderName ?? _config.Email, _config.Email));
+    message.To.Add(MailboxAddress.Parse(to));
 
-        public async Task<(bool Success, string Error)> TestConnectionAsync()
-        {
-            try
-            {
-                using var smtp = new SmtpClient();
-                if (config.AcceptInvalidCertificates)
-                {
-                    smtp.ServerCertificateValidationCallback = (s, c, h, e) => true;
-                    smtp.CheckCertificateRevocation = false;
-                }
-                var socketOptions = config.SmtpPort == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;
-                await smtp.ConnectAsync(config.SmtpServer, config.SmtpPort, socketOptions);
-                await smtp.AuthenticateAsync(config.Email, config.Password);
-                await smtp.DisconnectAsync(true);
-                return (true, string.Empty);
-            }
-            catch (Exception ex)
-            {
-                var msg = ex.InnerException is not null ? $"{ex.Message} → {ex.InnerException.Message}" : ex.Message;
-                return (false, msg);
+    if (!string.IsNullOrWhiteSpace(cc))
+        foreach (var addr in cc.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            message.Cc.Add(MailboxAddress.Parse(addr.Trim()));
+
+    if (!string.IsNullOrWhiteSpace(bcc))
+        foreach (var addr in bcc.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            message.Bcc.Add(MailboxAddress.Parse(addr.Trim()));
+
+    message.Subject = subject;
+
+    var bodyBuilder = new BodyBuilder { HtmlBody = body };
+
+    if (pdfBytes != null && pdfFileName != null)
+        bodyBuilder.Attachments.Add(pdfFileName, pdfBytes, new ContentType("application", "pdf"));
+
+    message.Body = bodyBuilder.ToMessageBody();
+
+    using var client = new SmtpClient();
+
+    if (_config.AcceptInvalidCertificates)
+        client.ServerCertificateValidationCallback = (s, c, h, e) => true;
+
+    var socketOptions = _config.UseSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTlsWhenAvailable;
+    await client.ConnectAsync(_config.SmtpServer, _config.SmtpPort, socketOptions);
+    await client.AuthenticateAsync(_config.Email, _config.Password);
+    await client.SendAsync(message);
+    await client.DisconnectAsync(true);
+}
+
+public async Task<(bool Success, string Message)> TestConnectionAsync()
+{
+    try
+    {
+        using var client = new SmtpClient();
+
+        if (_config.AcceptInvalidCertificates)
+            client.ServerCertificateValidationCallback = (s, c, h, e) => true;
+
+        var socketOptions = _config.UseSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTlsWhenAvailable;
+        await client.ConnectAsync(_config.SmtpServer, _config.SmtpPort, socketOptions);
+        await client.AuthenticateAsync(_config.Email, _config.Password);
+        await client.DisconnectAsync(true);
+
+        return (true, "Verbindung erfolgreich.");
+    }
+    catch (Exception ex)
+    {
+        return (false, $"Fehler: {ex.Message}");
             }
         }
     }
