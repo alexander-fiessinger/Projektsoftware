@@ -11,7 +11,7 @@ namespace Projektsoftware.Views
     {
         public CrmDeal Deal { get; private set; }
 
-        public CrmDealDialog(List<Customer> customers, List<CrmContact> contacts, CrmDeal existing = null)
+        public CrmDealDialog(List<Customer> customers, List<CrmContact> contacts, List<Employee> employees, CrmDeal existing = null)
         {
             InitializeComponent();
 
@@ -25,6 +25,11 @@ namespace Projektsoftware.Views
             ContactCombo.ItemsSource = allContacts;
             ContactCombo.SelectedIndex = 0;
 
+            var allEmployees = new List<Employee> { new Employee { Id = 0, FirstName = "—", LastName = "Kein Mitarbeiter —" } };
+            allEmployees.AddRange(employees.Where(e => e.IsActive));
+            AssignedToCombo.ItemsSource = allEmployees;
+            AssignedToCombo.SelectedIndex = 0;
+
             if (existing != null)
             {
                 TitleText.Text = "Deal bearbeiten";
@@ -33,7 +38,11 @@ namespace Projektsoftware.Views
                 ValueBox.Text = existing.Value.ToString("F2");
                 ProbabilityBox.Text = existing.Probability.ToString();
                 CloseDatePicker.SelectedDate = existing.ExpectedCloseDate;
-                AssignedToBox.Text = existing.AssignedTo;
+                var matchedEmployee = allEmployees.FirstOrDefault(emp => emp.FullName == existing.AssignedTo);
+                if (matchedEmployee != null)
+                    AssignedToCombo.SelectedItem = matchedEmployee;
+                else if (!string.IsNullOrWhiteSpace(existing.AssignedTo))
+                    AssignedToCombo.SelectedIndex = 0;
                 NotesBox.Text = existing.Notes;
                 LostReasonBox.Text = existing.LostReason;
 
@@ -82,7 +91,8 @@ namespace Projektsoftware.Views
             Deal.Probability = probability;
             Deal.Stage = stage;
             Deal.ExpectedCloseDate = CloseDatePicker.SelectedDate;
-            Deal.AssignedTo = AssignedToBox.Text.Trim();
+            var selectedEmployee = AssignedToCombo.SelectedItem as Employee;
+            Deal.AssignedTo = selectedEmployee?.Id > 0 ? selectedEmployee.FullName : string.Empty;
             Deal.Notes = NotesBox.Text.Trim();
             Deal.LostReason = LostReasonBox.Text.Trim();
             Deal.CustomerId = selectedCustomer?.Id > 0 ? selectedCustomer.Id : null;

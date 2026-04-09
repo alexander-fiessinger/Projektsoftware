@@ -71,6 +71,8 @@
                 <Separator/>
                 <MenuItem Header="⚠️ Mahnung erstellen" Click="CreateDocument_Dunning_Click" Style="{StaticResource ModernMenuItem}"/>
                 <MenuItem Header="💳 Gutschrift erstellen" Click="CreateDocument_CreditNote_Click" Style="{StaticResource ModernMenuItem}"/>
+                <Separator/>
+                <MenuItem Header="📝 Vertrag erstellen" Click="CreateContract_Click" Style="{StaticResource ModernMenuItem}"/>
             </MenuItem>
             <MenuItem Header="_Hilfe" Style="{StaticResource ModernMenuItem}">
                 <MenuItem Header="Über" Click="About_Click" Style="{StaticResource ModernMenuItem}"/>
@@ -261,6 +263,7 @@
                             <ContextMenu>
                                 <MenuItem Header="Bearbeiten" Click="EditCustomer_Click"/>
                                 <MenuItem Header="📄 Dokumente" Click="DocumentsCustomer_Click"/>
+                                <MenuItem Header="📝 Vertrag erstellen" Click="CreateContractForCustomer_Click"/>
                                 <MenuItem Header="Synchronisieren" Click="SyncCustomer_Click"/>
                                 <Separator/>
                                 <MenuItem Header="Löschen" Click="DeleteCustomer_Click" Foreground="Red"/>
@@ -272,7 +275,7 @@
                             <DataGridTextColumn Header="Telefon" Binding="{Binding Phone}" Width="1.2*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Stadt" Binding="{Binding City}" Width="1.2*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Easybill-Status" Binding="{Binding SyncStatus}" Width="1.5*" IsReadOnly="True"/>
-                            <DataGridTemplateColumn Header="Aktionen" Width="270">
+                            <DataGridTemplateColumn Header="Aktionen" Width="330">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -286,10 +289,14 @@
                                                     Margin="2"
                                                     Click="DocumentsCustomer_Click"/>
                                             <Button Content="🔄" ToolTip="Zu Easybill synchronisieren"
-                                                    Style="{StaticResource ActionButton}"
-                                                    Margin="2"
-                                                    Click="SyncCustomer_Click"/>
-                                        </StackPanel>
+                                                                    Style="{StaticResource ActionButton}"
+                                                                    Margin="2"
+                                                                    Click="SyncCustomer_Click"/>
+                                                            <Button Content="📝" ToolTip="Vertrag erstellen"
+                                                                    Style="{StaticResource ActionButton}"
+                                                                    Margin="2"
+                                                                    Click="CreateContractForCustomer_Click"/>
+                                                        </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>

@@ -854,6 +854,40 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_deals' erstellt/geprüft");
                         connection);
                     await alterOrderEb.ExecuteNonQueryAsync();
                 }
+
+                // Migration: file_data LONGBLOB in customer_documents
+                string checkCustDocFileData = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'customer_documents' 
+                    AND COLUMN_NAME = 'file_data'";
+
+                using var checkCustFileData = new MySqlCommand(checkCustDocFileData, connection);
+                if (Convert.ToInt32(await checkCustFileData.ExecuteScalarAsync()) == 0)
+                {
+                    using var alterCustDoc = new MySqlCommand(
+                        "ALTER TABLE customer_documents ADD COLUMN file_data LONGBLOB NULL",
+                        connection);
+                    await alterCustDoc.ExecuteNonQueryAsync();
+                }
+
+                // Migration: file_data LONGBLOB in project_documents
+                string checkProjDocFileData = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'project_documents' 
+                    AND COLUMN_NAME = 'file_data'";
+
+                using var checkProjFileData = new MySqlCommand(checkProjDocFileData, connection);
+                if (Convert.ToInt32(await checkProjFileData.ExecuteScalarAsync()) == 0)
+                {
+                    using var alterProjDoc = new MySqlCommand(
+                        "ALTER TABLE project_documents ADD COLUMN file_data LONGBLOB NULL",
+                        connection);
+                    await alterProjDoc.ExecuteNonQueryAsync();
+                }
             }
             catch (Exception ex)
             {
@@ -1703,19 +1737,20 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_deals' erstellt/geprüft");
             using var connection = new MySqlConnection(connectionString);
             await connection.OpenAsync();
 
-            string query = @"INSERT INTO customer_documents (customer_id, file_name, file_path, file_type, file_size, description, uploaded_by, uploaded_at)
-                           VALUES (@customerId, @fileName, @filePath, @fileType, @fileSize, @description, @uploadedBy, @uploadedAt);
+            string query = @"INSERT INTO customer_documents (customer_id, file_name, file_path, file_type, file_size, description, uploaded_by, uploaded_at, file_data)
+                           VALUES (@customerId, @fileName, @filePath, @fileType, @fileSize, @description, @uploadedBy, @uploadedAt, @fileData);
                            SELECT LAST_INSERT_ID();";
 
             using var cmd = new MySqlCommand(query, connection);
             cmd.Parameters.AddWithValue("@customerId", document.CustomerId);
             cmd.Parameters.AddWithValue("@fileName", document.FileName);
-            cmd.Parameters.AddWithValue("@filePath", document.FilePath);
+            cmd.Parameters.AddWithValue("@filePath", document.FilePath ?? "");
             cmd.Parameters.AddWithValue("@fileType", document.FileType ?? "");
             cmd.Parameters.AddWithValue("@fileSize", document.FileSize);
             cmd.Parameters.AddWithValue("@description", document.Description ?? "");
             cmd.Parameters.AddWithValue("@uploadedBy", document.UploadedBy ?? "");
             cmd.Parameters.AddWithValue("@uploadedAt", document.UploadedAt);
+            cmd.Parameters.AddWithValue("@fileData", document.FileData != null && document.FileData.Length > 0 ? (object)document.FileData : DBNull.Value);
 
             var result = await cmd.ExecuteScalarAsync();
             return Convert.ToInt32(result);
@@ -1771,19 +1806,20 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_deals' erstellt/geprüft");
             using var connection = new MySqlConnection(connectionString);
             await connection.OpenAsync();
 
-            string query = @"INSERT INTO project_documents (project_id, file_name, file_path, file_type, file_size, description, uploaded_by, uploaded_at)
-                           VALUES (@projectId, @fileName, @filePath, @fileType, @fileSize, @description, @uploadedBy, @uploadedAt);
+            string query = @"INSERT INTO project_documents (project_id, file_name, file_path, file_type, file_size, description, uploaded_by, uploaded_at, file_data)
+                           VALUES (@projectId, @fileName, @filePath, @fileType, @fileSize, @description, @uploadedBy, @uploadedAt, @fileData);
                            SELECT LAST_INSERT_ID();";
 
             using var cmd = new MySqlCommand(query, connection);
             cmd.Parameters.AddWithValue("@projectId", document.ProjectId);
             cmd.Parameters.AddWithValue("@fileName", document.FileName);
-            cmd.Parameters.AddWithValue("@filePath", document.FilePath);
+            cmd.Parameters.AddWithValue("@filePath", document.FilePath ?? "");
             cmd.Parameters.AddWithValue("@fileType", document.FileType ?? "");
             cmd.Parameters.AddWithValue("@fileSize", document.FileSize);
             cmd.Parameters.AddWithValue("@description", document.Description ?? "");
             cmd.Parameters.AddWithValue("@uploadedBy", document.UploadedBy ?? "");
             cmd.Parameters.AddWithValue("@uploadedAt", document.UploadedAt);
+            cmd.Parameters.AddWithValue("@fileData", document.FileData != null && document.FileData.Length > 0 ? (object)document.FileData : DBNull.Value);
 
             var result = await cmd.ExecuteScalarAsync();
             return Convert.ToInt32(result);
@@ -1798,6 +1834,32 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_deals' erstellt/geprüft");
             using var cmd = new MySqlCommand(query, connection);
             cmd.Parameters.AddWithValue("@id", documentId);
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<byte[]> GetCustomerDocumentFileDataAsync(int documentId)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = "SELECT file_data FROM customer_documents WHERE id = @id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@id", documentId);
+
+            var result = await cmd.ExecuteScalarAsync();
+            return result is byte[] data ? data : null;
+        }
+
+        public async Task<byte[]> GetProjectDocumentFileDataAsync(int documentId)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = "SELECT file_data FROM project_documents WHERE id = @id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@id", documentId);
+
+            var result = await cmd.ExecuteScalarAsync();
+            return result is byte[] data ? data : null;
         }
 
         #endregion

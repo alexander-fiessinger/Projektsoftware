@@ -17,6 +17,7 @@ namespace Projektsoftware.Views
         private List<CrmActivity> _allActivities = new();
         private List<CrmDeal> _allDeals = new();
         private List<Customer> _customers = new();
+        private List<Employee> _employees = new();
 
         public CrmView()
         {
@@ -29,6 +30,7 @@ namespace Projektsoftware.Views
             {
                 _db = new DatabaseService();
                 _customers = await _db.GetAllCustomersAsync();
+                _employees = await _db.GetAllEmployeesAsync();
                 await RefreshContactsAsync();
                 await RefreshActivitiesAsync();
                 await RefreshDealsAsync();
@@ -259,7 +261,7 @@ namespace Projektsoftware.Views
 
         private async void OpenDealDialog(CrmDeal existing)
         {
-            var dialog = new CrmDealDialog(_customers, _allContacts, existing) { Owner = Window.GetWindow(this) };
+            var dialog = new CrmDealDialog(_customers, _allContacts, _employees, existing) { Owner = Window.GetWindow(this) };
             if (dialog.ShowDialog() == true)
             {
                 if (existing == null)

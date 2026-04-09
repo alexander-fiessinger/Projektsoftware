@@ -1,0 +1,282 @@
+<Window x:Class="Projektsoftware.Views.ContractGeneratorDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:System="clr-namespace:System;assembly=mscorlib"
+        xmlns:converters="clr-namespace:Projektsoftware.Converters"
+        Title="Vertragsgenerator" Height="820" Width="750"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BackgroundBrush}">
+    <Window.Resources>
+        <converters:NullableDecimalConverter x:Key="NullableDecimalConverter"/>
+    </Window.Resources>
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0"
+                   Text="📝 Vertragsgenerator"
+                   FontSize="24"
+                   FontWeight="Bold"
+                   Foreground="{StaticResource PrimaryBrush}"
+                   Margin="0,0,0,15"/>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- Vertragstyp -->
+                <Border Background="{StaticResource PrimaryLightBrush}" CornerRadius="6" Padding="12" Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="Vertragstyp" FontWeight="Bold" FontSize="14" Margin="0,0,0,8"/>
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="RbDienstleistung" Content="Dienstleistungsvertrag (Robotik)"
+                                         GroupName="ContractType" IsChecked="True" FontSize="13"
+                                         Margin="0,0,20,0" Checked="ContractType_Changed"/>
+                            <RadioButton x:Name="RbWerkvertrag" Content="Werkvertrag"
+                                         GroupName="ContractType" FontSize="13"
+                                         Checked="ContractType_Changed"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Kunde auswählen -->
+                <TextBlock Text="Kunde auswählen (optional):" FontWeight="Bold" Margin="0,0,0,5"/>
+                <Grid Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="CustomerCombo"
+                              Height="35"
+                              DisplayMemberPath="DisplayName"
+                              SelectionChanged="CustomerCombo_SelectionChanged"
+                              VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1" Content="Übernehmen" Style="{StaticResource ModernButton}"
+                            Padding="12,6" Margin="8,0,0,0" Height="35"
+                            Click="ApplyCustomer_Click"/>
+                </Grid>
+
+                <!-- Auftragnehmer -->
+                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="Auftragnehmer (Ihr Unternehmen)" FontWeight="Bold" FontSize="13" Margin="0,0,0,8"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Firma:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ContractorCompanyBox" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,8"/>
+                                <TextBlock Text="Vertreter (Name):" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ContractorNameBox" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,8"/>
+                                <TextBlock Text="Straße:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ContractorStreetBox" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="PLZ, Ort:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ContractorZipCityBox" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,8"/>
+                                <TextBlock Text="E-Mail:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ContractorEmailBox" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,8"/>
+                                <TextBlock Text="Telefon:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ContractorPhoneBox" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Auftraggeber (Kunde) -->
+                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="Auftraggeber (Kunde)" FontWeight="Bold" FontSize="13" Margin="0,0,0,8"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Firma:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ClientCompanyBox" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,8"/>
+                                <TextBlock Text="Ansprechpartner:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ClientNameBox" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,8"/>
+                                <TextBlock Text="Straße:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ClientStreetBox" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="PLZ, Ort:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ClientZipCityBox" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,8"/>
+                                <TextBlock Text="E-Mail:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ClientEmailBox" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,8"/>
+                                <TextBlock Text="Telefon:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ClientPhoneBox" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Vertragsdetails -->
+                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,15">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Vertragsdetails" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="📋 Aus Angebot importieren" Style="{StaticResource ModernButton}"
+                                    Background="{StaticResource PrimaryBrush}" Foreground="White"
+                                    Padding="12,6" Height="32"
+                                    Click="ImportFromOffer_Click"/>
+                        </Grid>
+
+                        <TextBlock Text="Vertragsgegenstand:" Margin="0,0,0,3"/>
+                        <TextBox x:Name="SubjectBox" Height="50" TextWrapping="Wrap"
+                                 AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,8"/>
+
+                        <TextBlock Text="Leistungsbeschreibung:" Margin="0,0,0,3"/>
+                        <TextBox x:Name="DescriptionBox" Height="90" TextWrapping="Wrap"
+                                 AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,8"/>
+
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Nettobetrag (€):" Margin="0,0,0,3"/>
+                                <TextBox x:Name="NetAmountBox" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="USt.-Satz (%):" Margin="0,0,0,3"/>
+                                <TextBox x:Name="VatRateBox" Text="19" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="Zahlungsziel:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="PaymentTermsBox" Text="14 Tage nach Rechnungsstellung"
+                                         Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Vertragsbeginn:" Margin="0,0,0,3"/>
+                                <DatePicker x:Name="StartDatePicker" SelectedDate="{x:Static System:DateTime.Today}"
+                                            Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Vertragsende (optional):" Margin="0,0,0,3"/>
+                                <DatePicker x:Name="EndDatePicker" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="Kündigungsfrist:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="NoticePeriodBox" Text="3 Monate zum Quartalsende"
+                                         Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Dienstleistungsvertrag-spezifisch -->
+                <Border x:Name="ServicePanel" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="6" Padding="12" Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="Dienstleistungsvertrag – Zusatzangaben" FontWeight="Bold" FontSize="13" Margin="0,0,0,8"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Stundensatz (€, optional):" Margin="0,0,0,3"/>
+                                <TextBox x:Name="HourlyRateBox" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Leistungsort:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ServiceLocationBox" Height="30" VerticalContentAlignment="Center"
+                                         Text="Vor Ort und/oder remote"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="Arbeitszeiten:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="WorkingHoursBox" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Werkvertrag-spezifisch -->
+                <Border x:Name="WorkPanel" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="6" Padding="12" Margin="0,0,0,15" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="Werkvertrag – Zusatzangaben" FontWeight="Bold" FontSize="13" Margin="0,0,0,8"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Liefertermin:" Margin="0,0,0,3"/>
+                                <DatePicker x:Name="DeliveryDatePicker" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Abnahmekriterien:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="AcceptanceCriteriaBox" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="Gewährleistungsfrist:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="WarrantyPeriodBox" Text="12 Monate ab Abnahme"
+                                         Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="Zahlungsbedingungen (Aufteilung):" Margin="0,8,0,3"/>
+                        <TextBox x:Name="WorkPaymentScheduleBox"
+                                 Text="30 % bei Auftragserteilung, 30 % bei dokumentierter Teilerreichung eines definierten Meilensteins, 40 % nach Abnahme des Werkes"
+                                 Height="50" TextWrapping="Wrap" AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Sonstiges -->
+                <TextBlock Text="Zusätzliche Vereinbarungen (optional):" FontWeight="Bold" Margin="0,0,0,3"/>
+                <TextBox x:Name="AdditionalClausesBox" Height="60" TextWrapping="Wrap"
+                         AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Gerichtsstand (optional):" FontWeight="Bold" Margin="0,0,0,3"/>
+                <TextBox x:Name="JurisdictionBox" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,10"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button Content="Abbrechen" Style="{StaticResource ModernButton}"
+                    Background="{StaticResource NeutralBrush}" Foreground="White"
+                    Padding="16,8" Margin="0,0,10,0"
+                    Click="Cancel_Click"/>
+            <Button Content="📄 Vertrag als PDF erstellen" Style="{StaticResource ModernButton}"
+                    Background="{StaticResource SuccessBrush}" Foreground="White"
+                    Padding="16,8"
+                    Click="GenerateContract_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

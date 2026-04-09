@@ -68,7 +68,8 @@
                     </StackPanel>
                     <StackPanel Grid.Column="2">
                         <TextBlock Text="Zugewiesen an" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
-                        <TextBox x:Name="AssignedToBox" Height="34"/>
+                        <ComboBox x:Name="AssignedToCombo" Height="34"
+                                  DisplayMemberPath="FullName" SelectedValuePath="Id"/>
                     </StackPanel>
                 </Grid>
 

@@ -85,6 +85,7 @@ namespace Projektsoftware.Views
                     File.Copy(sourceFile, destFile);
 
                     var fileInfo = new FileInfo(destFile);
+                    var fileData = await File.ReadAllBytesAsync(destFile);
                     var doc = new CustomerDocument
                     {
                         CustomerId = customer.Id,
@@ -94,7 +95,8 @@ namespace Projektsoftware.Views
                         FileSize = fileInfo.Length,
                         Description = "",
                         UploadedBy = AuthenticationService.CurrentUser?.Username ?? "",
-                        UploadedAt = DateTime.Now
+                        UploadedAt = DateTime.Now,
+                        FileData = fileData
                     };
 
                     await databaseService.AddCustomerDocumentAsync(doc);
@@ -117,7 +119,7 @@ namespace Projektsoftware.Views
         {
             var button = sender as System.Windows.Controls.Button;
             var doc = button?.DataContext as CustomerDocument;
-            OpenDocument(doc);
+            _ = OpenDocumentAsync(doc);
         }
 
         private void ShowInExplorer_Click(object sender, RoutedEventArgs e)
@@ -187,29 +189,55 @@ namespace Projektsoftware.Views
         {
             if (DocumentsDataGrid.SelectedItem is CustomerDocument doc)
             {
-                OpenDocument(doc);
+                _ = OpenDocumentAsync(doc);
             }
         }
 
-        private void OpenDocument(CustomerDocument doc)
+        private async System.Threading.Tasks.Task OpenDocumentAsync(CustomerDocument doc)
         {
             if (doc == null) return;
 
-            if (!File.Exists(doc.FilePath))
+            var filePath = doc.FilePath;
+
+            // Falls die lokale Datei fehlt, aus der DB wiederherstellen
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
             {
-                MessageBox.Show(
-                    "Die Datei wurde nicht gefunden.",
-                    "Datei nicht gefunden",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
+                try
+                {
+                    var fileData = await databaseService.GetCustomerDocumentFileDataAsync(doc.Id);
+                    if (fileData != null && fileData.Length > 0)
+                    {
+                        Directory.CreateDirectory(documentsBasePath);
+                        filePath = Path.Combine(documentsBasePath, doc.FileName);
+                        filePath = GetUniqueFilePath(filePath);
+                        await File.WriteAllBytesAsync(filePath, fileData);
+                    }
+                    else
+                    {
+                        MessageBox.Show(
+                            "Die Datei wurde weder lokal noch in der Datenbank gefunden.",
+                            "Datei nicht gefunden",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        $"Fehler beim Wiederherstellen der Datei aus der Datenbank:\n\n{ex.Message}",
+                        "Fehler",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
+                }
             }
 
             try
             {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
-                    FileName = doc.FilePath,
+                    FileName = filePath,
                     UseShellExecute = true
                 });
             }
