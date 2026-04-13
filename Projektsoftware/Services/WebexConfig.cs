@@ -27,19 +27,30 @@ namespace Projektsoftware.Services
 
         public static WebexConfig Load()
         {
+            WebexConfig config;
             try
             {
                 if (File.Exists(ConfigFilePath))
                 {
                     var json = File.ReadAllText(ConfigFilePath);
-                    return JsonSerializer.Deserialize<WebexConfig>(json) ?? new WebexConfig();
+                    config = JsonSerializer.Deserialize<WebexConfig>(json) ?? new WebexConfig();
+                }
+                else
+                {
+                    config = new WebexConfig();
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Fehler beim Laden der Webex-Konfiguration: {ex.Message}");
+                config = new WebexConfig();
             }
-            return new WebexConfig();
+
+            // Benutzerspezifischer Anzeigename aus Cache überschreiben (falls vorhanden und nicht leer)
+            var userBotName = UserCredentialService.Get(UserCredentialService.WebexBotName);
+            if (!string.IsNullOrEmpty(userBotName)) config.BotName = userBotName;
+
+            return config;
         }
 
         public void Save()

@@ -13,6 +13,7 @@ namespace Projektsoftware.Models
         public string PasswordHash { get; set; } = string.Empty;
         public string Role { get; set; } = "User"; // User, Admin
         public bool IsActive { get; set; } = true;
+        public bool MustChangePassword { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? LastLogin { get; set; }
 

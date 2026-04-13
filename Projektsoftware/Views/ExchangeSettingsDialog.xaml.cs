@@ -1,5 +1,6 @@
 using Projektsoftware.Services;
 using System;
+using System.Collections.Generic;
 using System.Windows;
 
 namespace Projektsoftware.Views
@@ -51,12 +52,23 @@ namespace Projektsoftware.Views
 ShowError("Verbindung fehlgeschlagen: " + result.Message);
         }
 
-        private void Save_Click(object sender, RoutedEventArgs e)
+        private async void Save_Click(object sender, RoutedEventArgs e)
         {
             if (!Validate()) return;
             try
             {
-                BuildConfig().Save();
+                var config = BuildConfig();
+                config.Save();
+
+                // Benutzerspezifische Zugangsdaten in DB speichern
+                var db = new DatabaseService();
+                await UserCredentialService.SaveManyAsync(new Dictionary<string, string>
+                {
+                    [UserCredentialService.ExchangeEmail] = config.Email,
+                    [UserCredentialService.ExchangePassword] = config.Password,
+                    [UserCredentialService.ExchangeSenderName] = config.SenderName
+                }, db);
+
                 MessageBox.Show("SMTP-Konfiguration erfolgreich gespeichert!", "Erfolg", MessageBoxButton.OK, MessageBoxImage.Information);
                 DialogResult = true;
                 Close();

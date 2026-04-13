@@ -79,7 +79,30 @@ namespace Projektsoftware.Views
                 {
                     // Erfolgreiche Anmeldung
                     AuthenticationService.CurrentUser = AuthenticatedUser;
-                    
+
+                    // Passwortänderung erzwingen, wenn nötig
+                    if (AuthenticatedUser.MustChangePassword)
+                    {
+                        MessageBox.Show(
+                            "Sie müssen Ihr Passwort ändern, bevor Sie fortfahren können.",
+                            "Passwort ändern",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+
+                        var changePwDialog = new ChangePasswordDialog(AuthenticatedUser) { Owner = this };
+                        if (changePwDialog.ShowDialog() != true)
+                        {
+                            // Abgebrochen → Benutzer wird nicht angemeldet
+                            AuthenticationService.CurrentUser = null;
+                            ShowError("Passwortänderung ist erforderlich. Anmeldung abgebrochen.");
+                            return;
+                        }
+
+                        // Flag zurücksetzen
+                        await databaseService.SetMustChangePasswordAsync(AuthenticatedUser.Id, false);
+                        AuthenticatedUser.MustChangePassword = false;
+                    }
+
                     DialogResult = true;
                     Close();
                 }

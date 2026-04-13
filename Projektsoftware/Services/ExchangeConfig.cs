@@ -27,19 +27,36 @@ namespace Projektsoftware.Services
 
         public static ExchangeConfig Load()
         {
+            ExchangeConfig config;
             try
             {
                 if (File.Exists(configFilePath))
                 {
                     var json = File.ReadAllText(configFilePath);
-                    return JsonSerializer.Deserialize<ExchangeConfig>(json) ?? new ExchangeConfig();
+                    config = JsonSerializer.Deserialize<ExchangeConfig>(json) ?? new ExchangeConfig();
+                }
+                else
+                {
+                    config = new ExchangeConfig();
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Fehler beim Laden der Exchange-Konfiguration: {ex.Message}");
+                config = new ExchangeConfig();
             }
-            return new ExchangeConfig();
+
+            // Benutzerspezifische Werte aus Cache überschreiben (falls vorhanden und nicht leer)
+            var userEmail = UserCredentialService.Get(UserCredentialService.ExchangeEmail);
+            if (!string.IsNullOrEmpty(userEmail)) config.Email = userEmail;
+
+            var userPassword = UserCredentialService.Get(UserCredentialService.ExchangePassword);
+            if (!string.IsNullOrEmpty(userPassword)) config.Password = userPassword;
+
+            var userSenderName = UserCredentialService.Get(UserCredentialService.ExchangeSenderName);
+            if (!string.IsNullOrEmpty(userSenderName)) config.SenderName = userSenderName;
+
+            return config;
         }
 
         public void Save()

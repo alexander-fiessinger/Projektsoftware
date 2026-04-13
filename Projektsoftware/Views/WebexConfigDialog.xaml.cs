@@ -129,6 +129,16 @@ namespace Projektsoftware.Views
                     SendInviteEmails = SendEmailsCheckBox.IsChecked == true
                 };
                 config.Save();
+
+                // Benutzerspezifischen Anzeigenamen in DB speichern
+                try
+                {
+                    var db = new DatabaseService();
+                    await UserCredentialService.SaveAsync(
+                        UserCredentialService.WebexBotName, config.BotName, db);
+                }
+                catch { }
+
                 AccessTokenBox.Password = "";
 
                 string personInfo = "";
@@ -248,7 +258,7 @@ namespace Projektsoftware.Views
             StatusTextBlock.Text = message;
         }
 
-        private void Save_Click(object sender, RoutedEventArgs e)
+        private async void Save_Click(object sender, RoutedEventArgs e)
         {
             var existingConfig = WebexConfig.Load();
 
@@ -269,6 +279,18 @@ namespace Projektsoftware.Views
             existingConfig.BotName = BotNameBox.Text?.Trim() ?? "Projektierungssoftware";
             existingConfig.SendInviteEmails = SendEmailsCheckBox.IsChecked == true;
             existingConfig.Save();
+
+            // Benutzerspezifischen Anzeigenamen in DB speichern
+            try
+            {
+                var db = new DatabaseService();
+                await UserCredentialService.SaveAsync(
+                    UserCredentialService.WebexBotName, existingConfig.BotName, db);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Fehler beim Speichern der Benutzer-Zugangsdaten: {ex.Message}");
+            }
 
             MessageBox.Show("Webex-Konfiguration gespeichert.",
                 "Gespeichert", MessageBoxButton.OK, MessageBoxImage.Information);

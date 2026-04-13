@@ -175,6 +175,47 @@
         <Setter Property="HeadersVisibility"        Value="Column"/>
     </Style>
 
+    <!-- DataGridRow – dezente Selektionsfarbe, damit Buttons sichtbar bleiben -->
+    <Style TargetType="DataGridRow">
+        <Setter Property="Background" Value="Transparent"/>
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{StaticResource PrimaryLightBrush}"/>
+            </Trigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsSelected" Value="True"/>
+                    <Condition Property="Selector.IsSelectionActive" Value="False"/>
+                </MultiTrigger.Conditions>
+                <Setter Property="Background" Value="{StaticResource NeutralLightBrush}"/>
+            </MultiTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- DataGridCell – Selektion ohne Vordergrund-Überschreibung -->
+    <Style TargetType="DataGridCell">
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="4,0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridCell">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- ═══════════════════════════════════════════════════════════
          TabControl / TabItem – bottom-border indicator
          ═══════════════════════════════════════════════════════════ -->

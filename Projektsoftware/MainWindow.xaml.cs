@@ -58,6 +58,9 @@ namespace Projektsoftware
 
                 DataContext = viewModel;
 
+                // Berechtigungen anwenden (Tabs/Menüs ein-/ausblenden)
+                ApplyPermissions();
+
                 // Timer-Tick für Live-Anzeige
                 _timerService.Tick += (s, elapsed) =>
                 {
@@ -255,7 +258,19 @@ if (DashboardControl != null)
 
                 // Zeige Login-Dialog
                 var loginDialog = new LoginDialog();
-                return loginDialog.ShowDialog() == true;
+                if (loginDialog.ShowDialog() != true)
+                    return false;
+
+                // Benutzerspezifische Zugangsdaten aus DB laden
+                await UserCredentialService.LoadAsync(AuthenticationService.CurrentUser.Id, databaseService);
+
+                // Berechtigungen aus DB laden
+                await PermissionService.LoadAsync(
+                    AuthenticationService.CurrentUser.Id,
+                    AuthenticationService.IsAdmin,
+                    databaseService);
+
+                return true;
             }
             catch (Exception ex)
             {
@@ -721,6 +736,34 @@ private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
 
                 Application.Current.Shutdown();
             }
+        }
+
+        /// <summary>
+        /// Blendet Tabs und Menüeinträge basierend auf den Benutzer-Berechtigungen ein/aus.
+        /// </summary>
+        private void ApplyPermissions()
+        {
+            var map = new (string Key, TabItem Tab)[]
+            {
+                ("kunden",        TabKunden),
+                ("projekte",      TabProjekte),
+                ("zeiterfassung", TabZeiterfassung),
+                ("kalender",      TabKalender),
+                ("protokolle",    TabProtokolle),
+                ("aufgaben",      TabAufgaben),
+                ("tickets",       TabTickets),
+                ("crm",           TabCrm),
+                ("einkauf",       TabEinkauf),
+                ("mitarbeiter",   TabMitarbeiter),
+            };
+
+            foreach (var (key, tab) in map)
+            {
+                tab.Visibility = PermissionService.HasAccess(key) ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            // Einstellungen-Menü nur für berechtigte Benutzer
+            MenuEinstellungen.Visibility = PermissionService.HasAccess("einstellungen") ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void Exit_Click(object sender, RoutedEventArgs e)

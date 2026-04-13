@@ -19,20 +19,33 @@ namespace Projektsoftware.Services
 
         public static EasybillConfig Load()
         {
+            EasybillConfig config;
             try
             {
                 if (File.Exists(configFilePath))
                 {
                     var json = File.ReadAllText(configFilePath);
-                    return JsonSerializer.Deserialize<EasybillConfig>(json) ?? new EasybillConfig();
+                    config = JsonSerializer.Deserialize<EasybillConfig>(json) ?? new EasybillConfig();
+                }
+                else
+                {
+                    config = new EasybillConfig();
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Fehler beim Laden der Easybill-Konfiguration: {ex.Message}");
+                config = new EasybillConfig();
             }
 
-            return new EasybillConfig();
+            // Benutzerspezifische Werte aus Cache überschreiben (falls vorhanden und nicht leer)
+            var userEmail = UserCredentialService.Get(UserCredentialService.EasybillEmail);
+            if (!string.IsNullOrEmpty(userEmail)) config.Email = userEmail;
+
+            var userApiKey = UserCredentialService.Get(UserCredentialService.EasybillApiKey);
+            if (!string.IsNullOrEmpty(userApiKey)) config.ApiKey = userApiKey;
+
+            return config;
         }
 
         public void Save()

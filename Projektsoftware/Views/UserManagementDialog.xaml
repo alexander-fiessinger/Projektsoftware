@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="👥 Benutzerverwaltung" 
         Height="600" 
-        Width="900"
+        Width="1100"
+        MinWidth="950"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BackgroundBrush}">
     <Grid Margin="20">
@@ -73,7 +74,7 @@
                         <DataGridTextColumn Header="Rolle" Binding="{Binding Role}" Width="100"/>
                         <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" Width="100"/>
                         <DataGridTextColumn Header="Letzter Login" Binding="{Binding LastLogin, StringFormat='{}{0:dd.MM.yyyy HH:mm}'}" Width="150"/>
-                        <DataGridTemplateColumn Header="Aktionen" Width="*">
+                        <DataGridTemplateColumn Header="Aktionen" Width="310" MinWidth="310">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">

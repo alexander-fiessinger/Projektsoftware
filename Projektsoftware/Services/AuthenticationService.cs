@@ -55,6 +55,8 @@ namespace Projektsoftware.Services
         /// </summary>
         public static void Logout()
         {
+            UserCredentialService.Clear();
+            PermissionService.Clear();
             _currentUser = null;
         }
     }

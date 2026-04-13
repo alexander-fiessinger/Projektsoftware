@@ -581,6 +581,37 @@ string createCrmDealsTable = @"
 using var cmdCrm3 = new MySqlCommand(createCrmDealsTable, connection);
 await cmdCrm3.ExecuteNonQueryAsync();
 System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_deals' erstellt/geprüft");
+
+// Benutzerspezifische Zugangsdaten Tabelle
+string createUserCredentialsTable = @"
+    CREATE TABLE IF NOT EXISTS user_credentials (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        credential_key VARCHAR(100) NOT NULL,
+        credential_value TEXT,
+        updated_at DATETIME NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY uk_user_credential (user_id, credential_key)
+    )";
+
+using var cmdUC = new MySqlCommand(createUserCredentialsTable, connection);
+await cmdUC.ExecuteNonQueryAsync();
+System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_credentials' erstellt/geprüft");
+
+// Benutzer-Berechtigungen Tabelle
+string createUserPermissionsTable = @"
+    CREATE TABLE IF NOT EXISTS user_permissions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        module_key VARCHAR(50) NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY uk_user_module (user_id, module_key)
+    )";
+
+using var cmdUP = new MySqlCommand(createUserPermissionsTable, connection);
+await cmdUP.ExecuteNonQueryAsync();
+System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/geprüft");
+
             // Überprüfe ob users Tabelle tatsächlich erstellt wurde
             string checkUsersTable = @"
                 SELECT COUNT(*) 
@@ -887,6 +918,23 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_deals' erstellt/geprüft");
                         "ALTER TABLE project_documents ADD COLUMN file_data LONGBLOB NULL",
                         connection);
                     await alterProjDoc.ExecuteNonQueryAsync();
+                }
+
+                // Migration: must_change_password in users
+                string checkMustChangePw = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'users' 
+                    AND COLUMN_NAME = 'must_change_password'";
+
+                using var checkMcpCmd = new MySqlCommand(checkMustChangePw, connection);
+                if (Convert.ToInt32(await checkMcpCmd.ExecuteScalarAsync()) == 0)
+                {
+                    using var alterMcp = new MySqlCommand(
+                        "ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT FALSE",
+                        connection);
+                    await alterMcp.ExecuteNonQueryAsync();
                 }
             }
             catch (Exception ex)
@@ -1320,6 +1368,7 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_deals' erstellt/geprüft");
                     PasswordHash = reader.GetString(reader.GetOrdinal("password_hash")),
                     Role = reader.GetString(reader.GetOrdinal("role")),
                     IsActive = reader.GetBoolean(reader.GetOrdinal("is_active")),
+                    MustChangePassword = !reader.IsDBNull(reader.GetOrdinal("must_change_password")) && reader.GetBoolean(reader.GetOrdinal("must_change_password")),
                     CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
                     LastLogin = reader.IsDBNull(reader.GetOrdinal("last_login")) ? null : reader.GetDateTime(reader.GetOrdinal("last_login")),
                     EmployeeName = reader.IsDBNull(reader.GetOrdinal("employee_name")) ? "" : reader.GetString(reader.GetOrdinal("employee_name"))
@@ -1359,6 +1408,7 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_deals' erstellt/geprüft");
                     PasswordHash = reader.GetString(reader.GetOrdinal("password_hash")),
                     Role = reader.GetString(reader.GetOrdinal("role")),
                     IsActive = reader.GetBoolean(reader.GetOrdinal("is_active")),
+                    MustChangePassword = !reader.IsDBNull(reader.GetOrdinal("must_change_password")) && reader.GetBoolean(reader.GetOrdinal("must_change_password")),
                     CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
                     LastLogin = reader.IsDBNull(reader.GetOrdinal("last_login")) ? null : reader.GetDateTime(reader.GetOrdinal("last_login")),
                     EmployeeName = reader.IsDBNull(reader.GetOrdinal("employee_name")) ? "" : reader.GetString(reader.GetOrdinal("employee_name"))
@@ -1462,6 +1512,23 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_deals' erstellt/geprüft");
         }
 
         /// <summary>
+        /// Setzt das Flag, ob der Benutzer sein Passwort ändern muss
+        /// </summary>
+        public async Task SetMustChangePasswordAsync(int userId, bool mustChange)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = "UPDATE users SET must_change_password = @mustChange WHERE id = @id";
+
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@mustChange", mustChange);
+            cmd.Parameters.AddWithValue("@id", userId);
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        /// <summary>
         /// Löscht einen Benutzer
         /// </summary>
         public async Task DeleteUserAsync(int userId)
@@ -1491,6 +1558,120 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'crm_deals' erstellt/geprüft");
             var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
 
             return count > 0;
+        }
+
+        #endregion
+
+        #region User Credentials Methods
+
+        /// <summary>
+        /// Lädt alle Zugangsdaten eines Benutzers aus der DB
+        /// </summary>
+        public async Task<Dictionary<string, string>> GetUserCredentialsAsync(int userId)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = "SELECT credential_key, credential_value FROM user_credentials WHERE user_id = @userId";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@userId", userId);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var key = reader.GetString(reader.GetOrdinal("credential_key"));
+                var value = reader.IsDBNull(reader.GetOrdinal("credential_value")) ? "" : reader.GetString(reader.GetOrdinal("credential_value"));
+                result[key] = value;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Speichert oder aktualisiert eine einzelne Zugangsdaten-Eigenschaft für einen Benutzer (UPSERT)
+        /// </summary>
+        public async Task SaveUserCredentialAsync(int userId, string key, string value)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = @"
+                INSERT INTO user_credentials (user_id, credential_key, credential_value, updated_at)
+                VALUES (@userId, @key, @value, @updatedAt)
+                ON DUPLICATE KEY UPDATE credential_value = @value, updated_at = @updatedAt";
+
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@userId", userId);
+            cmd.Parameters.AddWithValue("@key", key);
+            cmd.Parameters.AddWithValue("@value", value ?? "");
+            cmd.Parameters.AddWithValue("@updatedAt", DateTime.Now);
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        #endregion
+
+        #region User Permissions Methods
+
+        /// <summary>
+        /// Lädt alle zugewiesenen Modul-Schlüssel eines Benutzers
+        /// </summary>
+        public async Task<List<string>> GetUserPermissionsAsync(int userId)
+        {
+            var result = new List<string>();
+
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = "SELECT module_key FROM user_permissions WHERE user_id = @userId";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@userId", userId);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                result.Add(reader.GetString(0));
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Speichert die Modul-Berechtigungen eines Benutzers (ersetzt alle vorhandenen)
+        /// </summary>
+        public async Task SaveUserPermissionsAsync(int userId, List<string> modules)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            using var transaction = await connection.BeginTransactionAsync();
+            try
+            {
+                // Alle bisherigen Berechtigungen löschen
+                string deleteQuery = "DELETE FROM user_permissions WHERE user_id = @userId";
+                using var deleteCmd = new MySqlCommand(deleteQuery, connection, transaction);
+                deleteCmd.Parameters.AddWithValue("@userId", userId);
+                await deleteCmd.ExecuteNonQueryAsync();
+
+                // Neue Berechtigungen einfügen
+                foreach (var module in modules)
+                {
+                    string insertQuery = "INSERT INTO user_permissions (user_id, module_key) VALUES (@userId, @moduleKey)";
+                    using var insertCmd = new MySqlCommand(insertQuery, connection, transaction);
+                    insertCmd.Parameters.AddWithValue("@userId", userId);
+                    insertCmd.Parameters.AddWithValue("@moduleKey", module);
+                    await insertCmd.ExecuteNonQueryAsync();
+                }
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         #endregion

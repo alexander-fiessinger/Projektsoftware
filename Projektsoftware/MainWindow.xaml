@@ -23,7 +23,7 @@
             <MenuItem Header="_Datei" Style="{StaticResource ModernMenuItem}">
                 <MenuItem Header="Beenden" Click="Exit_Click" Style="{StaticResource ModernMenuItem}"/>
             </MenuItem>
-            <MenuItem Header="_Einstellungen" Style="{StaticResource ModernMenuItem}">
+            <MenuItem x:Name="MenuEinstellungen" Header="_Einstellungen" Style="{StaticResource ModernMenuItem}">
                 <MenuItem Header="Benutzerverwaltung" Click="ManageUsers_Click" Style="{StaticResource ModernMenuItem}"/>
                 <MenuItem Header="Passwort ändern" Click="ChangeOwnPassword_Click" Style="{StaticResource ModernMenuItem}"/>
                 <Separator/>
@@ -236,7 +236,7 @@
             </TabItem>
 
             <!-- Kunden Tab -->
-            <TabItem Header="👤 Kunden" Style="{StaticResource ModernTabItem}">
+            <TabItem x:Name="TabKunden" Header="👤 Kunden" Style="{StaticResource ModernTabItem}">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -306,7 +306,7 @@
             </TabItem>
 
             <!-- Projekte Tab -->
-            <TabItem Header="📁 Projekte" Style="{StaticResource ModernTabItem}">
+            <TabItem x:Name="TabProjekte" Header="📁 Projekte" Style="{StaticResource ModernTabItem}">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -377,7 +377,7 @@
             </TabItem>
             
             <!-- Zeiterfassung Tab -->
-            <TabItem Header="⏱ Zeiterfassung" Style="{StaticResource ModernTabItem}">
+            <TabItem x:Name="TabZeiterfassung" Header="⏱ Zeiterfassung" Style="{StaticResource ModernTabItem}">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -412,12 +412,12 @@
             </TabItem>
             
             <!-- Kalender Tab -->
-            <TabItem Header="📅 Kalender" Style="{StaticResource ModernTabItem}">
+            <TabItem x:Name="TabKalender" Header="📅 Kalender" Style="{StaticResource ModernTabItem}">
                 <views:MeetingCalendarView x:Name="MeetingCalendarView" Margin="10"/>
             </TabItem>
 
             <!-- Besprechungsprotokolle Tab -->
-            <TabItem Header="📋 Besprechungsprotokolle" Style="{StaticResource ModernTabItem}">
+            <TabItem x:Name="TabProtokolle" Header="📋 Besprechungsprotokolle" Style="{StaticResource ModernTabItem}">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -454,7 +454,7 @@
             </TabItem>
             
             <!-- Aufgaben Tab -->
-            <TabItem Header="✓ Aufgaben" Style="{StaticResource ModernTabItem}">
+            <TabItem x:Name="TabAufgaben" Header="✓ Aufgaben" Style="{StaticResource ModernTabItem}">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -513,22 +513,22 @@
             </TabItem>
 
             <!-- Tickets Tab -->
-            <TabItem Header="🎫 Tickets" Style="{StaticResource ModernTabItem}">
+            <TabItem x:Name="TabTickets" Header="🎫 Tickets" Style="{StaticResource ModernTabItem}">
                 <views:TicketsView x:Name="TicketsView" Margin="10"/>
             </TabItem>
 
 <!-- CRM Tab -->
-<TabItem Header="🤝 CRM" Style="{StaticResource ModernTabItem}">
+<TabItem x:Name="TabCrm" Header="🤝 CRM" Style="{StaticResource ModernTabItem}">
     <views:CrmView x:Name="CrmView" Margin="0"/>
 </TabItem>
 
             <!-- Einkauf Tab -->
-            <TabItem Header="🛒 Einkauf" Style="{StaticResource ModernTabItem}">
+            <TabItem x:Name="TabEinkauf" Header="🛒 Einkauf" Style="{StaticResource ModernTabItem}">
                 <views:PurchaseView x:Name="PurchaseView" Margin="0"/>
             </TabItem>
 
             <!-- Mitarbeiter Tab -->
-            <TabItem Header="👥 Mitarbeiter" Style="{StaticResource ModernTabItem}">
+            <TabItem x:Name="TabMitarbeiter" Header="👥 Mitarbeiter" Style="{StaticResource ModernTabItem}">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>

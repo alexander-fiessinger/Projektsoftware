@@ -1,5 +1,6 @@
 using Projektsoftware.Services;
 using System;
+using System.Collections.Generic;
 using System.Windows;
 
 namespace Projektsoftware.Views
@@ -80,7 +81,7 @@ namespace Projektsoftware.Views
             ErrorMessageText.Text = message;
         }
 
-        private void Save_Click(object sender, RoutedEventArgs e)
+        private async void Save_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrWhiteSpace(EmailTextBox.Text))
             {
@@ -98,10 +99,18 @@ namespace Projektsoftware.Views
 
             try
             {
+                config.ApiUrl = ApiUrlTextBox.Text.Trim();
                 config.Email = EmailTextBox.Text.Trim();
                 config.ApiKey = ApiKeyTextBox.Text.Trim();
-                config.ApiUrl = ApiUrlTextBox.Text.Trim();
                 config.Save();
+
+                // Benutzerspezifische Zugangsdaten in DB speichern
+                var db = new DatabaseService();
+                await UserCredentialService.SaveManyAsync(new Dictionary<string, string>
+                {
+                    [UserCredentialService.EasybillEmail] = config.Email,
+                    [UserCredentialService.EasybillApiKey] = config.ApiKey
+                }, db);
 
                 MessageBox.Show("Easybill-Konfiguration erfolgreich gespeichert!", "Erfolg",
                     MessageBoxButton.OK, MessageBoxImage.Information);
