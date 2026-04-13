@@ -70,6 +70,18 @@ namespace Projektsoftware
                 // Zeige Benutzernamen in der Titelleiste
                 Title = $"Projektierungssoftware Professional - Angemeldet als: {AuthenticationService.CurrentUser.Username}";
 
+                // StatusBar-Uhr starten
+                StartStatusBarClock();
+
+                // Dark Mode Menü-Status setzen
+                DarkModeMenuItem.IsChecked = ThemeService.IsDarkMode;
+
+                // Dashboard-Begrüßung personalisieren
+                if (DashboardControl != null)
+                {
+                    DashboardControl.UpdateGreeting(AuthenticationService.CurrentUser.Username);
+                }
+
                 // Subscribe to PropertyChanged to update dashboard when stats change
                 viewModel.PropertyChanged += (s, e) =>
                 {
@@ -88,6 +100,7 @@ namespace Projektsoftware
                                 System.Diagnostics.Debug.WriteLine($"Fehler beim Dashboard-Update: {updateEx.Message}");
                             }
                         });
+                        _ = LoadDashboardExtrasAsync();
                     }
                 };
 
@@ -110,6 +123,13 @@ namespace Projektsoftware
                 if (CrmView != null)
                 {
                     _ = CrmView.LoadAsync();
+                }
+
+                // Kanban-Board laden
+                if (KanbanBoardView != null)
+                {
+                    KanbanBoardView.TaskUpdated += async () => await viewModel.LoadAllDataAsync();
+                    KanbanBoardView.LoadData();
                 }
 
                 // Auf Updates prüfen (im Hintergrund, nach kurzer Verzögerung)
@@ -140,6 +160,12 @@ if (DashboardControl != null)
     DashboardControl.InboxRefreshClicked += async (s, e) => await LoadInboxPreviewAsync();
     _ = LoadInboxPreviewAsync();
 }
+
+                // Dashboard Aktivitäten & Fälligkeiten laden
+                _ = LoadDashboardExtrasAsync();
+
+                // Aufgaben-Erinnerungen starten (alle 5 min)
+                StartTaskReminderTimer();
             }
             catch (Exception ex)
             {
@@ -751,6 +777,7 @@ private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
                 ("kalender",      TabKalender),
                 ("protokolle",    TabProtokolle),
                 ("aufgaben",      TabAufgaben),
+                ("aufgaben",      TabKanban),
                 ("tickets",       TabTickets),
                 ("crm",           TabCrm),
                 ("einkauf",       TabEinkauf),
@@ -1319,22 +1346,7 @@ private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
 
         private void TaskSearch_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (viewModel == null || TasksDataGrid == null) return;
-
-            var searchText = TaskSearchBox.Text;
-            if (string.IsNullOrWhiteSpace(searchText) || searchText == "Suchen...")
-            {
-                TasksDataGrid.ItemsSource = viewModel.Tasks;
-            }
-            else
-            {
-                var filtered = viewModel.Tasks.Where(t =>
-                    t.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-                    (!string.IsNullOrEmpty(t.Description) && t.Description.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
-                    (!string.IsNullOrEmpty(t.AssignedTo) && t.AssignedTo.Contains(searchText, StringComparison.OrdinalIgnoreCase))
-                ).ToList();
-                TasksDataGrid.ItemsSource = filtered;
-            }
+            ApplyTaskFilters();
         }
 
         private void TaskSearchBox_GotFocus(object sender, RoutedEventArgs e)
@@ -2406,6 +2418,383 @@ private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
             var dialog = new ContractGeneratorDialog(customers, customer);
             dialog.Owner = this;
             dialog.ShowDialog();
+        }
+
+        #endregion
+
+        #region StatusBar & Clock
+
+        private DispatcherTimer? _clockTimer;
+
+        private void StartStatusBarClock()
+        {
+            StatusBarUser.Text = AuthenticationService.CurrentUser?.Username ?? "–";
+            StatusBarVersion.Text = $"v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0"}";
+            StatusBarClock.Text = DateTime.Now.ToString("HH:mm:ss");
+
+            _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _clockTimer.Tick += (s, e) => StatusBarClock.Text = DateTime.Now.ToString("HH:mm:ss");
+            _clockTimer.Start();
+        }
+
+        #endregion
+
+        #region Global Search
+
+        private void GlobalSearch_Executed(object sender, ExecutedRoutedEventArgs e)
+        {
+            GlobalSearchBox.Focus();
+            GlobalSearchBox.SelectAll();
+        }
+
+        private void GlobalSearchBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter) return;
+
+            var query = GlobalSearchBox.Text?.Trim();
+            if (string.IsNullOrEmpty(query)) return;
+
+            // Search across entities and navigate to the matching tab
+            if (viewModel == null) return;
+
+            // Search customers
+            var customerMatch = viewModel.Customers.FirstOrDefault(c =>
+                (c.DisplayName?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
+                (c.Email?.Contains(query, StringComparison.OrdinalIgnoreCase) == true));
+            if (customerMatch != null)
+            {
+                MainTabControl.SelectedItem = TabKunden;
+                CustomersDataGrid.SelectedItem = customerMatch;
+                CustomersDataGrid.ScrollIntoView(customerMatch);
+                return;
+            }
+
+            // Search projects
+            var projectMatch = viewModel.Projects.FirstOrDefault(p =>
+                (p.Name?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
+                (p.ClientName?.Contains(query, StringComparison.OrdinalIgnoreCase) == true));
+            if (projectMatch != null)
+            {
+                MainTabControl.SelectedItem = TabProjekte;
+                ProjectsDataGrid.SelectedItem = projectMatch;
+                ProjectsDataGrid.ScrollIntoView(projectMatch);
+                return;
+            }
+
+            // Search tasks
+            var taskMatch = viewModel.Tasks.FirstOrDefault(t =>
+                (t.Title?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
+                (t.Description?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
+                (t.AssignedTo?.Contains(query, StringComparison.OrdinalIgnoreCase) == true));
+            if (taskMatch != null)
+            {
+                MainTabControl.SelectedItem = TabAufgaben;
+                TasksDataGrid.SelectedItem = taskMatch;
+                TasksDataGrid.ScrollIntoView(taskMatch);
+                return;
+            }
+
+            // Search employees
+            var empMatch = viewModel.Employees.FirstOrDefault(emp =>
+                (emp.FullName?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ||
+                (emp.Email?.Contains(query, StringComparison.OrdinalIgnoreCase) == true));
+            if (empMatch != null)
+            {
+                MainTabControl.SelectedItem = TabMitarbeiter;
+                EmployeesDataGrid.SelectedItem = empMatch;
+                EmployeesDataGrid.ScrollIntoView(empMatch);
+                return;
+            }
+
+            MessageBox.Show($"Keine Ergebnisse für \"{query}\" gefunden.",
+                "Suche", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        #endregion
+
+        #region CSV Export
+
+        private void CsvExport_Executed(object sender, ExecutedRoutedEventArgs e)
+        {
+            // Ctrl+E shortcut: export based on current tab
+            if (viewModel == null) return;
+            var tab = MainTabControl.SelectedItem;
+            if (tab == TabKunden) ExportCustomersCsv_Click(sender, e);
+            else if (tab == TabProjekte) ExportProjectsCsv_Click(sender, e);
+            else if (tab == TabZeiterfassung) ExportTimeEntriesCsv_Click(sender, e);
+            else if (tab == TabAufgaben) ExportTasksCsv_Click(sender, e);
+            else if (tab == TabMitarbeiter) ExportEmployeesCsv_Click(sender, e);
+            else MessageBox.Show("Kein exportierbarer Tab ausgewählt.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void ExportCustomersCsv_Click(object sender, RoutedEventArgs e)
+        {
+            if (viewModel == null) return;
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV-Dateien|*.csv", FileName = "Kunden.csv" };
+            if (dlg.ShowDialog() == true)
+            {
+                CsvExportService.ExportCustomers(viewModel.Customers, dlg.FileName);
+                MessageBox.Show($"✅ {viewModel.Customers.Count} Kunden exportiert.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void ExportProjectsCsv_Click(object sender, RoutedEventArgs e)
+        {
+            if (viewModel == null) return;
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV-Dateien|*.csv", FileName = "Projekte.csv" };
+            if (dlg.ShowDialog() == true)
+            {
+                CsvExportService.ExportProjects(viewModel.Projects, dlg.FileName);
+                MessageBox.Show($"✅ {viewModel.Projects.Count} Projekte exportiert.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void ExportTimeEntriesCsv_Click(object sender, RoutedEventArgs e)
+        {
+            if (viewModel == null) return;
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV-Dateien|*.csv", FileName = "Zeiterfassung.csv" };
+            if (dlg.ShowDialog() == true)
+            {
+                CsvExportService.ExportTimeEntries(viewModel.TimeEntries, dlg.FileName);
+                MessageBox.Show($"✅ {viewModel.TimeEntries.Count} Einträge exportiert.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void ExportTasksCsv_Click(object sender, RoutedEventArgs e)
+        {
+            if (viewModel == null) return;
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV-Dateien|*.csv", FileName = "Aufgaben.csv" };
+            if (dlg.ShowDialog() == true)
+            {
+                CsvExportService.ExportTasks(viewModel.Tasks, dlg.FileName);
+                MessageBox.Show($"✅ {viewModel.Tasks.Count} Aufgaben exportiert.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void ExportEmployeesCsv_Click(object sender, RoutedEventArgs e)
+        {
+            if (viewModel == null) return;
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV-Dateien|*.csv", FileName = "Mitarbeiter.csv" };
+            if (dlg.ShowDialog() == true)
+            {
+                CsvExportService.ExportEmployees(viewModel.Employees, dlg.FileName);
+                MessageBox.Show($"✅ {viewModel.Employees.Count} Mitarbeiter exportiert.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        #endregion
+
+        #region Filters
+
+        private void TimeFilter_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            ApplyTimeEntryFilter();
+        }
+
+        private void TimeFilterReset_Click(object sender, RoutedEventArgs e)
+        {
+            TimeFilterFrom.SelectedDate = null;
+            TimeFilterTo.SelectedDate = null;
+            ApplyTimeEntryFilter();
+        }
+
+        private void ApplyTimeEntryFilter()
+        {
+            if (viewModel == null || TimeEntriesDataGrid == null) return;
+            var from = TimeFilterFrom.SelectedDate;
+            var to = TimeFilterTo.SelectedDate;
+
+            if (from == null && to == null)
+            {
+                TimeEntriesDataGrid.ItemsSource = viewModel.TimeEntries;
+                return;
+            }
+
+            var filtered = viewModel.TimeEntries.Where(t =>
+            {
+                if (from.HasValue && t.Date < from.Value) return false;
+                if (to.HasValue && t.Date > to.Value) return false;
+                return true;
+            }).ToList();
+            TimeEntriesDataGrid.ItemsSource = filtered;
+        }
+
+        private void ProjectStatusFilter_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (viewModel == null || ProjectsDataGrid == null) return;
+            var selected = (ProjectStatusFilter.SelectedItem as ComboBoxItem)?.Content?.ToString();
+            if (string.IsNullOrEmpty(selected) || selected == "Alle")
+            {
+                ProjectsDataGrid.ItemsSource = viewModel.Projects;
+                return;
+            }
+            ProjectsDataGrid.ItemsSource = viewModel.Projects
+                .Where(p => p.Status?.Equals(selected, StringComparison.OrdinalIgnoreCase) == true)
+                .ToList();
+        }
+
+        private void TaskStatusFilter_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            ApplyTaskFilters();
+        }
+
+        private void ApplyTaskFilters()
+        {
+            if (viewModel == null || TasksDataGrid == null) return;
+
+            var statusSelected = (TaskStatusFilter?.SelectedItem as ComboBoxItem)?.Content?.ToString();
+            var searchText = TaskSearchBox.Text;
+            bool hasSearch = !string.IsNullOrWhiteSpace(searchText) && searchText != "Suchen...";
+            bool hasStatus = !string.IsNullOrEmpty(statusSelected) && statusSelected != "Alle";
+
+            if (!hasSearch && !hasStatus)
+            {
+                TasksDataGrid.ItemsSource = viewModel.Tasks;
+                return;
+            }
+
+            var filtered = viewModel.Tasks.AsEnumerable();
+
+            if (hasStatus)
+                filtered = filtered.Where(t => t.Status?.Equals(statusSelected, StringComparison.OrdinalIgnoreCase) == true);
+
+            if (hasSearch)
+                filtered = filtered.Where(t =>
+                    (t.Title?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true) ||
+                    (!string.IsNullOrEmpty(t.Description) && t.Description.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(t.AssignedTo) && t.AssignedTo.Contains(searchText, StringComparison.OrdinalIgnoreCase)));
+
+            TasksDataGrid.ItemsSource = filtered.ToList();
+        }
+
+        #endregion
+
+        #region Database Backup
+
+        private async void DatabaseBackup_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var dlg = new Microsoft.Win32.SaveFileDialog
+                {
+                    Filter = "SQL-Dateien|*.sql",
+                    FileName = $"backup_{DateTime.Now:yyyyMMdd_HHmmss}.sql"
+                };
+                if (dlg.ShowDialog() != true) return;
+
+                Mouse.OverrideCursor = Cursors.Wait;
+                var db = new DatabaseService();
+                await db.ExportDatabaseBackupAsync(dlg.FileName);
+                Mouse.OverrideCursor = null;
+
+                MessageBox.Show($"✅ Datenbank-Backup erfolgreich erstellt:\n\n{dlg.FileName}",
+                    "Backup erstellt", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                Mouse.OverrideCursor = null;
+                MessageBox.Show($"Fehler beim Erstellen des Backups:\n\n{ex.Message}",
+                    "Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        #endregion
+
+        #region Quick Create (Ctrl+N)
+
+        private void QuickCreate_Executed(object sender, ExecutedRoutedEventArgs e)
+        {
+            var menu = new ContextMenu();
+            var miProject = new MenuItem { Header = "📁 Neues Projekt" };
+            miProject.Click += (s, _) => AddProject_Click(s, new RoutedEventArgs());
+            var miTask = new MenuItem { Header = "✅ Neue Aufgabe" };
+            miTask.Click += (s, _) => AddTask_Click(s, new RoutedEventArgs());
+            var miCustomer = new MenuItem { Header = "👤 Neuer Kunde" };
+            miCustomer.Click += (s, _) => AddCustomer_Click(s, new RoutedEventArgs());
+            var miTime = new MenuItem { Header = "⏱ Neue Zeiterfassung" };
+            miTime.Click += (s, _) => AddTimeEntry_Click(s, new RoutedEventArgs());
+
+            menu.Items.Add(miProject);
+            menu.Items.Add(miTask);
+            menu.Items.Add(miCustomer);
+            menu.Items.Add(miTime);
+            menu.IsOpen = true;
+        }
+
+        #endregion
+
+        #region Dashboard Activity & Deadlines
+
+        private async System.Threading.Tasks.Task LoadDashboardExtrasAsync()
+        {
+            try
+            {
+                var db = new DatabaseService();
+                var activities = await db.GetRecentActivitiesAsync(15);
+                var deadlines = await db.GetUpcomingDeadlinesAsync(14);
+
+                Dispatcher.Invoke(() =>
+                {
+                    if (DashboardControl != null)
+                    {
+                        DashboardControl.UpdateActivityFeed(activities);
+                        DashboardControl.UpdateDeadlines(deadlines);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Dashboard-Extras Fehler: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Task Reminders
+
+        private DispatcherTimer? _reminderTimer;
+
+        private void StartTaskReminderTimer()
+        {
+            _reminderTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+            _reminderTimer.Tick += async (s, e) => await CheckTaskRemindersAsync();
+            _reminderTimer.Start();
+            _ = CheckTaskRemindersAsync();
+        }
+
+        private async System.Threading.Tasks.Task CheckTaskRemindersAsync()
+        {
+            try
+            {
+                var db = new DatabaseService();
+                var dueSoon = await db.GetTasksDueSoonAsync(1);
+                if (dueSoon.Count > 0)
+                {
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        var names = string.Join("\n", dueSoon.Select(t =>
+                            $"• {t.Title} (fällig: {t.DueDate:dd.MM.yyyy})"));
+                        MessageBox.Show(
+                            $"Folgende Aufgaben sind heute/morgen fällig:\n\n{names}",
+                            $"⏰ {dueSoon.Count} Aufgabe(n) bald fällig",
+                            MessageBoxButton.OK, MessageBoxImage.Information);
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Reminder Fehler: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Dark Mode
+
+        private void ToggleDarkMode_Click(object sender, RoutedEventArgs e)
+        {
+            ThemeService.Toggle();
+            DarkModeMenuItem.IsChecked = ThemeService.IsDarkMode;
         }
 
         #endregion

@@ -14,6 +14,7 @@ namespace Projektsoftware.Views
         private readonly EasybillService easybillService;
         private readonly DatabaseService databaseService;
         private ObservableCollection<EasybillCustomer> easybillCustomers;
+        private ObservableCollection<ProjectNote> projectNotes = new();
 
         public Project Project { get; private set; }
         public EasybillProject CreatedEasybillProject { get; private set; }
@@ -28,6 +29,7 @@ namespace Projektsoftware.Views
             databaseService = new DatabaseService();
             easybillCustomers = new ObservableCollection<EasybillCustomer>();
             CustomerComboBox.ItemsSource = easybillCustomers;
+            NotesListBox.ItemsSource = projectNotes;
 
             Loaded += async (s, e) => await LoadEasybillCustomersAsync();
 
@@ -48,6 +50,21 @@ namespace Projektsoftware.Views
 
             // Bei Bearbeitung: Easybill-Bereich ausblenden (nur bei Neuanlage)
             CreateInEasybillCheckBox.Visibility = Visibility.Collapsed;
+
+            // Notizen laden
+            _ = LoadProjectNotesAsync();
+        }
+
+        private async System.Threading.Tasks.Task LoadProjectNotesAsync()
+        {
+            if (Project.Id == 0) return;
+            try
+            {
+                var notes = await databaseService.GetProjectNotesAsync(Project.Id);
+                projectNotes.Clear();
+                foreach (var n in notes) projectNotes.Add(n);
+            }
+            catch { }
         }
 
         private async System.Threading.Tasks.Task LoadEasybillCustomersAsync()
@@ -127,6 +144,7 @@ namespace Projektsoftware.Views
             EndDatePicker.SelectedDate = Project.EndDate;
             StatusComboBox.Text = Project.Status;
             BudgetTextBox.Text = Project.Budget.ToString("F2", euroFormat);
+            TagsTextBox.Text = Project.Tags;
         }
 
         private void CreateInEasybillCheckBox_Checked(object sender, RoutedEventArgs e)
@@ -198,6 +216,7 @@ namespace Projektsoftware.Views
 
             Project.Name = NameTextBox.Text;
             Project.Description = DescriptionTextBox.Text;
+            Project.Tags = TagsTextBox.Text?.Trim() ?? "";
 
             // Kunde aus ComboBox oder freier Text
             if (CustomerComboBox.SelectedItem is EasybillCustomer selectedCustomer)
@@ -320,6 +339,38 @@ namespace Projektsoftware.Views
             else if (!string.IsNullOrEmpty(currentText))
             {
                 CustomerComboBox.Text = currentText;
+            }
+        }
+
+        private async void AddNote_Click(object sender, RoutedEventArgs e)
+        {
+            var text = NewNoteTextBox.Text?.Trim();
+            if (string.IsNullOrEmpty(text)) return;
+
+            if (Project.Id == 0)
+            {
+                MessageBox.Show("Bitte speichern Sie das Projekt zuerst, bevor Sie Notizen hinzufügen.",
+                    "Hinweis", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var note = new ProjectNote
+            {
+                ProjectId = Project.Id,
+                Author = AuthenticationService.CurrentUser?.Username ?? "System",
+                Text = text,
+                CreatedAt = DateTime.Now
+            };
+
+            try
+            {
+                await databaseService.AddProjectNoteAsync(note);
+                projectNotes.Insert(0, note);
+                NewNoteTextBox.Clear();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Fehler: {ex.Message}", "Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

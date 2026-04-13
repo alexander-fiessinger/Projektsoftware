@@ -936,6 +936,87 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
                         connection);
                     await alterMcp.ExecuteNonQueryAsync();
                 }
+
+                // Migration: vacation_days_total, vacation_days_used in employees
+                string checkVacationCol = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'employees' 
+                    AND COLUMN_NAME = 'vacation_days_total'";
+
+                using var checkVac = new MySqlCommand(checkVacationCol, connection);
+                if (Convert.ToInt32(await checkVac.ExecuteScalarAsync()) == 0)
+                {
+                    using var alterVac = new MySqlCommand(
+                        "ALTER TABLE employees ADD COLUMN vacation_days_total INT NOT NULL DEFAULT 30, ADD COLUMN vacation_days_used INT NOT NULL DEFAULT 0",
+                        connection);
+                    await alterVac.ExecuteNonQueryAsync();
+                }
+
+                // Migration: is_recurring, recurrence_interval_days in tasks
+                string checkRecurringCol = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'tasks' 
+                    AND COLUMN_NAME = 'is_recurring'";
+
+                using var checkRec = new MySqlCommand(checkRecurringCol, connection);
+                if (Convert.ToInt32(await checkRec.ExecuteScalarAsync()) == 0)
+                {
+                    using var alterRec = new MySqlCommand(
+                        "ALTER TABLE tasks ADD COLUMN is_recurring BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN recurrence_interval_days INT NOT NULL DEFAULT 0",
+                        connection);
+                    await alterRec.ExecuteNonQueryAsync();
+                }
+
+                // Migration: tags column in projects
+                string checkTagsCol = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'projects' 
+                    AND COLUMN_NAME = 'tags'";
+
+                using var checkTags = new MySqlCommand(checkTagsCol, connection);
+                if (Convert.ToInt32(await checkTags.ExecuteScalarAsync()) == 0)
+                {
+                    using var alterTags = new MySqlCommand(
+                        "ALTER TABLE projects ADD COLUMN tags VARCHAR(500) DEFAULT ''",
+                        connection);
+                    await alterTags.ExecuteNonQueryAsync();
+                }
+
+                // Migration: project_notes table
+                string createProjectNotesTable = @"
+                    CREATE TABLE IF NOT EXISTS project_notes (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        project_id INT NOT NULL,
+                        author VARCHAR(100) NOT NULL,
+                        text TEXT NOT NULL,
+                        created_at DATETIME NOT NULL,
+                        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+                    )";
+                using var createNotes = new MySqlCommand(createProjectNotesTable, connection);
+                await createNotes.ExecuteNonQueryAsync();
+
+                // Migration: task_assignment_notifications table
+                string createTaskNotificationsTable = @"
+                    CREATE TABLE IF NOT EXISTS task_assignment_notifications (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        task_id INT NOT NULL,
+                        task_title VARCHAR(255) NOT NULL,
+                        project_name VARCHAR(255) DEFAULT '',
+                        assigned_to VARCHAR(255) NOT NULL,
+                        assigned_by VARCHAR(255) NOT NULL,
+                        created_at DATETIME NOT NULL,
+                        is_read BOOLEAN NOT NULL DEFAULT FALSE,
+                        INDEX idx_tan_assigned (assigned_to),
+                        INDEX idx_tan_read (is_read)
+                    )";
+                using var createTanCmd = new MySqlCommand(createTaskNotificationsTable, connection);
+                await createTanCmd.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
@@ -969,8 +1050,35 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
                     EasybillCustomerId = reader.IsDBNull(reader.GetOrdinal("easybill_customer_id")) ? null : reader.GetInt64(reader.GetOrdinal("easybill_customer_id")),
                     EasybillProjectId = reader.IsDBNull(reader.GetOrdinal("easybill_project_id")) ? null : reader.GetInt64(reader.GetOrdinal("easybill_project_id")),
                     Budget = reader.GetDecimal(reader.GetOrdinal("budget")),
-                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"))
+                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
+                    Tags = reader.IsDBNull(reader.GetOrdinal("tags")) ? "" : reader.GetString(reader.GetOrdinal("tags"))
                 });
+            }
+
+            reader.Close();
+
+            // Compute progress for each project
+            var progressQuery = @"
+                SELECT project_id,
+                       COUNT(*) as total,
+                       SUM(CASE WHEN status = 'Erledigt' THEN 1 ELSE 0 END) as done
+                FROM tasks
+                GROUP BY project_id";
+            using var progressCmd = new MySqlCommand(progressQuery, connection);
+            using var progressReader = await progressCmd.ExecuteReaderAsync();
+            var progressMap = new Dictionary<int, int>();
+            while (await progressReader.ReadAsync())
+            {
+                var pid = progressReader.GetInt32(0);
+                var total = progressReader.GetInt32(1);
+                var done = progressReader.GetInt32(2);
+                progressMap[pid] = total > 0 ? (int)Math.Round(100.0 * done / total) : 0;
+            }
+
+            foreach (var p in projects)
+            {
+                if (progressMap.TryGetValue(p.Id, out var pct))
+                    p.ProgressPercent = pct;
             }
 
             return projects;
@@ -981,8 +1089,8 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
             using var connection = new MySqlConnection(connectionString);
             await connection.OpenAsync();
 
-            string query = @"INSERT INTO projects (name, description, start_date, end_date, status, client_name, easybill_customer_id, easybill_project_id, budget, created_at)
-                           VALUES (@name, @description, @startDate, @endDate, @status, @clientName, @easybillCustomerId, @easybillProjectId, @budget, @createdAt);
+            string query = @"INSERT INTO projects (name, description, start_date, end_date, status, client_name, easybill_customer_id, easybill_project_id, budget, created_at, tags)
+                           VALUES (@name, @description, @startDate, @endDate, @status, @clientName, @easybillCustomerId, @easybillProjectId, @budget, @createdAt, @tags);
                            SELECT LAST_INSERT_ID();";
 
             using var cmd = new MySqlCommand(query, connection);
@@ -996,6 +1104,7 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
             cmd.Parameters.AddWithValue("@easybillProjectId", project.EasybillProjectId.HasValue ? (object)project.EasybillProjectId.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@budget", project.Budget);
             cmd.Parameters.AddWithValue("@createdAt", project.CreatedAt);
+            cmd.Parameters.AddWithValue("@tags", project.Tags ?? "");
 
             var result = await cmd.ExecuteScalarAsync();
             var newId = Convert.ToInt32(result);
@@ -1010,7 +1119,7 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
 
             string query = @"UPDATE projects SET name=@name, description=@description, start_date=@startDate,
                            end_date=@endDate, status=@status, client_name=@clientName, easybill_customer_id=@easybillCustomerId, 
-                           easybill_project_id=@easybillProjectId, budget=@budget
+                           easybill_project_id=@easybillProjectId, budget=@budget, tags=@tags
                            WHERE id=@id";
 
             using var cmd = new MySqlCommand(query, connection);
@@ -1024,6 +1133,7 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
             cmd.Parameters.AddWithValue("@easybillCustomerId", project.EasybillCustomerId.HasValue ? (object)project.EasybillCustomerId.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@easybillProjectId", project.EasybillProjectId.HasValue ? (object)project.EasybillProjectId.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("@budget", project.Budget);
+            cmd.Parameters.AddWithValue("@tags", project.Tags ?? "");
 
             await cmd.ExecuteNonQueryAsync();
             _ = new AuditLogService(connectionString).LogAsync("Projekt", project.Id.ToString(), "Aktualisiert", project.Name);
@@ -2041,6 +2151,360 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
 
             var result = await cmd.ExecuteScalarAsync();
             return result is byte[] data ? data : null;
+        }
+
+        #endregion
+
+        #region Database Backup
+
+        public async Task ExportDatabaseBackupAsync(string filePath)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            var tables = new List<string>();
+            using (var cmdTables = new MySqlCommand("SHOW TABLES", connection))
+            using (var reader = await cmdTables.ExecuteReaderAsync())
+            {
+                while (await reader.ReadAsync())
+                    tables.Add(reader.GetString(0));
+            }
+
+            using var writer = new System.IO.StreamWriter(filePath, false, System.Text.Encoding.UTF8);
+            await writer.WriteLineAsync($"-- Datenbank-Backup erstellt am {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            await writer.WriteLineAsync($"-- Datenbank: {connection.Database}");
+            await writer.WriteLineAsync("SET FOREIGN_KEY_CHECKS=0;");
+            await writer.WriteLineAsync();
+
+            foreach (var table in tables)
+            {
+                // CREATE TABLE
+                using (var cmdCreate = new MySqlCommand($"SHOW CREATE TABLE `{table}`", connection))
+                using (var reader = await cmdCreate.ExecuteReaderAsync())
+                {
+                    if (await reader.ReadAsync())
+                    {
+                        await writer.WriteLineAsync($"DROP TABLE IF EXISTS `{table}`;");
+                        await writer.WriteLineAsync(reader.GetString(1) + ";");
+                        await writer.WriteLineAsync();
+                    }
+                }
+
+                // INSERT rows
+                using (var cmdData = new MySqlCommand($"SELECT * FROM `{table}`", connection))
+                using (var reader = await cmdData.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        var values = new List<string>();
+                        for (int i = 0; i < reader.FieldCount; i++)
+                        {
+                            if (reader.IsDBNull(i))
+                                values.Add("NULL");
+                            else if (reader.GetFieldType(i) == typeof(byte[]))
+                                values.Add("NULL"); // skip BLOBs
+                            else
+                            {
+                                var val = reader.GetValue(i);
+                                values.Add("'" + val.ToString()!.Replace("'", "''").Replace("\\", "\\\\") + "'");
+                            }
+                        }
+                        await writer.WriteLineAsync($"INSERT INTO `{table}` VALUES ({string.Join(",", values)});");
+                    }
+                }
+                await writer.WriteLineAsync();
+            }
+
+            await writer.WriteLineAsync("SET FOREIGN_KEY_CHECKS=1;");
+        }
+
+        #endregion
+
+        #region Project Notes
+
+        public async Task<List<ProjectNote>> GetProjectNotesAsync(int projectId)
+        {
+            var notes = new List<ProjectNote>();
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = "SELECT * FROM project_notes WHERE project_id=@projectId ORDER BY created_at DESC";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@projectId", projectId);
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                notes.Add(new ProjectNote
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("id")),
+                    ProjectId = reader.GetInt32(reader.GetOrdinal("project_id")),
+                    Author = reader.GetString(reader.GetOrdinal("author")),
+                    Text = reader.GetString(reader.GetOrdinal("text")),
+                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"))
+                });
+            }
+            return notes;
+        }
+
+        public async Task AddProjectNoteAsync(ProjectNote note)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = @"INSERT INTO project_notes (project_id, author, text, created_at)
+                           VALUES (@projectId, @author, @text, @createdAt)";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@projectId", note.ProjectId);
+            cmd.Parameters.AddWithValue("@author", note.Author);
+            cmd.Parameters.AddWithValue("@text", note.Text);
+            cmd.Parameters.AddWithValue("@createdAt", note.CreatedAt);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task DeleteProjectNoteAsync(int noteId)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = "DELETE FROM project_notes WHERE id=@id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@id", noteId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        #endregion
+
+        #region Activity Feed & Deadlines
+
+        public async Task<List<ActivityFeedItem>> GetRecentActivitiesAsync(int limit = 15)
+        {
+            var items = new List<ActivityFeedItem>();
+            try
+            {
+                using var connection = new MySqlConnection(connectionString);
+                await connection.OpenAsync();
+
+                string query = $@"
+                    SELECT timestamp, user_name, entity_type, action, details
+                    FROM audit_log
+                    ORDER BY timestamp DESC
+                    LIMIT {limit}";
+
+                using var cmd = new MySqlCommand(query, connection);
+                using var reader = await cmd.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    items.Add(new ActivityFeedItem
+                    {
+                        Timestamp = reader.GetDateTime(0),
+                        UserName = reader.GetString(1),
+                        EntityType = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                        Action = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                        Details = reader.IsDBNull(4) ? "" : reader.GetString(4)
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ActivityFeed] Error: {ex.Message}");
+            }
+            return items;
+        }
+
+        public async Task<List<DeadlineItem>> GetUpcomingDeadlinesAsync(int days = 14)
+        {
+            var items = new List<DeadlineItem>();
+            try
+            {
+                using var connection = new MySqlConnection(connectionString);
+                await connection.OpenAsync();
+
+                // Tasks with due date in the next N days (including overdue)
+                string taskQuery = @"
+                    SELECT t.title, p.name as project_name, t.due_date, t.assigned_to
+                    FROM tasks t
+                    LEFT JOIN projects p ON t.project_id = p.id
+                    WHERE t.due_date IS NOT NULL
+                      AND t.status NOT IN ('Erledigt', 'Abgeschlossen')
+                      AND t.due_date <= DATE_ADD(CURDATE(), INTERVAL @days DAY)
+                    ORDER BY t.due_date ASC
+                    LIMIT 20";
+
+                using var cmdTask = new MySqlCommand(taskQuery, connection);
+                cmdTask.Parameters.AddWithValue("@days", days);
+                using var rdrTask = await cmdTask.ExecuteReaderAsync();
+
+                while (await rdrTask.ReadAsync())
+                {
+                    items.Add(new DeadlineItem
+                    {
+                        Title = rdrTask.GetString(0),
+                        ProjectName = rdrTask.IsDBNull(1) ? "" : rdrTask.GetString(1),
+                        DueDate = rdrTask.GetDateTime(2),
+                        AssignedTo = rdrTask.IsDBNull(3) ? "" : rdrTask.GetString(3),
+                        Type = "Aufgabe"
+                    });
+                }
+                rdrTask.Close();
+
+                // Milestones
+                string msQuery = @"
+                    SELECT m.name, p.name as project_name, m.due_date
+                    FROM milestones m
+                    LEFT JOIN projects p ON m.project_id = p.id
+                    WHERE m.due_date IS NOT NULL
+                      AND m.status != 'Abgeschlossen'
+                      AND m.due_date <= DATE_ADD(CURDATE(), INTERVAL @days DAY)
+                    ORDER BY m.due_date ASC
+                    LIMIT 10";
+
+                using var cmdMs = new MySqlCommand(msQuery, connection);
+                cmdMs.Parameters.AddWithValue("@days", days);
+                using var rdrMs = await cmdMs.ExecuteReaderAsync();
+
+                while (await rdrMs.ReadAsync())
+                {
+                    items.Add(new DeadlineItem
+                    {
+                        Title = rdrMs.GetString(0),
+                        ProjectName = rdrMs.IsDBNull(1) ? "" : rdrMs.GetString(1),
+                        DueDate = rdrMs.GetDateTime(2),
+                        Type = "Meilenstein"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Deadlines] Error: {ex.Message}");
+            }
+
+            items.Sort((a, b) => a.DueDate.CompareTo(b.DueDate));
+            return items;
+        }
+
+        public async Task<List<EmployeeWorkload>> GetEmployeeWorkloadsAsync()
+        {
+            var items = new List<EmployeeWorkload>();
+            try
+            {
+                using var connection = new MySqlConnection(connectionString);
+                await connection.OpenAsync();
+
+                string query = @"
+                    SELECT e.id, CONCAT(e.first_name, ' ', e.last_name) as name,
+                           COALESCE(SUM(TIMESTAMPDIFF(MINUTE, te.start_time, te.end_time)), 0) / 60.0 as hours_this_week,
+                           (SELECT COUNT(*) FROM tasks t WHERE t.assigned_to = CONCAT(e.first_name, ' ', e.last_name)
+                            AND t.status NOT IN ('Erledigt', 'Abgeschlossen')) as open_tasks
+                    FROM employees e
+                    LEFT JOIN time_entries te ON te.employee_name = CONCAT(e.first_name, ' ', e.last_name)
+                        AND te.date >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+                        AND te.date <= CURDATE()
+                    WHERE e.is_active = TRUE
+                    GROUP BY e.id, e.first_name, e.last_name
+                    ORDER BY hours_this_week DESC";
+
+                using var cmd = new MySqlCommand(query, connection);
+                using var reader = await cmd.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    items.Add(new EmployeeWorkload
+                    {
+                        EmployeeId = reader.GetInt32(0),
+                        EmployeeName = reader.GetString(1),
+                        HoursThisWeek = reader.GetDecimal(2),
+                        OpenTasks = reader.GetInt32(3)
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Workload] Error: {ex.Message}");
+            }
+            return items;
+        }
+
+        public async Task<List<WeeklyTimesheetEntry>> GetWeeklyTimesheetAsync(DateTime weekStart)
+        {
+            var items = new List<WeeklyTimesheetEntry>();
+            try
+            {
+                using var connection = new MySqlConnection(connectionString);
+                await connection.OpenAsync();
+
+                var weekEnd = weekStart.AddDays(6);
+                string query = @"
+                    SELECT te.employee_name, te.date,
+                           SUM(TIMESTAMPDIFF(MINUTE, te.start_time, te.end_time)) / 60.0 as hours
+                    FROM time_entries te
+                    WHERE te.date >= @weekStart AND te.date <= @weekEnd
+                    GROUP BY te.employee_name, te.date
+                    ORDER BY te.employee_name, te.date";
+
+                using var cmd = new MySqlCommand(query, connection);
+                cmd.Parameters.AddWithValue("@weekStart", weekStart);
+                cmd.Parameters.AddWithValue("@weekEnd", weekEnd);
+                using var reader = await cmd.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    items.Add(new WeeklyTimesheetEntry
+                    {
+                        EmployeeName = reader.GetString(0),
+                        Date = reader.GetDateTime(1),
+                        Hours = reader.GetDecimal(2)
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WeeklyTimesheet] Error: {ex.Message}");
+            }
+            return items;
+        }
+
+        public async Task<List<ProjectTask>> GetTasksDueSoonAsync(int days = 2)
+        {
+            var tasks = new List<ProjectTask>();
+            try
+            {
+                using var connection = new MySqlConnection(connectionString);
+                await connection.OpenAsync();
+
+                string query = @"
+                    SELECT t.id, t.title, t.due_date, t.assigned_to, p.name as project_name
+                    FROM tasks t
+                    LEFT JOIN projects p ON t.project_id = p.id
+                    WHERE t.due_date IS NOT NULL
+                      AND t.status NOT IN ('Erledigt', 'Abgeschlossen')
+                      AND t.due_date >= CURDATE()
+                      AND t.due_date <= DATE_ADD(CURDATE(), INTERVAL @days DAY)
+                    ORDER BY t.due_date ASC
+                    LIMIT 10";
+
+                using var cmd = new MySqlCommand(query, connection);
+                cmd.Parameters.AddWithValue("@days", days);
+                using var reader = await cmd.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    tasks.Add(new ProjectTask
+                    {
+                        Id = reader.GetInt32(0),
+                        Title = reader.GetString(1),
+                        DueDate = reader.GetDateTime(2),
+                        AssignedTo = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                        ProjectName = reader.IsDBNull(4) ? "" : reader.GetString(4)
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[TasksDueSoon] Error: {ex.Message}");
+            }
+            return tasks;
         }
 
         #endregion

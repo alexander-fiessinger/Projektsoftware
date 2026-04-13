@@ -39,6 +39,21 @@ public event RoutedEventHandler? InboxRefreshClicked;
             InitializeComponent();
         }
 
+        /// <summary>
+        /// Aktualisiert die personalisierte Begrüßung basierend auf Tageszeit und Benutzername
+        /// </summary>
+        public void UpdateGreeting(string username)
+        {
+            var hour = DateTime.Now.Hour;
+            var greeting = hour switch
+            {
+                < 12 => "Guten Morgen",
+                < 18 => "Guten Tag",
+                _ => "Guten Abend"
+            };
+            DashboardGreetingText.Text = $"{greeting}, {username} 👋";
+        }
+
         public void UpdateStats(DashboardStats stats)
         {
             TotalProjectsText.Text = stats.TotalProjects.ToString();
@@ -343,5 +358,56 @@ private void ViewPurchases_Click(object sender, RoutedEventArgs e) => ViewPurcha
 private void InboxOpen_Click(object sender, RoutedEventArgs e) => OpenInboxClicked?.Invoke(this, e);
         private void InboxRefresh_Click(object sender, RoutedEventArgs e) => InboxRefreshClicked?.Invoke(this, e);
         private void InboxPreviewGrid_DoubleClick(object sender, MouseButtonEventArgs e) => OpenInboxClicked?.Invoke(this, e);
+
+        private void ToggleWidgetSettings_Click(object sender, RoutedEventArgs e)
+        {
+            WidgetSettingsPanel.Visibility = WidgetSettingsPanel.Visibility == Visibility.Visible
+                ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        private void WidgetToggle_Changed(object sender, RoutedEventArgs e)
+        {
+            if (SectionKpi == null) return; // Not yet initialized
+            SectionKpi.Visibility = WidgetKpi.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            SectionStatus.Visibility = WidgetStatus.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            SectionInbox.Visibility = WidgetInbox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            SectionFinance.Visibility = WidgetFinance.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            SectionDocSearch.Visibility = WidgetDocSearch.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            SectionQuickActions.Visibility = WidgetQuickActions.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            SectionDocs.Visibility = WidgetDocs.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            SectionCharts.Visibility = WidgetCharts.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            SectionActivity.Visibility = WidgetActivity.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            SectionDeadlines.Visibility = WidgetDeadlines.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        public void UpdateActivityFeed(List<Models.ActivityFeedItem> activities)
+        {
+            if (activities == null || activities.Count == 0)
+            {
+                ActivityEmptyText.Visibility = Visibility.Visible;
+                ActivityFeedList.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                ActivityEmptyText.Visibility = Visibility.Collapsed;
+                ActivityFeedList.ItemsSource = activities;
+                ActivityFeedList.Visibility = Visibility.Visible;
+            }
+        }
+
+        public void UpdateDeadlines(List<Models.DeadlineItem> deadlines)
+        {
+            if (deadlines == null || deadlines.Count == 0)
+            {
+                DeadlinesEmptyText.Visibility = Visibility.Visible;
+                DeadlinesList.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                DeadlinesEmptyText.Visibility = Visibility.Collapsed;
+                DeadlinesList.ItemsSource = deadlines;
+                DeadlinesList.Visibility = Visibility.Visible;
+            }
+        }
     }
 }

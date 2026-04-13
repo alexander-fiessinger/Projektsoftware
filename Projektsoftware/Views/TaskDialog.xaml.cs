@@ -11,8 +11,10 @@ namespace Projektsoftware.Views
     public partial class TaskDialog : Window
     {
         public ProjectTask Task { get; private set; }
+        public bool AssignmentChanged { get; private set; }
         private readonly EasybillService easybillService;
         private ObservableCollection<EasybillCustomer> easybillCustomers;
+        private string _originalAssignedTo;
 
         public TaskDialog(List<Project> availableProjects, List<Employee> availableEmployees = null, ProjectTask existingTask = null)
         {
@@ -36,6 +38,7 @@ namespace Projektsoftware.Views
             if (existingTask != null)
             {
                 Task = existingTask;
+                _originalAssignedTo = existingTask.AssignedTo ?? "";
                 Title = "Aufgabe bearbeiten";
 
                 // Lade Task-Daten
@@ -44,6 +47,7 @@ namespace Projektsoftware.Views
             else
             {
                 Task = new ProjectTask { CreatedAt = DateTime.Now, Status = "Offen", Priority = "Normal" };
+                _originalAssignedTo = "";
                 StatusComboBox.SelectedIndex = 0;
                 PriorityComboBox.SelectedIndex = 1;
                 Title = "Neue Aufgabe";
@@ -94,6 +98,10 @@ namespace Projektsoftware.Views
             DueDatePicker.SelectedDate = Task.DueDate;
             EstimatedHoursTextBox.Text = Task.EstimatedHours.ToString();
             ActualHoursTextBox.Text = Task.ActualHours.ToString();
+
+            IsRecurringCheckBox.IsChecked = Task.IsRecurring;
+            RecurrenceIntervalTextBox.Text = Task.RecurrenceIntervalDays > 0 ? Task.RecurrenceIntervalDays.ToString() : "7";
+            RecurrencePanel.Visibility = Task.IsRecurring ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private async System.Threading.Tasks.Task LoadEasybillCustomers()
@@ -211,6 +219,10 @@ namespace Projektsoftware.Views
                 Task.AssignedTo = AssignedToComboBox.Text.Trim();
             }
 
+            // Prüfe ob Zuweisung geändert wurde
+            AssignmentChanged = !string.IsNullOrEmpty(Task.AssignedTo)
+                && !string.Equals(_originalAssignedTo, Task.AssignedTo, StringComparison.OrdinalIgnoreCase);
+
             Task.Status = StatusComboBox.SelectedItem.ToString();
             Task.Priority = PriorityComboBox.SelectedItem.ToString();
             Task.DueDate = DueDatePicker.SelectedDate;
@@ -218,11 +230,22 @@ namespace Projektsoftware.Views
             Task.ActualHours = actualHours;
             Task.UpdatedAt = DateTime.Now;
 
+            Task.IsRecurring = IsRecurringCheckBox.IsChecked == true;
+            if (Task.IsRecurring && int.TryParse(RecurrenceIntervalTextBox.Text, out int interval) && interval > 0)
+                Task.RecurrenceIntervalDays = interval;
+            else
+                Task.RecurrenceIntervalDays = 0;
+
             if (Task.Status == "Erledigt" && !Task.CompletedDate.HasValue)
                 Task.CompletedDate = DateTime.Now;
 
             DialogResult = true;
             Close();
+        }
+
+        private void IsRecurringCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            RecurrencePanel.Visibility = IsRecurringCheckBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e)

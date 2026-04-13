@@ -92,7 +92,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock Text="Dashboard" FontSize="28" FontWeight="Bold"
+                    <TextBlock x:Name="DashboardGreetingText" Text="Dashboard" FontSize="28" FontWeight="Bold"
                                Foreground="{StaticResource TextPrimaryBrush}" LineHeight="32"/>
                     <TextBlock Text="Übersicht aller Projekte, Finanzen und Aktivitäten"
                                FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
@@ -103,11 +103,47 @@
                                VerticalAlignment="Center" Margin="0,0,12,0" Visibility="Visible"/>
                     <Button Content="Finanzdaten aktualisieren" Style="{StaticResource ActionButton}"
                             Padding="14,7" Click="RefreshFinancial_Click"/>
+                    <Button Content="⚙ Widgets" Style="{StaticResource ActionButton}"
+                            Padding="14,7" Margin="8,0,0,0" Click="ToggleWidgetSettings_Click"
+                            ToolTip="Dashboard-Bereiche ein-/ausblenden"/>
                 </StackPanel>
             </Grid>
 
+            <!-- ═══ WIDGET SETTINGS ══════════════════════════════════════ -->
+            <Border x:Name="WidgetSettingsPanel" Visibility="Collapsed"
+                    Background="{StaticResource SurfaceBrush}" CornerRadius="8"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    Padding="16,12" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="Dashboard-Bereiche ein-/ausblenden" FontWeight="SemiBold" FontSize="13"
+                               Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
+                    <WrapPanel>
+                        <CheckBox x:Name="WidgetKpi" Content="KPI-Karten" IsChecked="True" Margin="0,0,18,6"
+                                  Checked="WidgetToggle_Changed" Unchecked="WidgetToggle_Changed"/>
+                        <CheckBox x:Name="WidgetStatus" Content="Status-Karten" IsChecked="True" Margin="0,0,18,6"
+                                  Checked="WidgetToggle_Changed" Unchecked="WidgetToggle_Changed"/>
+                        <CheckBox x:Name="WidgetInbox" Content="Posteingang" IsChecked="True" Margin="0,0,18,6"
+                                  Checked="WidgetToggle_Changed" Unchecked="WidgetToggle_Changed"/>
+                        <CheckBox x:Name="WidgetFinance" Content="Finanzen" IsChecked="True" Margin="0,0,18,6"
+                                  Checked="WidgetToggle_Changed" Unchecked="WidgetToggle_Changed"/>
+                        <CheckBox x:Name="WidgetDocSearch" Content="Dokumentensuche" IsChecked="True" Margin="0,0,18,6"
+                                  Checked="WidgetToggle_Changed" Unchecked="WidgetToggle_Changed"/>
+                        <CheckBox x:Name="WidgetQuickActions" Content="Schnellaktionen" IsChecked="True" Margin="0,0,18,6"
+                                  Checked="WidgetToggle_Changed" Unchecked="WidgetToggle_Changed"/>
+                        <CheckBox x:Name="WidgetDocs" Content="Dokumente erstellen" IsChecked="True" Margin="0,0,18,6"
+                                  Checked="WidgetToggle_Changed" Unchecked="WidgetToggle_Changed"/>
+                        <CheckBox x:Name="WidgetCharts" Content="Charts" IsChecked="True" Margin="0,0,18,6"
+                                  Checked="WidgetToggle_Changed" Unchecked="WidgetToggle_Changed"/>
+                        <CheckBox x:Name="WidgetActivity" Content="Aktivitäten" IsChecked="True" Margin="0,0,18,6"
+                                  Checked="WidgetToggle_Changed" Unchecked="WidgetToggle_Changed"/>
+                        <CheckBox x:Name="WidgetDeadlines" Content="Fälligkeiten" IsChecked="True" Margin="0,0,18,6"
+                                  Checked="WidgetToggle_Changed" Unchecked="WidgetToggle_Changed"/>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
             <!-- ═══ KPI CARDS ════════════════════════════════════════════ -->
-            <Grid Margin="0,0,0,16">
+            <Grid x:Name="SectionKpi" Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition/>
                     <ColumnDefinition Width="14"/>
@@ -153,7 +189,7 @@
             </Grid>
 
             <!-- ═══ STATUS CARDS ══════════════════════════════════════════ -->
-            <Grid Margin="0,0,0,30">
+            <Grid x:Name="SectionStatus" Margin="0,0,0,30">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition/>
                     <ColumnDefinition Width="14"/>
@@ -186,6 +222,7 @@
             </Grid>
 
 <!-- ═══ POSTEINGANG ════════════════════════════════════════════ -->
+<StackPanel x:Name="SectionInbox">
 <Grid Margin="0,0,0,12">
     <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*"/>
@@ -233,8 +270,10 @@
         </DataGrid>
     </StackPanel>
 </Border>
+</StackPanel>
 
             <!-- ═══ FINANZIELLE ÜBERSICHT ══════════════════════════════════ -->
+            <StackPanel x:Name="SectionFinance">
             <TextBlock Text="Finanzielle Übersicht" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
 
             <!-- Einnahmen KPI Tiles -->
@@ -330,8 +369,10 @@
                     </DockPanel>
                 </Border>
             </Grid>
+            </StackPanel>
 
             <!-- ═══ DOKUMENTENSUCHE ════════════════════════════════════ -->
+            <StackPanel x:Name="SectionDocSearch">
             <TextBlock Text="Dokumentensuche" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
             <Border Style="{StaticResource ModernCard}" Margin="0,0,0,28">
                 <StackPanel>
@@ -394,8 +435,10 @@
                     </DataGrid>
                 </StackPanel>
             </Border>
+            </StackPanel>
 
             <!-- ═══ SCHNELLAKTIONEN ═════════════════════════════════════ -->
+            <StackPanel x:Name="SectionQuickActions">
             <TextBlock Text="Schnellaktionen" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
             <WrapPanel Margin="0,0,0,28">
                 <Button Content="+ Neues Projekt" Style="{StaticResource ModernButton}"
@@ -414,8 +457,10 @@
                         Background="{StaticResource NeutralBrush}" Foreground="White"
                         Padding="16,9" Margin="0,0,0,8" Click="TimeTracking_Click"/>
             </WrapPanel>
+            </StackPanel>
 
             <!-- ═══ DOKUMENTE ERSTELLEN ═══════════════════════════════════ -->
+            <StackPanel x:Name="SectionDocs">
             <TextBlock Text="Dokumente erstellen" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
 
             <!-- Primäre Dokumente -->
@@ -531,9 +576,80 @@
                     </StackPanel>
                 </Border>
             </Grid>
+            </StackPanel>
+
+            <!-- ═══ AKTIVITÄTSPROTOKOLL ═══════════════════════════════════ -->
+            <StackPanel x:Name="SectionActivity" Margin="0,0,0,28">
+                <TextBlock Text="📋 Letzte Aktivitäten" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
+                <Border Style="{StaticResource ModernCard}">
+                    <StackPanel>
+                        <TextBlock x:Name="ActivityEmptyText" Text="Keine Aktivitäten vorhanden."
+                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,4,0,4"/>
+                        <ItemsControl x:Name="ActivityFeedList" Visibility="Collapsed">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,4" Padding="8,6" Background="{StaticResource BackgroundBrush}"
+                                            CornerRadius="4">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding TimeAgo}"
+                                                       FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                            <TextBlock Text="{Binding Display}" FontSize="12" TextWrapping="Wrap"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- ═══ FÄLLIGKEITSKALENDER ═══════════════════════════════════ -->
+            <StackPanel x:Name="SectionDeadlines" Margin="0,0,0,28">
+                <TextBlock Text="📅 Kommende Fälligkeiten" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
+                <Border Style="{StaticResource ModernCard}">
+                    <StackPanel>
+                        <TextBlock x:Name="DeadlinesEmptyText" Text="Keine anstehenden Fälligkeiten."
+                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,4,0,4"/>
+                        <ItemsControl x:Name="DeadlinesList" Visibility="Collapsed">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,4" Padding="8,6" Background="{StaticResource BackgroundBrush}"
+                                            CornerRadius="4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="90"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding DueDateDisplay}"
+                                                       FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       VerticalAlignment="Center"/>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}">
+                                                    <Run Text="{Binding Type, Mode=OneWay}"/> · <Run Text="{Binding ProjectName, Mode=OneWay}"/>
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding UrgencyDisplay}"
+                                                       FontSize="11" VerticalAlignment="Center"
+                                                       Margin="8,0,0,0"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
 
             <!-- ═══ CHARTS ════════════════════════════════════════════════ -->
-            <Grid Margin="0,0,0,28">
+            <Grid x:Name="SectionCharts" Margin="0,0,0,28">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="14"/>

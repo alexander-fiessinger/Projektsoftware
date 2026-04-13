@@ -15,6 +15,10 @@ namespace Projektsoftware.Models
         public long? EasybillProjectId { get; set; }
         public decimal Budget { get; set; }
         public DateTime CreatedAt { get; set; }
+        public string Tags { get; set; } = string.Empty;
+
+        // Computed: set externally by DatabaseService
+        public int ProgressPercent { get; set; }
 
         public Project()
         {

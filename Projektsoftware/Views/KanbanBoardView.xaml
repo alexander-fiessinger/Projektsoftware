@@ -1,0 +1,214 @@
+﻿<UserControl x:Class="Projektsoftware.Views.KanbanBoardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10,10,10,10">
+            <Button x:Name="RefreshBtn" Content="🔄 Aktualisieren" Click="Refresh_Click"
+                    Background="#2196F3" Foreground="White" BorderThickness="0" Cursor="Hand"
+                    Padding="12,6" Margin="0,0,10,0" FontWeight="SemiBold"/>
+            <TextBlock Text="Projekt:" VerticalAlignment="Center" Margin="10,0,5,0"/>
+            <ComboBox x:Name="ProjectFilterCombo" Width="200" Height="30"
+                      SelectionChanged="ProjectFilter_Changed"/>
+        </StackPanel>
+
+        <!-- Kanban Columns -->
+        <Grid Grid.Row="1" Margin="10,0,10,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Offen -->
+            <Border Grid.Column="0" Background="#FFF3E0" CornerRadius="8" Padding="10" >
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                        <TextBlock Text="📋 Offen" FontWeight="Bold" FontSize="14" Foreground="#E65100"/>
+                        <Border Background="#E65100" CornerRadius="10" MinWidth="24" Height="24" Margin="8,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="OpenCount" Text="0" Foreground="White" FontSize="11" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0"/>
+                        </Border>
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="OpenTasksList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="White" CornerRadius="6" Margin="0,0,0,6" Padding="10"
+                                            BorderBrush="#FFE0B2" BorderThickness="1" Cursor="Hand"
+                                            MouseLeftButtonDown="TaskCard_Click">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Bearbeiten" Click="EditTaskFromMenu_Click"/>
+                                                <Separator/>
+                                                <MenuItem Header="Offen" Tag="Offen" Click="MoveTask_Click"/>
+                                                <MenuItem Header="In Arbeit" Tag="In Arbeit" Click="MoveTask_Click"/>
+                                                <MenuItem Header="Blockiert" Tag="Blockiert" Click="MoveTask_Click"/>
+                                                <MenuItem Header="Erledigt" Tag="Erledigt" Click="MoveTask_Click"/>
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="13"/>
+                                            <TextBlock Text="{Binding ProjectName}" Foreground="#888" FontSize="11" Margin="0,2,0,0"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Border Background="{Binding PriorityColor}" CornerRadius="3" Padding="5,1" Margin="0,0,6,0">
+                                                    <TextBlock Text="{Binding Priority}" Foreground="White" FontSize="10"/>
+                                                </Border>
+                                                <TextBlock Text="{Binding AssignedTo}" Foreground="#666" FontSize="11" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding DueDateDisplay}" Foreground="#999" FontSize="10" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- In Arbeit -->
+            <Border Grid.Column="2" Background="#E3F2FD" CornerRadius="8" Padding="10" >
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                        <TextBlock Text="🔧 In Arbeit" FontWeight="Bold" FontSize="14" Foreground="#1565C0"/>
+                        <Border Background="#1565C0" CornerRadius="10" MinWidth="24" Height="24" Margin="8,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="InProgressCount" Text="0" Foreground="White" FontSize="11" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0"/>
+                        </Border>
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="InProgressTasksList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="White" CornerRadius="6" Margin="0,0,0,6" Padding="10"
+                                            BorderBrush="#BBDEFB" BorderThickness="1" Cursor="Hand"
+                                            MouseLeftButtonDown="TaskCard_Click">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Bearbeiten" Click="EditTaskFromMenu_Click"/>
+                                                <Separator/>
+                                                <MenuItem Header="Offen" Tag="Offen" Click="MoveTask_Click"/>
+                                                <MenuItem Header="In Arbeit" Tag="In Arbeit" Click="MoveTask_Click"/>
+                                                <MenuItem Header="Blockiert" Tag="Blockiert" Click="MoveTask_Click"/>
+                                                <MenuItem Header="Erledigt" Tag="Erledigt" Click="MoveTask_Click"/>
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="13"/>
+                                            <TextBlock Text="{Binding ProjectName}" Foreground="#888" FontSize="11" Margin="0,2,0,0"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Border Background="{Binding PriorityColor}" CornerRadius="3" Padding="5,1" Margin="0,0,6,0">
+                                                    <TextBlock Text="{Binding Priority}" Foreground="White" FontSize="10"/>
+                                                </Border>
+                                                <TextBlock Text="{Binding AssignedTo}" Foreground="#666" FontSize="11" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding DueDateDisplay}" Foreground="#999" FontSize="10" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- Blockiert -->
+            <Border Grid.Column="4" Background="#FFEBEE" CornerRadius="8" Padding="10" >
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                        <TextBlock Text="🚫 Blockiert" FontWeight="Bold" FontSize="14" Foreground="#C62828"/>
+                        <Border Background="#C62828" CornerRadius="10" MinWidth="24" Height="24" Margin="8,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="BlockedCount" Text="0" Foreground="White" FontSize="11" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0"/>
+                        </Border>
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="BlockedTasksList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="White" CornerRadius="6" Margin="0,0,0,6" Padding="10"
+                                            BorderBrush="#FFCDD2" BorderThickness="1" Cursor="Hand"
+                                            MouseLeftButtonDown="TaskCard_Click">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Bearbeiten" Click="EditTaskFromMenu_Click"/>
+                                                <Separator/>
+                                                <MenuItem Header="Offen" Tag="Offen" Click="MoveTask_Click"/>
+                                                <MenuItem Header="In Arbeit" Tag="In Arbeit" Click="MoveTask_Click"/>
+                                                <MenuItem Header="Blockiert" Tag="Blockiert" Click="MoveTask_Click"/>
+                                                <MenuItem Header="Erledigt" Tag="Erledigt" Click="MoveTask_Click"/>
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="13"/>
+                                            <TextBlock Text="{Binding ProjectName}" Foreground="#888" FontSize="11" Margin="0,2,0,0"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Border Background="{Binding PriorityColor}" CornerRadius="3" Padding="5,1" Margin="0,0,6,0">
+                                                    <TextBlock Text="{Binding Priority}" Foreground="White" FontSize="10"/>
+                                                </Border>
+                                                <TextBlock Text="{Binding AssignedTo}" Foreground="#666" FontSize="11" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding DueDateDisplay}" Foreground="#999" FontSize="10" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- Erledigt -->
+            <Border Grid.Column="6" Background="#E8F5E9" CornerRadius="8" Padding="10" >
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                        <TextBlock Text="✅ Erledigt" FontWeight="Bold" FontSize="14" Foreground="#2E7D32"/>
+                        <Border Background="#2E7D32" CornerRadius="10" MinWidth="24" Height="24" Margin="8,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="DoneCount" Text="0" Foreground="White" FontSize="11" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0"/>
+                        </Border>
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="DoneTasksList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="White" CornerRadius="6" Margin="0,0,0,6" Padding="10"
+                                            BorderBrush="#C8E6C9" BorderThickness="1" Cursor="Hand"
+                                            MouseLeftButtonDown="TaskCard_Click">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Bearbeiten" Click="EditTaskFromMenu_Click"/>
+                                                <Separator/>
+                                                <MenuItem Header="Offen" Tag="Offen" Click="MoveTask_Click"/>
+                                                <MenuItem Header="In Arbeit" Tag="In Arbeit" Click="MoveTask_Click"/>
+                                                <MenuItem Header="Blockiert" Tag="Blockiert" Click="MoveTask_Click"/>
+                                                <MenuItem Header="Erledigt" Tag="Erledigt" Click="MoveTask_Click"/>
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="13"/>
+                                            <TextBlock Text="{Binding ProjectName}" Foreground="#888" FontSize="11" Margin="0,2,0,0"/>
+                                            <TextBlock Text="{Binding CompletedDateDisplay}" Foreground="#999" FontSize="10" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
+
+
+

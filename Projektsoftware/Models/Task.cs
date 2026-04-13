@@ -20,5 +20,9 @@ namespace Projektsoftware.Models
         public int ActualHours { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+        public bool IsRecurring { get; set; }
+        public int RecurrenceIntervalDays { get; set; }
+
+        public string RecurrenceDisplay => IsRecurring ? $"Alle {RecurrenceIntervalDays} Tage" : "";
     }
 }

@@ -26,7 +26,7 @@
          Primary Button – solid fill, for main toolbar actions
          ═══════════════════════════════════════════════════════════ -->
     <Style x:Key="ModernButton" TargetType="Button">
-        <Setter Property="Background"      Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="Background"      Value="{DynamicResource PrimaryBrush}"/>
         <Setter Property="Foreground"      Value="White"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Padding"         Value="14,7"/>
@@ -70,8 +70,8 @@
          ═══════════════════════════════════════════════════════════ -->
     <Style x:Key="ActionButton" TargetType="Button">
         <Setter Property="Background"      Value="Transparent"/>
-        <Setter Property="Foreground"      Value="{StaticResource TextSecondaryBrush}"/>
-        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Foreground"      Value="{DynamicResource TextSecondaryBrush}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding"         Value="8,3"/>
         <Setter Property="FontSize"        Value="12"/>
@@ -91,7 +91,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource NeutralLightBrush}"/>
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource NeutralLightBrush}"/>
                             <Setter TargetName="Root" Property="BorderBrush" Value="#94A3B8"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
@@ -112,8 +112,8 @@
          ═══════════════════════════════════════════════════════════ -->
     <Style x:Key="DangerActionButton" TargetType="Button">
         <Setter Property="Background"      Value="Transparent"/>
-        <Setter Property="Foreground"      Value="{StaticResource DangerBrush}"/>
-        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Foreground"      Value="{DynamicResource DangerBrush}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding"         Value="8,3"/>
         <Setter Property="FontSize"        Value="12"/>
@@ -132,8 +132,8 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource DangerLightBrush}"/>
-                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource DangerLightBrush}"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -145,8 +145,8 @@
          Card
          ═══════════════════════════════════════════════════════════ -->
     <Style x:Key="ModernCard" TargetType="Border">
-        <Setter Property="Background"      Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Background"      Value="{DynamicResource SurfaceBrush}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius"    Value="8"/>
         <Setter Property="Padding"         Value="16"/>
@@ -161,13 +161,13 @@
          DataGrid
          ═══════════════════════════════════════════════════════════ -->
     <Style x:Key="ModernDataGrid" TargetType="DataGrid">
-        <Setter Property="Background"               Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush"              Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Background"               Value="{DynamicResource SurfaceBrush}"/>
+        <Setter Property="BorderBrush"              Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness"          Value="1"/>
         <Setter Property="RowBackground"            Value="White"/>
         <Setter Property="AlternatingRowBackground" Value="#FAFBFC"/>
         <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
-        <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="AutoGenerateColumns"      Value="False"/>
         <Setter Property="CanUserAddRows"           Value="False"/>
         <Setter Property="SelectionMode"            Value="Single"/>
@@ -180,14 +180,14 @@
         <Setter Property="Background" Value="Transparent"/>
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="{StaticResource PrimaryLightBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource PrimaryLightBrush}"/>
             </Trigger>
             <MultiTrigger>
                 <MultiTrigger.Conditions>
                     <Condition Property="IsSelected" Value="True"/>
                     <Condition Property="Selector.IsSelectionActive" Value="False"/>
                 </MultiTrigger.Conditions>
-                <Setter Property="Background" Value="{StaticResource NeutralLightBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource NeutralLightBrush}"/>
             </MultiTrigger>
         </Style.Triggers>
     </Style>
@@ -211,7 +211,7 @@
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -220,14 +220,14 @@
          TabControl / TabItem – bottom-border indicator
          ═══════════════════════════════════════════════════════════ -->
     <Style x:Key="ModernTabControl" TargetType="TabControl">
-        <Setter Property="Background"      Value="{StaticResource BackgroundBrush}"/>
+        <Setter Property="Background"      Value="{DynamicResource BackgroundBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Padding"         Value="0"/>
     </Style>
 
     <Style x:Key="ModernTabItem" TargetType="TabItem">
         <Setter Property="FontSize"   Value="13"/>
-        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
@@ -243,13 +243,13 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                            <Setter TargetName="Border" Property="Background"  Value="{StaticResource SurfaceBrush}"/>
-                            <Setter Property="Foreground"  Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+                            <Setter TargetName="Border" Property="Background"  Value="{DynamicResource SurfaceBrush}"/>
+                            <Setter Property="Foreground"  Value="{DynamicResource PrimaryBrush}"/>
                             <Setter Property="FontWeight"  Value="SemiBold"/>
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="{StaticResource NeutralLightBrush}"/>
+                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource NeutralLightBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -261,8 +261,8 @@
          Menu
          ═══════════════════════════════════════════════════════════ -->
     <Style x:Key="ModernMenu" TargetType="Menu">
-        <Setter Property="Background"      Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+        <Setter Property="Background"      Value="{DynamicResource SurfaceBrush}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,0,1"/>
         <Setter Property="Padding"         Value="4,2"/>
     </Style>

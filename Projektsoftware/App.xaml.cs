@@ -63,6 +63,9 @@ namespace Projektsoftware
                 }
             };
 
+            // Theme initialisieren (Dark Mode Einstellungen laden)
+            Services.ThemeService.Initialize();
+
             // Icon einmalig laden/generieren
             _appIcon = LoadOrCreateAppIcon();
 

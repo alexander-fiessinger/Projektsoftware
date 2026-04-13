@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Projektsoftware.Models
@@ -34,6 +35,12 @@ namespace Projektsoftware.Models
 
         // Budget-Auslastung pro Projekt
         public List<ProjectBudgetStat> TopBudgetProjects { get; set; } = new();
+
+        // Aktivitätsprotokoll
+        public List<ActivityFeedItem> RecentActivities { get; set; } = new();
+
+        // Fälligkeitskalender
+        public List<DeadlineItem> UpcomingDeadlines { get; set; } = new();
     }
 
     public class ProjectBudgetStat
@@ -44,5 +51,58 @@ namespace Projektsoftware.Models
         public decimal LoggedHours { get; set; }
         /// <summary>Logged hours expressed as percentage of budgeted hours (Budget / DefaultHourlyRate).</summary>
         public decimal BudgetUsagePercent { get; set; }
+    }
+
+    public class ActivityFeedItem
+    {
+        public DateTime Timestamp { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public string Action { get; set; } = string.Empty;
+        public string EntityType { get; set; } = string.Empty;
+        public string Details { get; set; } = string.Empty;
+
+        public string Icon => EntityType switch
+        {
+            "Projekt" => "📁",
+            "Aufgabe" => "✓",
+            "Zeiterfassung" => "⏱",
+            "Kunde" => "👤",
+            "Mitarbeiter" => "👥",
+            _ => "📋"
+        };
+
+        public string Display => $"{Icon} {UserName}: {Action} {EntityType}" +
+            (string.IsNullOrEmpty(Details) ? "" : $" – {Details}");
+
+        public string TimeAgo
+        {
+            get
+            {
+                var diff = DateTime.Now - Timestamp;
+                if (diff.TotalMinutes < 1) return "gerade eben";
+                if (diff.TotalMinutes < 60) return $"vor {(int)diff.TotalMinutes} Min.";
+                if (diff.TotalHours < 24) return $"vor {(int)diff.TotalHours} Std.";
+                return $"vor {(int)diff.TotalDays} Tag(en)";
+            }
+        }
+    }
+
+    public class DeadlineItem
+    {
+        public string Title { get; set; } = string.Empty;
+        public string ProjectName { get; set; } = string.Empty;
+        public DateTime DueDate { get; set; }
+        public string Type { get; set; } = "Aufgabe"; // Aufgabe or Meilenstein
+        public string AssignedTo { get; set; } = string.Empty;
+
+        public int DaysUntilDue => (DueDate.Date - DateTime.Today).Days;
+        public string DueDateDisplay => DueDate.ToString("dd.MM.yyyy");
+        public string UrgencyDisplay => DaysUntilDue switch
+        {
+            0 => "⚠ Heute fällig!",
+            1 => "Morgen fällig",
+            < 0 => $"🔴 {Math.Abs(DaysUntilDue)} Tag(e) überfällig",
+            _ => $"in {DaysUntilDue} Tagen"
+        };
     }
 }

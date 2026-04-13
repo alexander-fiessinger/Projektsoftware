@@ -25,6 +25,9 @@ namespace Projektsoftware.Views
                 Employee = new Employee { CreatedAt = DateTime.Now, HireDate = DateTime.Today };
                 Title = "Neuer Mitarbeiter";
                 HourlyRateTextBox.Text = "0,00";
+                VacationTotalTextBox.Text = "30";
+                VacationUsedTextBox.Text = "0";
+                UpdateVacationRemaining();
             }
         }
 
@@ -39,6 +42,9 @@ namespace Projektsoftware.Views
             HourlyRateTextBox.Text = Employee.HourlyRate.ToString("F2", euroFormat);
             HireDatePicker.SelectedDate = Employee.HireDate;
             IsActiveCheckBox.IsChecked = Employee.IsActive;
+            VacationTotalTextBox.Text = Employee.VacationDaysTotal.ToString();
+            VacationUsedTextBox.Text = Employee.VacationDaysUsed.ToString();
+            UpdateVacationRemaining();
         }
 
         private void Save_Click(object sender, RoutedEventArgs e)
@@ -74,8 +80,20 @@ namespace Projektsoftware.Views
             Employee.HireDate = HireDatePicker.SelectedDate.Value;
             Employee.IsActive = IsActiveCheckBox.IsChecked == true;
 
+            if (int.TryParse(VacationTotalTextBox.Text, out int vacTotal))
+                Employee.VacationDaysTotal = vacTotal;
+            if (int.TryParse(VacationUsedTextBox.Text, out int vacUsed))
+                Employee.VacationDaysUsed = vacUsed;
+
             DialogResult = true;
             Close();
+        }
+
+        private void UpdateVacationRemaining()
+        {
+            int total = int.TryParse(VacationTotalTextBox.Text, out int t) ? t : 0;
+            int used = int.TryParse(VacationUsedTextBox.Text, out int u) ? u : 0;
+            VacationRemainingText.Text = $"Verbleibend: {total - used} Tage";
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e)

@@ -37,7 +37,9 @@ namespace Projektsoftware.Services
                     HourlyRate = reader.GetDecimal(reader.GetOrdinal("hourly_rate")),
                     IsActive = reader.GetBoolean(reader.GetOrdinal("is_active")),
                     HireDate = reader.GetDateTime(reader.GetOrdinal("hire_date")),
-                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"))
+                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
+                    VacationDaysTotal = reader.IsDBNull(reader.GetOrdinal("vacation_days_total")) ? 30 : reader.GetInt32(reader.GetOrdinal("vacation_days_total")),
+                    VacationDaysUsed = reader.IsDBNull(reader.GetOrdinal("vacation_days_used")) ? 0 : reader.GetInt32(reader.GetOrdinal("vacation_days_used"))
                 });
             }
 
@@ -49,8 +51,8 @@ namespace Projektsoftware.Services
             using var connection = new MySqlConnection(connectionString);
             await connection.OpenAsync();
 
-            string query = @"INSERT INTO employees (first_name, last_name, email, phone, position, department, hourly_rate, is_active, hire_date, created_at)
-                           VALUES (@firstName, @lastName, @email, @phone, @position, @department, @hourlyRate, @isActive, @hireDate, @createdAt);
+            string query = @"INSERT INTO employees (first_name, last_name, email, phone, position, department, hourly_rate, is_active, hire_date, created_at, vacation_days_total, vacation_days_used)
+                           VALUES (@firstName, @lastName, @email, @phone, @position, @department, @hourlyRate, @isActive, @hireDate, @createdAt, @vacationTotal, @vacationUsed);
                            SELECT LAST_INSERT_ID();";
 
             using var cmd = new MySqlCommand(query, connection);
@@ -64,6 +66,8 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@isActive", employee.IsActive);
             cmd.Parameters.AddWithValue("@hireDate", employee.HireDate);
             cmd.Parameters.AddWithValue("@createdAt", employee.CreatedAt);
+            cmd.Parameters.AddWithValue("@vacationTotal", employee.VacationDaysTotal);
+            cmd.Parameters.AddWithValue("@vacationUsed", employee.VacationDaysUsed);
 
             var result = await cmd.ExecuteScalarAsync();
             return Convert.ToInt32(result);
@@ -75,7 +79,8 @@ namespace Projektsoftware.Services
             await connection.OpenAsync();
 
             string query = @"UPDATE employees SET first_name=@firstName, last_name=@lastName, email=@email, phone=@phone, 
-                           position=@position, department=@department, hourly_rate=@hourlyRate, is_active=@isActive, hire_date=@hireDate
+                           position=@position, department=@department, hourly_rate=@hourlyRate, is_active=@isActive, hire_date=@hireDate,
+                           vacation_days_total=@vacationTotal, vacation_days_used=@vacationUsed
                            WHERE id=@id";
 
             using var cmd = new MySqlCommand(query, connection);
@@ -89,6 +94,8 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@hourlyRate", employee.HourlyRate);
             cmd.Parameters.AddWithValue("@isActive", employee.IsActive);
             cmd.Parameters.AddWithValue("@hireDate", employee.HireDate);
+            cmd.Parameters.AddWithValue("@vacationTotal", employee.VacationDaysTotal);
+            cmd.Parameters.AddWithValue("@vacationUsed", employee.VacationDaysUsed);
 
             await cmd.ExecuteNonQueryAsync();
         }
@@ -142,7 +149,9 @@ namespace Projektsoftware.Services
                     EstimatedHours = reader.GetInt32(reader.GetOrdinal("estimated_hours")),
                     ActualHours = reader.GetInt32(reader.GetOrdinal("actual_hours")),
                     CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
-                    UpdatedAt = reader.IsDBNull(reader.GetOrdinal("updated_at")) ? null : reader.GetDateTime(reader.GetOrdinal("updated_at"))
+                    UpdatedAt = reader.IsDBNull(reader.GetOrdinal("updated_at")) ? null : reader.GetDateTime(reader.GetOrdinal("updated_at")),
+                    IsRecurring = !reader.IsDBNull(reader.GetOrdinal("is_recurring")) && reader.GetBoolean(reader.GetOrdinal("is_recurring")),
+                    RecurrenceIntervalDays = reader.IsDBNull(reader.GetOrdinal("recurrence_interval_days")) ? 0 : reader.GetInt32(reader.GetOrdinal("recurrence_interval_days"))
                 });
             }
 
@@ -155,9 +164,9 @@ namespace Projektsoftware.Services
             await connection.OpenAsync();
 
             string query = @"INSERT INTO tasks (project_id, title, description, assigned_to, client_name, easybill_customer_id, status, priority, due_date, 
-                           completed_date, estimated_hours, actual_hours, created_at, updated_at)
+                           completed_date, estimated_hours, actual_hours, created_at, updated_at, is_recurring, recurrence_interval_days)
                            VALUES (@projectId, @title, @description, @assignedTo, @clientName, @easybillCustomerId, @status, @priority, @dueDate,
-                           @completedDate, @estimatedHours, @actualHours, @createdAt, @updatedAt);
+                           @completedDate, @estimatedHours, @actualHours, @createdAt, @updatedAt, @isRecurring, @recurrenceIntervalDays);
                            SELECT LAST_INSERT_ID();";
 
             using var cmd = new MySqlCommand(query, connection);
@@ -175,6 +184,8 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@actualHours", task.ActualHours);
             cmd.Parameters.AddWithValue("@createdAt", task.CreatedAt);
             cmd.Parameters.AddWithValue("@updatedAt", task.UpdatedAt.HasValue ? (object)task.UpdatedAt.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("@isRecurring", task.IsRecurring);
+            cmd.Parameters.AddWithValue("@recurrenceIntervalDays", task.RecurrenceIntervalDays);
 
             var result = await cmd.ExecuteScalarAsync();
             return Convert.ToInt32(result);
@@ -188,7 +199,8 @@ namespace Projektsoftware.Services
             string query = @"UPDATE tasks SET project_id=@projectId, title=@title, description=@description, assigned_to=@assignedTo,
                            client_name=@clientName, easybill_customer_id=@easybillCustomerId,
                            status=@status, priority=@priority, due_date=@dueDate, completed_date=@completedDate,
-                           estimated_hours=@estimatedHours, actual_hours=@actualHours, updated_at=@updatedAt
+                           estimated_hours=@estimatedHours, actual_hours=@actualHours, updated_at=@updatedAt,
+                           is_recurring=@isRecurring, recurrence_interval_days=@recurrenceIntervalDays
                            WHERE id=@id";
 
             using var cmd = new MySqlCommand(query, connection);
@@ -206,6 +218,8 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@estimatedHours", task.EstimatedHours);
             cmd.Parameters.AddWithValue("@actualHours", task.ActualHours);
             cmd.Parameters.AddWithValue("@updatedAt", DateTime.Now);
+            cmd.Parameters.AddWithValue("@isRecurring", task.IsRecurring);
+            cmd.Parameters.AddWithValue("@recurrenceIntervalDays", task.RecurrenceIntervalDays);
 
             await cmd.ExecuteNonQueryAsync();
         }
@@ -870,6 +884,41 @@ namespace Projektsoftware.Services
             }
 
             return tickets;
+        }
+
+        #endregion
+
+        #region Task Assignment Notifications
+
+        public async System.Threading.Tasks.Task CreateTaskAssignmentNotificationAsync(
+            int taskId, string taskTitle, string projectName, string assignedTo, string assignedBy)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = @"INSERT INTO task_assignment_notifications 
+                (task_id, task_title, project_name, assigned_to, assigned_by, created_at)
+                VALUES (@taskId, @taskTitle, @projectName, @assignedTo, @assignedBy, @createdAt)";
+
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@taskId", taskId);
+            cmd.Parameters.AddWithValue("@taskTitle", taskTitle);
+            cmd.Parameters.AddWithValue("@projectName", projectName ?? "");
+            cmd.Parameters.AddWithValue("@assignedTo", assignedTo);
+            cmd.Parameters.AddWithValue("@assignedBy", assignedBy);
+            cmd.Parameters.AddWithValue("@createdAt", DateTime.Now);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async System.Threading.Tasks.Task MarkAssignmentNotificationsReadAsync(string username)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = "UPDATE task_assignment_notifications SET is_read = TRUE WHERE assigned_to = @user AND is_read = FALSE";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@user", username);
+            await cmd.ExecuteNonQueryAsync();
         }
 
         #endregion

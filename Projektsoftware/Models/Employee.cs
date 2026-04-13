@@ -15,7 +15,10 @@ namespace Projektsoftware.Models
         public bool IsActive { get; set; }
         public DateTime HireDate { get; set; }
         public DateTime CreatedAt { get; set; }
+        public int VacationDaysTotal { get; set; } = 30;
+        public int VacationDaysUsed { get; set; }
 
         public string FullName => $"{FirstName} {LastName}";
+        public int VacationDaysRemaining => VacationDaysTotal - VacationDaysUsed;
     }
 }

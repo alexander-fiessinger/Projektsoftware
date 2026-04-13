@@ -91,17 +91,49 @@ namespace Projektsoftware.Services
                     {
                         Title = "SLA-Verletzung",
                         Message = $"{slaBreached} Ticket{(slaBreached == 1 ? "" : "s")} haben die SLA-Reaktionszeit überschritten",
-                        Severity = NotificationSeverity.Error,
-                        Timestamp = DateTime.Now
-                    });
-                }
-            }
-            catch
-            {
-                // Silent fail — notifications are non-critical
-            }
+                                        Severity = NotificationSeverity.Error,
+                                            Timestamp = DateTime.Now
+                                        });
+                                    }
 
-            return notifications;
-        }
-    }
+                                    // Task assignment notifications for current user
+                                    var currentUser = Projektsoftware.Services.AuthenticationService.CurrentUser?.Username;
+                                    if (!string.IsNullOrEmpty(currentUser))
+                                    {
+                                        string assignmentQuery = @"
+                                            SELECT task_title, project_name, assigned_by, created_at
+                                            FROM task_assignment_notifications
+                                            WHERE assigned_to = @user AND is_read = FALSE
+                                            ORDER BY created_at DESC
+                                            LIMIT 20";
+
+                                        using var cmdAssign = new MySqlCommand(assignmentQuery, connection);
+                                        cmdAssign.Parameters.AddWithValue("@user", currentUser);
+                                        using var rdrAssign = await cmdAssign.ExecuteReaderAsync();
+                                        while (await rdrAssign.ReadAsync())
+                                        {
+                                            var taskTitle = rdrAssign.GetString(0);
+                                            var projectName = rdrAssign.IsDBNull(1) ? "" : rdrAssign.GetString(1);
+                                            var assignedBy = rdrAssign.GetString(2);
+                                            var createdAt = rdrAssign.GetDateTime(3);
+                                            notifications.Add(new AppNotification
+                                            {
+                                                Title = "Neue Aufgabe zugewiesen",
+                                                Message = $"„{taskTitle}\"" +
+                                                          (string.IsNullOrEmpty(projectName) ? "" : $" ({projectName})") +
+                                                          $" — zugewiesen von {assignedBy}",
+                                                Severity = NotificationSeverity.Info,
+                                                Timestamp = createdAt
+                                            });
+                                        }
+                                    }
+                                }
+                                catch
+                                {
+                                    // Silent fail — notifications are non-critical
+                                }
+
+                                return notifications;
+                            }
+                        }
 }

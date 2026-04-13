@@ -11,13 +11,48 @@
         MinHeight="700" MinWidth="1200"
         WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource BackgroundBrush}">
+        Background="{DynamicResource BackgroundBrush}">
     <Window.Resources>
         <converters:EuroCurrencyConverter x:Key="EuroCurrencyConverter"/>
         <converters:TimeSpanToHoursConverter x:Key="TimeSpanToHoursConverter"/>
     </Window.Resources>
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{x:Static ApplicationCommands.Find}" />
+        <KeyBinding Gesture="Ctrl+F" Command="{x:Static ApplicationCommands.Find}" />
+        <KeyBinding Gesture="Ctrl+E" Command="{x:Static ApplicationCommands.SaveAs}" />
+        <KeyBinding Gesture="Ctrl+N" Command="{x:Static ApplicationCommands.New}" />
+    </Window.InputBindings>
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static ApplicationCommands.Find}" Executed="GlobalSearch_Executed" />
+        <CommandBinding Command="{x:Static ApplicationCommands.SaveAs}" Executed="CsvExport_Executed" />
+        <CommandBinding Command="{x:Static ApplicationCommands.New}" Executed="QuickCreate_Executed" />
+    </Window.CommandBindings>
     <DockPanel>
-        
+
+        <!-- StatusBar -->
+        <StatusBar DockPanel.Dock="Bottom" Background="#FAFBFC" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Height="28">
+            <StatusBarItem>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="👤" Margin="0,0,4,0"/>
+                    <TextBlock x:Name="StatusBarUser" Text="–" FontSize="11" Foreground="#475569"/>
+                </StackPanel>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🗄" Margin="0,0,4,0"/>
+                    <TextBlock x:Name="StatusBarDb" Text="Datenbank: verbunden" FontSize="11" Foreground="#16A34A"/>
+                </StackPanel>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <TextBlock x:Name="StatusBarVersion" Text="v1.0.42" FontSize="11" Foreground="#64748B"/>
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <TextBlock x:Name="StatusBarClock" Text="00:00" FontSize="11" Foreground="#475569" FontFamily="Consolas"/>
+            </StatusBarItem>
+        </StatusBar>
+
         <!-- Simplified Menu -->
         <Menu DockPanel.Dock="Top" Style="{StaticResource ModernMenu}">
             <MenuItem Header="_Datei" Style="{StaticResource ModernMenuItem}">
@@ -36,6 +71,7 @@
                 <MenuItem Header="Datenbank" Style="{StaticResource ModernMenuItem}">
                     <MenuItem Header="Verbindung konfigurieren" Click="ConfigureDatabase_Click" Style="{StaticResource ModernMenuItem}"/>
                     <MenuItem Header="Diagnose" Click="DiagnoseConnection_Click" Style="{StaticResource ModernMenuItem}"/>
+                    <MenuItem Header="Backup erstellen" Click="DatabaseBackup_Click" Style="{StaticResource ModernMenuItem}"/>
                     <MenuItem Header="Datenbank zurücksetzen" Click="ResetDatabase_Click" Style="{StaticResource ModernMenuItem}" Foreground="Red"/>
                 </MenuItem>
                 <MenuItem Header="Webex" Style="{StaticResource ModernMenuItem}">
@@ -59,6 +95,8 @@
                 </MenuItem>
                 <MenuItem Header="📋 _Audit-Log" Click="AuditLog_Click" Style="{StaticResource ModernMenuItem}"/>
                 <Separator/>
+                <MenuItem x:Name="DarkModeMenuItem" Header="🌙 Dark Mode" Click="ToggleDarkMode_Click" Style="{StaticResource ModernMenuItem}" IsCheckable="True"/>
+                <Separator/>
                 <MenuItem Header="Abmelden" Click="Logout_Click" Style="{StaticResource ModernMenuItem}" Foreground="Orange"/>
             </MenuItem>
             <MenuItem Header="📦 _Produkte" Style="{StaticResource ModernMenuItem}" Click="ShowEasybillProducts_Click"/>
@@ -76,6 +114,13 @@
             </MenuItem>
             <MenuItem Header="_Hilfe" Style="{StaticResource ModernMenuItem}">
                 <MenuItem Header="Über" Click="About_Click" Style="{StaticResource ModernMenuItem}"/>
+            </MenuItem>
+            <MenuItem Header="📤 _Export" Style="{StaticResource ModernMenuItem}">
+                <MenuItem Header="Kunden als CSV" Click="ExportCustomersCsv_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="Projekte als CSV" Click="ExportProjectsCsv_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="Zeiterfassung als CSV" Click="ExportTimeEntriesCsv_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="Aufgaben als CSV" Click="ExportTasksCsv_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="Mitarbeiter als CSV" Click="ExportEmployeesCsv_Click" Style="{StaticResource ModernMenuItem}"/>
             </MenuItem>
         </Menu>
 
@@ -121,6 +166,34 @@
                            FontSize="12"
                            Foreground="#666"
                            Margin="0,0,8,0"/>
+                <!-- Globale Suche -->
+                <Grid DockPanel.Dock="Left" Width="280" Margin="0,3">
+                    <TextBox x:Name="GlobalSearchBox"
+                             Height="28"
+                             VerticalContentAlignment="Center"
+                             Padding="24,0,8,0"
+                             FontSize="12"
+                             KeyDown="GlobalSearchBox_KeyDown"
+                             ToolTip="Globale Suche (Strg+F)"/>
+                    <TextBlock Text="🔍 Suche…"
+                               IsHitTestVisible="False"
+                               VerticalAlignment="Center"
+                               Margin="6,0,0,0"
+                               Foreground="Gray"
+                               FontSize="12"
+                               FontStyle="Italic">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Text, ElementName=GlobalSearchBox}" Value="">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
             </DockPanel>
         </Border>
 
@@ -246,11 +319,11 @@
                         <Button Content="+ Neuer Kunde" Style="{StaticResource ModernButton}"
                                 Padding="12,6" Margin="0,0,8,0"
                                 Click="AddCustomer_Click"
-                                Background="{StaticResource SuccessBrush}" Foreground="White"/>
+                                        Background="{DynamicResource SuccessBrush}" Foreground="White"/>
                         <Button Content="📥 Von Easybill importieren" Style="{StaticResource ModernButton}"
                                 Padding="12,6"
                                 Click="ImportCustomersFromEasybill_Click"
-                                Background="{StaticResource NeutralBrush}" Foreground="White"/>
+                                        Background="{DynamicResource NeutralBrush}" Foreground="White"/>
                     </StackPanel>
                     <DataGrid x:Name="CustomersDataGrid"
                               Grid.Row="1"
@@ -281,7 +354,7 @@
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                             <Button Content="✏️ Bearbeiten" ToolTip="Kunde bearbeiten"
                                                     Style="{StaticResource ActionButton}"
-                                                    Foreground="{StaticResource PrimaryBrush}"
+                                                    Foreground="{DynamicResource PrimaryBrush}"
                                                     Margin="2"
                                                     Click="EditCustomer_Click"/>
                                             <Button Content="📄" ToolTip="Dokumente"
@@ -316,7 +389,16 @@
                         <Button Content="+ Neues Projekt" Style="{StaticResource ModernButton}"
                                 Padding="12,6"
                                 Click="AddProject_Click"
-                                Background="{StaticResource SuccessBrush}" Foreground="White"/>
+                                        Background="{DynamicResource SuccessBrush}" Foreground="White"/>
+                        <TextBlock Text="Status:" VerticalAlignment="Center" Margin="16,0,4,0" FontSize="12"/>
+                        <ComboBox x:Name="ProjectStatusFilter" Width="140" Height="30"
+                                  SelectionChanged="ProjectStatusFilter_Changed">
+                            <ComboBoxItem Content="Alle" IsSelected="True"/>
+                            <ComboBoxItem Content="Aktiv"/>
+                            <ComboBoxItem Content="Abgeschlossen"/>
+                            <ComboBoxItem Content="Pausiert"/>
+                            <ComboBoxItem Content="Geplant"/>
+                        </ComboBox>
                     </StackPanel>
                     <DataGrid x:Name="ProjectsDataGrid"
                               Grid.Row="1"
@@ -340,6 +422,19 @@
                             <DataGridTextColumn Header="Projektname" Binding="{Binding Name}" Width="2*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Kunde" Binding="{Binding ClientName}" Width="1.5*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="1*" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Fortschritt" Width="0.8*" IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid ToolTip="{Binding ProgressPercent, StringFormat={}{0}%}">
+                                            <ProgressBar Value="{Binding ProgressPercent, Mode=OneWay}" Minimum="0" Maximum="100"
+                                                         Height="14" Foreground="{DynamicResource SuccessBrush}"/>
+                                            <TextBlock Text="{Binding ProgressPercent, StringFormat={}{0}%}"
+                                                       FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Tags" Binding="{Binding Tags}" Width="1*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Start" Binding="{Binding StartDate, StringFormat=dd.MM.yyyy}" Width="0.8*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Budget" Binding="{Binding Budget, Converter={StaticResource EuroCurrencyConverter}}" Width="0.8*" IsReadOnly="True"/>
                             <DataGridTemplateColumn Header="Aktionen" Width="250">
@@ -348,7 +443,7 @@
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                             <Button Content="✏️" ToolTip="Projekt bearbeiten"
                                                     Style="{StaticResource ActionButton}"
-                                                    Foreground="{StaticResource PrimaryBrush}"
+                                                    Foreground="{DynamicResource PrimaryBrush}"
                                                     Margin="2"
                                                     Click="EditProject_Click"/>
                                             <Button Content="📄" ToolTip="Dokumente"
@@ -383,12 +478,21 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Button Content="+ Neue Zeiterfassung" Style="{StaticResource ModernButton}"
-                            Grid.Row="0"
-                            HorizontalAlignment="Left"
-                            Padding="12,6" Margin="0,0,0,15"
-                            Click="AddTimeEntry_Click"
-                            Background="{StaticResource SuccessBrush}" Foreground="White"/>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+                        <Button Content="+ Neue Zeiterfassung" Style="{StaticResource ModernButton}"
+                                HorizontalAlignment="Left"
+                                Padding="12,6" Margin="0,0,10,0"
+                                Click="AddTimeEntry_Click"
+                                        Background="{DynamicResource SuccessBrush}" Foreground="White"/>
+                        <TextBlock Text="Von:" VerticalAlignment="Center" Margin="10,0,4,0" FontSize="12"/>
+                        <DatePicker x:Name="TimeFilterFrom" Width="130" Height="30"
+                                    SelectedDateChanged="TimeFilter_Changed"/>
+                        <TextBlock Text="Bis:" VerticalAlignment="Center" Margin="10,0,4,0" FontSize="12"/>
+                        <DatePicker x:Name="TimeFilterTo" Width="130" Height="30"
+                                    SelectedDateChanged="TimeFilter_Changed"/>
+                        <Button Content="✕ Filter zurücksetzen" Style="{StaticResource ActionButton}"
+                                Padding="8,4" Margin="10,0,0,0" Click="TimeFilterReset_Click"/>
+                    </StackPanel>
                     <DataGrid x:Name="TimeEntriesDataGrid"
                               Grid.Row="1"
                               ItemsSource="{Binding TimeEntries}"
@@ -428,7 +532,7 @@
                             HorizontalAlignment="Left"
                             Padding="12,6" Margin="0,0,0,15"
                             Click="AddMeetingProtocol_Click"
-                            Background="{StaticResource SuccessBrush}" Foreground="White"/>
+                            Background="{DynamicResource SuccessBrush}" Foreground="White"/>
                     <DataGrid x:Name="MeetingProtocolsDataGrid"
                               Grid.Row="1"
                               ItemsSource="{Binding MeetingProtocols}"
@@ -464,7 +568,7 @@
                         <Button Content="+ Neue Aufgabe" Style="{StaticResource ModernButton}"
                                 Padding="12,6" Margin="0,0,10,0"
                                 Click="AddTask_Click"
-                                Background="{StaticResource SuccessBrush}" Foreground="White"/>
+                                        Background="{DynamicResource SuccessBrush}" Foreground="White"/>
                         <TextBox x:Name="TaskSearchBox"
                                  Width="250" Height="32"
                                  Margin="10,0,0,0"
@@ -474,6 +578,15 @@
                                  LostFocus="TaskSearchBox_LostFocus"
                                  Foreground="Gray"
                                  Text="Suchen..."/>
+                        <TextBlock Text="Status:" VerticalAlignment="Center" Margin="16,0,4,0" FontSize="12"/>
+                        <ComboBox x:Name="TaskStatusFilter" Width="130" Height="30"
+                                  SelectionChanged="TaskStatusFilter_Changed">
+                            <ComboBoxItem Content="Alle" IsSelected="True"/>
+                            <ComboBoxItem Content="Offen"/>
+                            <ComboBoxItem Content="In Bearbeitung"/>
+                            <ComboBoxItem Content="Erledigt"/>
+                            <ComboBoxItem Content="Blockiert"/>
+                        </ComboBox>
                     </StackPanel>
                     <DataGrid x:Name="TasksDataGrid"
                               Grid.Row="1"
@@ -496,12 +609,13 @@
                             <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="1*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Priorität" Binding="{Binding Priority}" Width="1*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Fällig" Binding="{Binding DueDate, StringFormat=dd.MM.yyyy}" Width="0.9*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="🔁" Binding="{Binding RecurrenceDisplay}" Width="0.9*" IsReadOnly="True"/>
                             <DataGridTemplateColumn Header="Aktion" Width="80">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Button Content="✏️" ToolTip="Aufgabe bearbeiten"
                                                 Style="{StaticResource ActionButton}"
-                                                Foreground="{StaticResource PrimaryBrush}"
+                                                Foreground="{DynamicResource PrimaryBrush}"
                                                 Margin="2"
                                                 Click="EditTask_Click"/>
                                     </DataTemplate>
@@ -515,6 +629,11 @@
             <!-- Tickets Tab -->
             <TabItem x:Name="TabTickets" Header="🎫 Tickets" Style="{StaticResource ModernTabItem}">
                 <views:TicketsView x:Name="TicketsView" Margin="10"/>
+            </TabItem>
+
+            <!-- Kanban Tab -->
+            <TabItem x:Name="TabKanban" Header="📌 Kanban" Style="{StaticResource ModernTabItem}">
+                <views:KanbanBoardView x:Name="KanbanBoardView" Margin="0"/>
             </TabItem>
 
 <!-- CRM Tab -->
@@ -538,7 +657,7 @@
                         <Button Content="+ Neuer Mitarbeiter" Style="{StaticResource ModernButton}"
                                 Padding="12,6"
                                 Click="AddEmployee_Click"
-                                Background="{StaticResource SuccessBrush}" Foreground="White"/>
+                                        Background="{DynamicResource SuccessBrush}" Foreground="White"/>
                     </StackPanel>
                     <DataGrid x:Name="EmployeesDataGrid"
                               Grid.Row="1"
@@ -561,12 +680,13 @@
                             <DataGridTextColumn Header="E-Mail" Binding="{Binding Email}" Width="2*" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Stundensatz" Binding="{Binding HourlyRate, Converter={StaticResource EuroCurrencyConverter}}" Width="1*" IsReadOnly="True"/>
                             <DataGridCheckBoxColumn Header="Aktiv" Binding="{Binding IsActive}" Width="0.6*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Urlaub" Binding="{Binding VacationDaysRemaining}" Width="0.6*" IsReadOnly="True"/>
                             <DataGridTemplateColumn Header="Aktion" Width="80">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Button Content="✏️" ToolTip="Mitarbeiter bearbeiten"
                                                 Style="{StaticResource ActionButton}"
-                                                Foreground="{StaticResource PrimaryBrush}"
+                                                Foreground="{DynamicResource PrimaryBrush}"
                                                 Margin="2"
                                                 Click="EditEmployee_Click"/>
                                     </DataTemplate>
