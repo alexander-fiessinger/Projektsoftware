@@ -1,0 +1,140 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div><p>Kanban laden...</p></div>
+}
+else
+{
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Aufgabe suchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    <div class="kanban-board">
+        <!-- Offen -->
+        <div class="kanban-column">
+            <div class="kanban-header" style="border-color:#1976D2;">
+                <span>📋 Offen</span>
+                <span class="kanban-count">@OpenTasks.Count</span>
+            </div>
+            @foreach (var t in OpenTasks)
+            {
+                <div class="kanban-card">
+                    <div class="kanban-title">@t.Title</div>
+                    <div class="kanban-project">📁 @t.ProjectName</div>
+                    @if (!string.IsNullOrEmpty(t.AssignedTo)) { <div class="kanban-meta">👤 @t.AssignedTo</div> }
+                    @if (t.DueDate.HasValue) { <div class="kanban-meta @(t.DueDate.Value < DateTime.Now ? "overdue" : "")">📅 @t.DueDate.Value.ToString("dd.MM.")</div> }
+                    <div class="kanban-priority badge" style="background:@PriorityColor(t.Priority);">@t.Priority</div>
+                    <select class="status-select" style="width:100%;margin-top:6px;" value="@t.Status" @onchange="(e) => UpdateStatus(t, e)">
+                        <option value="Offen">Offen</option>
+                        <option value="In Arbeit">In Arbeit</option>
+                        <option value="Blockiert">Blockiert</option>
+                        <option value="Erledigt">Erledigt</option>
+                    </select>
+                </div>
+            }
+        </div>
+
+        <!-- In Arbeit -->
+        <div class="kanban-column">
+            <div class="kanban-header" style="border-color:#FF9800;">
+                <span>🔨 In Arbeit</span>
+                <span class="kanban-count">@InProgressTasks.Count</span>
+            </div>
+            @foreach (var t in InProgressTasks)
+            {
+                <div class="kanban-card">
+                    <div class="kanban-title">@t.Title</div>
+                    <div class="kanban-project">📁 @t.ProjectName</div>
+                    @if (!string.IsNullOrEmpty(t.AssignedTo)) { <div class="kanban-meta">👤 @t.AssignedTo</div> }
+                    @if (t.DueDate.HasValue) { <div class="kanban-meta @(t.DueDate.Value < DateTime.Now ? "overdue" : "")">📅 @t.DueDate.Value.ToString("dd.MM.")</div> }
+                    <div class="kanban-priority badge" style="background:@PriorityColor(t.Priority);">@t.Priority</div>
+                    <select class="status-select" style="width:100%;margin-top:6px;" value="@t.Status" @onchange="(e) => UpdateStatus(t, e)">
+                        <option value="Offen">Offen</option>
+                        <option value="In Arbeit">In Arbeit</option>
+                        <option value="Blockiert">Blockiert</option>
+                        <option value="Erledigt">Erledigt</option>
+                    </select>
+                </div>
+            }
+        </div>
+
+        <!-- Blockiert -->
+        <div class="kanban-column">
+            <div class="kanban-header" style="border-color:#F44336;">
+                <span>🚫 Blockiert</span>
+                <span class="kanban-count">@BlockedTasks.Count</span>
+            </div>
+            @foreach (var t in BlockedTasks)
+            {
+                <div class="kanban-card">
+                    <div class="kanban-title">@t.Title</div>
+                    <div class="kanban-project">📁 @t.ProjectName</div>
+                    @if (!string.IsNullOrEmpty(t.AssignedTo)) { <div class="kanban-meta">👤 @t.AssignedTo</div> }
+                    @if (t.DueDate.HasValue) { <div class="kanban-meta @(t.DueDate.Value < DateTime.Now ? "overdue" : "")">📅 @t.DueDate.Value.ToString("dd.MM.")</div> }
+                    <div class="kanban-priority badge" style="background:@PriorityColor(t.Priority);">@t.Priority</div>
+                    <select class="status-select" style="width:100%;margin-top:6px;" value="@t.Status" @onchange="(e) => UpdateStatus(t, e)">
+                        <option value="Offen">Offen</option>
+                        <option value="In Arbeit">In Arbeit</option>
+                        <option value="Blockiert">Blockiert</option>
+                        <option value="Erledigt">Erledigt</option>
+                    </select>
+                </div>
+            }
+        </div>
+
+        <!-- Erledigt -->
+        <div class="kanban-column">
+            <div class="kanban-header" style="border-color:#4CAF50;">
+                <span>✅ Erledigt</span>
+                <span class="kanban-count">@DoneTasks.Count</span>
+            </div>
+            @foreach (var t in DoneTasks)
+            {
+                <div class="kanban-card" style="opacity:0.75;">
+                    <div class="kanban-title">@t.Title</div>
+                    <div class="kanban-project">📁 @t.ProjectName</div>
+                    @if (!string.IsNullOrEmpty(t.AssignedTo)) { <div class="kanban-meta">👤 @t.AssignedTo</div> }
+                    @if (t.CompletedDate.HasValue) { <div class="kanban-meta">✅ @t.CompletedDate.Value.ToString("dd.MM.")</div> }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private string _search = "";
+    private List<TaskDto> _tasks = new();
+
+    private List<TaskDto> FilteredTasks => string.IsNullOrWhiteSpace(_search) ? _tasks :
+        _tasks.Where(t => t.Title.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || t.ProjectName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || t.AssignedTo.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private List<TaskDto> OpenTasks => FilteredTasks.Where(t => t.Status == "Offen").ToList();
+    private List<TaskDto> InProgressTasks => FilteredTasks.Where(t => t.Status == "In Arbeit").ToList();
+    private List<TaskDto> BlockedTasks => FilteredTasks.Where(t => t.Status == "Blockiert").ToList();
+    private List<TaskDto> DoneTasks => FilteredTasks.Where(t => t.Status == "Erledigt").ToList();
+
+    private string PriorityColor(string priority) => priority switch
+    {
+        "Hoch" => "var(--danger)",
+        "Mittel" => "var(--warning)",
+        "Niedrig" => "var(--success)",
+        _ => "var(--gray)"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _tasks = await Db.GetTasksAsync(); } catch { }
+        _loading = false;
+    }
+
+    private async Task UpdateStatus(TaskDto task, ChangeEventArgs e)
+    {
+        var newStatus = e.Value?.ToString() ?? "Offen";
+        task.Status = newStatus;
+        await Db.UpdateTaskStatusAsync(task.Id, newStatus);
+    }
+}

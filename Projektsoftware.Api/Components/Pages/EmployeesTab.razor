@@ -1,0 +1,93 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Mitarbeiter suchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    @if (FilteredEmployees.Any())
+    {
+        @foreach (var e in FilteredEmployees)
+        {
+            <div class="list-card">
+                <div class="row">
+                    <h3>@e.FullName</h3>
+                    <span class="badge" style="background:@(e.IsActive ? "var(--success-light)" : "#fee");color:@(e.IsActive ? "var(--success)" : "var(--danger)")">
+                        @(e.IsActive ? "Aktiv" : "Inaktiv")
+                    </span>
+                </div>
+                @if (!string.IsNullOrEmpty(e.Position)) { <div class="sub mt-4">💼 @e.Position</div> }
+                @if (!string.IsNullOrEmpty(e.Department)) { <div class="sub">🏢 @e.Department</div> }
+                @if (!string.IsNullOrEmpty(e.Email)) { <div class="sub">✉️ @e.Email</div> }
+                @if (!string.IsNullOrEmpty(e.Phone)) { <div class="sub">📞 @e.Phone</div> }
+                @if (e.HourlyRate > 0) { <div class="sub mt-4" style="font-weight:600">💰 @e.HourlyRate.ToString("F2") €/Std</div> }
+            </div>
+        }
+    }
+    else
+    {
+        <div class="empty-state">Keine Mitarbeiter gefunden.</div>
+    }
+}
+
+<button class="add-btn" @onclick="() => _showForm = true">+</button>
+
+@if (_showForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>👤 Neuer Mitarbeiter</h3>
+            <div class="form-row"><label>Vorname *</label><input @bind="_fFirst" /></div>
+            <div class="form-row"><label>Nachname *</label><input @bind="_fLast" /></div>
+            <div class="form-row"><label>E-Mail</label><input type="email" @bind="_fEmail" /></div>
+            <div class="form-row"><label>Telefon</label><input type="tel" @bind="_fPhone" /></div>
+            <div class="form-row"><label>Position</label><input @bind="_fPos" /></div>
+            <div class="form-row"><label>Abteilung</label><input @bind="_fDept" /></div>
+            <div class="form-row"><label>Stundensatz (€)</label><input type="number" step="0.01" @bind="_fRate" /></div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<EmployeeDto> _employees = [];
+    private bool _loading = true;
+    private string _search = "";
+    private bool _showForm, _saving;
+    private string _fFirst = "", _fLast = "", _fEmail = "", _fPhone = "", _fPos = "", _fDept = "";
+    private decimal _fRate;
+
+    private IEnumerable<EmployeeDto> FilteredEmployees => string.IsNullOrWhiteSpace(_search) ? _employees :
+        _employees.Where(e => e.FullName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || e.Position.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || e.Department.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _employees = await Db.GetEmployeesAsync(); } catch { }
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_fFirst) || string.IsNullOrWhiteSpace(_fLast)) return;
+        _saving = true;
+        try
+        {
+            await Db.CreateEmployeeAsync(_fFirst, _fLast, _fEmail, _fPhone, _fPos, _fDept, _fRate);
+            _employees = await Db.GetEmployeesAsync();
+            _showForm = false;
+            _fFirst = _fLast = _fEmail = _fPhone = _fPos = _fDept = ""; _fRate = 0;
+        }
+        catch { }
+        _saving = false;
+    }
+}

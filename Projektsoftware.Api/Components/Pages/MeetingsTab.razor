@@ -1,0 +1,351 @@
+@inject ApiDatabaseService Db
+@inject SessionService Session
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div><p>Meetings laden...</p></div>
+}
+else
+{
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Meeting suchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    <div class="stats-grid" style="margin-bottom:12px;">
+        <div class="stat-card">
+            <div class="label">Heute</div>
+            <div class="value">@_meetings.Count(m => m.IsToday)</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Kommende</div>
+            <div class="value">@_meetings.Count(m => m.StartTime > DateTime.Now)</div>
+        </div>
+    </div>
+
+    @if (Filtered.Count == 0)
+    {
+        <div class="empty-state">Keine Meetings gefunden</div>
+    }
+    else
+    {
+        string? lastDateGroup = null;
+        @foreach (var m in Filtered)
+        {
+            var dateGroup = m.StartTime.ToString("dddd, dd. MMMM yyyy", new System.Globalization.CultureInfo("de-DE"));
+            @if (dateGroup != lastDateGroup)
+            {
+                lastDateGroup = dateGroup;
+                <div style="font-weight:700; font-size:14px; color:var(--primary); margin:16px 0 6px 0;">📅 @dateGroup</div>
+            }
+
+            <div class="list-card" style="@(m.IsToday ? "border-left:3px solid var(--primary);" : m.IsPast ? "opacity:0.7;" : "")">
+                <div class="row">
+                    <h3>@(m.IsWebexMeeting ? "🖥️ " : "")@m.Title</h3>
+                    <span class="badge" style="background:@(m.StatusText == "Geplant" ? "var(--primary)" : m.StatusText == "Läuft" ? "var(--success)" : "var(--gray)")">
+                        @m.StatusText
+                    </span>
+                </div>
+                <div class="sub">🕐 @m.DisplayTime • @m.DurationText</div>
+                @if (!string.IsNullOrEmpty(m.Location))
+                {
+                    <div class="mt-4 sub">📍 @m.Location</div>
+                }
+                @if (!string.IsNullOrEmpty(m.ProjectName))
+                {
+                    <div class="mt-4 sub">📁 @m.ProjectName</div>
+                }
+                @if (!string.IsNullOrEmpty(m.Participants))
+                {
+                    <div class="mt-4 sub">👥 @m.Participants</div>
+                }
+                @if (!string.IsNullOrEmpty(m.Description))
+                {
+                    <div class="mt-4 sub" style="font-style:italic;">@m.Description</div>
+                }
+                @if (m.IsWebexMeeting && !string.IsNullOrEmpty(m.WebexJoinLink))
+                {
+                    <div style="margin-top:8px;padding:10px;background:var(--primary-light, #E3F2FD);border-radius:10px;">
+                        <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:4px;">🖥️ Webex Meeting</div>
+                        <div style="font-size:13px;word-break:break-all;">
+                            <a href="@m.WebexJoinLink" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;">@m.WebexJoinLink</a>
+                        </div>
+                        @if (!string.IsNullOrEmpty(m.WebexPassword))
+                        {
+                            <div style="font-size:12px;color:var(--text-secondary, #64748B);margin-top:4px;">🔑 Passwort: <strong>@m.WebexPassword</strong></div>
+                        }
+                        @if (!string.IsNullOrEmpty(m.WebexHostKey))
+                        {
+                            <div style="font-size:12px;color:var(--text-secondary, #64748B);">🔐 Host-Key: <strong>@m.WebexHostKey</strong></div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+
+    <button class="add-btn" @onclick="() => _showForm = true">+</button>
+}
+
+@* ── Neues Meeting erstellen ── *@
+@if (_showForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>📅 Neues Meeting</h3>
+            <div class="form-row"><label>Titel *</label><input @bind="_fTitle" /></div>
+            <div class="form-row"><label>Beschreibung</label><textarea @bind="_fDesc"></textarea></div>
+            <div class="form-row"><label>Start *</label><input type="datetime-local" @bind="_fStart" /></div>
+            <div class="form-row"><label>Ende *</label><input type="datetime-local" @bind="_fEnd" /></div>
+            <div class="form-row"><label>Ort</label><input @bind="_fLocation" /></div>
+            <div class="form-row"><label>Teilnehmer</label><input @bind="_fParticipants" placeholder="name@firma.de, ..." /></div>
+            <div class="form-row">
+                <label>Projekt</label>
+                <select @bind="_fProjectId">
+                    <option value="">– Kein Projekt –</option>
+                    @foreach (var p in _projects) { <option value="@p.Id">@p.Name</option> }
+                </select>
+            </div>
+
+            @* ── Webex Option ── *@
+            <div class="form-row" style="margin-top:4px;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" @bind="_fWebex" disabled="@(!_webexConfigured)" />
+                    🖥️ Webex Meeting erstellen
+                </label>
+                @if (!_webexConfigured)
+                {
+                    <div style="font-size:12px;color:var(--gray, #78909C);margin-top:4px;">
+                        Webex ist nicht konfiguriert.
+                        <span style="color:var(--primary);cursor:pointer;text-decoration:underline;" @onclick="() => _showWebexSettings = true">Jetzt einrichten</span>
+                    </div>
+                }
+            </div>
+            @if (_fWebex)
+            {
+                <div style="padding:10px;background:var(--primary-light, #E3F2FD);border-radius:10px;margin-top:4px;font-size:13px;">
+                    📅 Webex-Meeting wird beim Speichern automatisch erstellt. E-Mail-Adressen in den Teilnehmern erhalten eine Einladung.
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(_formError))
+            {
+                <div class="error-msg" style="margin-top:8px;">@_formError</div>
+            }
+            @if (!string.IsNullOrEmpty(_formSuccess))
+            {
+                <div style="color:var(--success);font-size:13px;margin-top:8px;">@_formSuccess</div>
+            }
+
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? (_fWebex ? "Webex wird erstellt..." : "...") : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Webex-Einstellungen Overlay ── *@
+@if (_showWebexSettings)
+{
+    <div class="add-form-overlay" @onclick="() => _showWebexSettings = false" style="z-index:300">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>🖥️ Webex Einrichtung</h3>
+            <p style="font-size:13px;color:var(--text-secondary, #64748B);margin-bottom:14px;">
+                Geben Sie Ihren persönlichen Webex Access Token ein.
+                Diesen erhalten Sie unter
+                <a href="https://developer.webex.com/my-apps" target="_blank" rel="noopener" style="color:var(--primary);">developer.webex.com</a>.
+            </p>
+            <div class="form-row">
+                <label>Access Token</label>
+                <input type="password" @bind="_wxToken" placeholder="Webex Access Token" />
+            </div>
+            @if (!string.IsNullOrEmpty(_wxError))
+            {
+                <div class="error-msg">@_wxError</div>
+            }
+            @if (!string.IsNullOrEmpty(_wxSuccess))
+            {
+                <div style="color:var(--success);font-size:13px;margin-bottom:10px;">@_wxSuccess</div>
+            }
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+                <button class="btn btn-primary" style="flex:1;min-width:120px;" @onclick="TestWebex" disabled="@_wxTesting">
+                    @(_wxTesting ? "Teste..." : "🔍 Testen")
+                </button>
+                <button class="btn btn-primary" style="flex:1;min-width:120px;background:var(--success);" @onclick="SaveWebex" disabled="@_wxSaving">
+                    @(_wxSaving ? "..." : "💾 Speichern")
+                </button>
+            </div>
+            @if (_webexConfigured)
+            {
+                <button class="btn btn-danger" style="margin-top:8px;width:100%;opacity:0.8;" @onclick="DeleteWebex">🗑 Webex-Token entfernen</button>
+            }
+            <button class="btn-cancel" style="margin-top:8px;width:100%;padding:10px;border:none;border-radius:10px;font-size:14px;cursor:pointer;background:#EEE;" @onclick="() => _showWebexSettings = false">Schließen</button>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private string _search = "";
+    private List<MeetingDto> _meetings = new();
+    private List<ProjectDto> _projects = new();
+
+    // ── Create Form ──
+    private bool _showForm, _saving;
+    private string _fTitle = "", _fDesc = "", _fLocation = "", _fParticipants = "", _fProjectId = "";
+    private DateTime _fStart = DateTime.Today.AddHours(9);
+    private DateTime _fEnd = DateTime.Today.AddHours(10);
+    private bool _fWebex;
+    private string _formError = "", _formSuccess = "";
+
+    // ── Webex Settings ──
+    private bool _webexConfigured;
+    private string _wxToken = "";
+    private WebexUserSettings? _wxSettings;
+    private bool _showWebexSettings, _wxTesting, _wxSaving;
+    private string _wxError = "", _wxSuccess = "";
+
+    private List<MeetingDto> Filtered => string.IsNullOrWhiteSpace(_search) ? _meetings :
+        _meetings.Where(m => m.Title.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || (m.ProjectName ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || (m.Participants ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || (m.Location ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _meetings = await Db.GetMeetingsAsync();
+            _projects = await Db.GetProjectsAsync();
+            var wxSettings = await Db.GetWebexSettingsAsync(Session.UserId);
+            if (wxSettings is { IsConfigured: true })
+            {
+                _webexConfigured = true;
+                _wxSettings = wxSettings;
+                _wxToken = wxSettings.AccessToken;
+            }
+        }
+        catch { }
+        _loading = false;
+    }
+
+    // ── Save Meeting ──
+
+    private async Task Save()
+    {
+        _formError = _formSuccess = "";
+        if (string.IsNullOrWhiteSpace(_fTitle)) { _formError = "Titel ist erforderlich."; return; }
+        if (_fEnd <= _fStart) { _formError = "Ende muss nach Start liegen."; return; }
+        if (_fWebex && _fStart <= DateTime.Now) { _formError = "Für Webex muss die Startzeit in der Zukunft liegen."; return; }
+
+        _saving = true;
+        try
+        {
+            int? pid = int.TryParse(_fProjectId, out var v) ? v : null;
+
+            string? webexId = null, webexLink = null, webexHostKey = null, webexPwd = null, webexSip = null;
+
+            if (_fWebex && _webexConfigured && _wxSettings != null)
+            {
+                using var svc = new ApiWebexService(_wxSettings, async (newToken, newRefresh, newExpiry) =>
+                {
+                    await Db.SaveWebexSettingsAsync(Session.UserId, newToken, _wxSettings.ClientId, _wxSettings.ClientSecret, newRefresh, newExpiry);
+                    _wxSettings.AccessToken = newToken;
+                    if (newRefresh != null) _wxSettings.RefreshToken = newRefresh;
+                    if (newExpiry.HasValue) _wxSettings.TokenExpiry = newExpiry.Value;
+                    _wxToken = newToken;
+                });
+                var result = await svc.CreateMeetingAsync(_fTitle, _fStart, _fEnd, _fDesc, _fParticipants);
+                webexId = result.Id;
+                webexLink = result.JoinLink ?? result.WebLink;
+                webexHostKey = result.HostKey;
+                webexPwd = result.Password;
+                webexSip = result.SipAddress;
+            }
+
+            await Db.CreateMeetingAsync(_fTitle, _fDesc, _fStart, _fEnd, _fLocation, _fParticipants, pid,
+                _fWebex, webexId, webexLink, webexHostKey, webexPwd, webexSip);
+
+            _meetings = await Db.GetMeetingsAsync();
+            _showForm = false;
+            ResetForm();
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        _saving = false;
+    }
+
+    private void ResetForm()
+    {
+        _fTitle = _fDesc = _fLocation = _fParticipants = _fProjectId = "";
+        _fStart = DateTime.Today.AddHours(9);
+        _fEnd = DateTime.Today.AddHours(10);
+        _fWebex = false;
+        _formError = _formSuccess = "";
+    }
+
+    // ── Webex Settings ──
+
+    private async Task TestWebex()
+    {
+        _wxError = _wxSuccess = "";
+        if (string.IsNullOrWhiteSpace(_wxToken)) { _wxError = "Token erforderlich."; return; }
+        _wxTesting = true;
+        try
+        {
+            var testSettings = _wxSettings ?? new WebexUserSettings { AccessToken = _wxToken };
+            testSettings.AccessToken = _wxToken;
+            using var svc = new ApiWebexService(testSettings, async (newToken, newRefresh, newExpiry) =>
+            {
+                if (_wxSettings != null)
+                {
+                    await Db.SaveWebexSettingsAsync(Session.UserId, newToken, _wxSettings.ClientId, _wxSettings.ClientSecret, newRefresh, newExpiry);
+                    _wxSettings.AccessToken = newToken;
+                    if (newRefresh != null) _wxSettings.RefreshToken = newRefresh;
+                    if (newExpiry.HasValue) _wxSettings.TokenExpiry = newExpiry.Value;
+                }
+                _wxToken = newToken;
+            });
+            var (ok, msg) = await svc.TestConnectionAsync();
+            if (ok) _wxSuccess = msg;
+            else _wxError = msg;
+        }
+        catch (Exception ex) { _wxError = ex.Message; }
+        _wxTesting = false;
+    }
+
+    private async Task SaveWebex()
+    {
+        _wxError = _wxSuccess = "";
+        if (string.IsNullOrWhiteSpace(_wxToken)) { _wxError = "Token erforderlich."; return; }
+        _wxSaving = true;
+        try
+        {
+            await Db.SaveWebexSettingsAsync(Session.UserId, _wxToken,
+                _wxSettings?.ClientId, _wxSettings?.ClientSecret, _wxSettings?.RefreshToken, _wxSettings?.TokenExpiry);
+            _webexConfigured = true;
+            if (_wxSettings == null)
+                _wxSettings = new WebexUserSettings { AccessToken = _wxToken };
+            else
+                _wxSettings.AccessToken = _wxToken;
+            _wxSuccess = "✅ Webex-Token gespeichert.";
+        }
+        catch (Exception ex) { _wxError = ex.Message; }
+        _wxSaving = false;
+    }
+
+    private async Task DeleteWebex()
+    {
+        try
+        {
+            await Db.DeleteWebexSettingsAsync(Session.UserId);
+            _webexConfigured = false;
+            _wxToken = "";
+            _wxSettings = null;
+            _fWebex = false;
+            _wxSuccess = "";
+            _wxError = "";
+            _showWebexSettings = false;
+        }
+        catch (Exception ex) { _wxError = ex.Message; }
+    }
+}

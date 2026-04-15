@@ -1,0 +1,173 @@
+@inject SessionService Session
+
+<div class="app-container">
+    <div class="app-header">
+        <div class="app-header-left">
+            <span class="app-header-logo">📐</span>
+            <div>
+                <h1>Projektsoftware</h1>
+                <div class="app-header-subtitle">@_tabLabels.GetValueOrDefault(_activeTab, "Dashboard")</div>
+            </div>
+        </div>
+        <button @onclick="Logout">Abmelden</button>
+    </div>
+
+    <div class="app-content">
+        @switch (_activeTab)
+        {
+            case "dashboard":
+                <DashboardTab/>
+                break;
+            case "projects":
+                <ProjectsTab/>
+                break;
+            case "tasks":
+                <TasksTab/>
+                break;
+            case "kanban":
+                <KanbanTab/>
+                break;
+            case "employees":
+                <EmployeesTab/>
+                break;
+            case "time":
+                <TimeEntriesTab/>
+                break;
+            case "customers":
+                <CustomersTab/>
+                break;
+            case "tickets":
+                <TicketsTab/>
+                break;
+            case "crm":
+                <CrmTab/>
+                break;
+            case "meetings":
+                <MeetingsTab/>
+                break;
+            case "purchase":
+                <PurchaseTab/>
+                break;
+            case "protocols":
+                <ProtocolsTab/>
+                break;
+            case "documents":
+                <DocumentsTab/>
+                break;
+        }
+    </div>
+
+    @* ── Bottom Tab Bar (5 primary) ── *@
+    <div class="tab-bar">
+        <button class="@TabClass("dashboard")" @onclick='() => SwitchTab("dashboard")'>
+            <span class="tab-icon">📊</span> Dashboard
+        </button>
+        @if (Session.HasAccess("projekte"))
+        {
+            <button class="@TabClass("projects")" @onclick='() => SwitchTab("projects")'>
+                <span class="tab-icon">📁</span> Projekte
+            </button>
+        }
+        @if (Session.HasAccess("aufgaben"))
+        {
+            <button class="@TabClass("tasks")" @onclick='() => SwitchTab("tasks")'>
+                <span class="tab-icon">📋</span> Aufgaben
+            </button>
+        }
+        <button class="@TabClass("documents")" @onclick='() => SwitchTab("documents")'>
+            <span class="tab-icon">📄</span> Dokumente
+        </button>
+        <button class="@(_showMore ? "active" : "") @(_moreTabActive ? "active" : "")" @onclick="ToggleMore">
+            <span class="tab-icon">☰</span> Mehr
+        </button>
+    </div>
+
+    @* ── More-Menu Overlay ── *@
+    @if (_showMore)
+    {
+        <div class="more-overlay" @onclick="() => _showMore = false">
+            <div class="more-menu" @onclick:stopPropagation="true">
+                <div class="more-handle"></div>
+                <div class="more-title">Alle Module</div>
+                <div class="more-grid">
+                    @foreach (var item in _moreItems)
+                    {
+                        if (item.Permission == null || Session.HasAccess(item.Permission))
+                        {
+                            <button class="more-item @(item.Key == _activeTab ? "active" : "")"
+                                    @onclick="() => SelectMore(item.Key)">
+                                <span class="more-icon">@item.Icon</span>
+                                <span class="more-label">@item.Label</span>
+                            </button>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string _activeTab = "dashboard";
+    private bool _showMore;
+
+    private record MoreItem(string Key, string Icon, string Label, string? Permission);
+
+    private static readonly Dictionary<string, string> _tabLabels = new()
+    {
+        { "dashboard", "Übersicht" },
+        { "projects", "Projekte" },
+        { "tasks", "Aufgaben" },
+        { "kanban", "Kanban-Board" },
+        { "employees", "Team" },
+        { "time", "Zeiterfassung" },
+        { "customers", "Kunden" },
+        { "tickets", "Tickets" },
+        { "crm", "CRM" },
+        { "meetings", "Meetings" },
+        { "purchase", "Einkauf" },
+        { "protocols", "Protokolle" },
+        { "documents", "Dokumente" }
+    };
+
+    private static readonly string[] _primaryTabs = ["dashboard", "projects", "tasks", "documents"];
+
+    private static readonly MoreItem[] _moreItems =
+    [
+        new("kanban", "📌", "Kanban", "aufgaben"),
+        new("employees", "👥", "Team", "mitarbeiter"),
+        new("time", "⏱️", "Zeiten", "zeiterfassung"),
+        new("customers", "🏢", "Kunden", "kunden"),
+        new("tickets", "🎫", "Tickets", "tickets"),
+        new("crm", "💼", "CRM", "crm"),
+        new("meetings", "📅", "Meetings", "kalender"),
+        new("purchase", "🛒", "Einkauf", "einkauf"),
+        new("protocols", "📝", "Protokolle", "protokolle"),
+    ];
+
+    private bool _moreTabActive => !_primaryTabs.Contains(_activeTab);
+
+    private string TabClass(string tab) => tab == _activeTab ? "active" : "";
+
+    private void SwitchTab(string tab)
+    {
+        _activeTab = tab;
+        _showMore = false;
+    }
+
+    private void ToggleMore()
+    {
+        _showMore = !_showMore;
+    }
+
+    private void SelectMore(string key)
+    {
+        _activeTab = key;
+        _showMore = false;
+    }
+
+    private void Logout()
+    {
+        Session.Logout();
+    }
+}

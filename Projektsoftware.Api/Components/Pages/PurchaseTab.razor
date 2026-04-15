@@ -1,0 +1,189 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div><p>Einkauf laden...</p></div>
+}
+else
+{
+    <div class="sub-tabs">
+        <button class="@SubTabClass("suppliers")" @onclick='() => _subTab = "suppliers"'>🏭 Lieferanten (@_suppliers.Count)</button>
+        <button class="@SubTabClass("orders")" @onclick='() => _subTab = "orders"'>📦 Bestellungen (@_orders.Count)</button>
+    </div>
+
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Einkauf durchsuchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    @if (_subTab == "suppliers")
+    {
+        @if (FilteredSuppliers.Count == 0)
+        {
+            <div class="empty-state">Keine Lieferanten gefunden</div>
+        }
+        else
+        {
+            @foreach (var s in FilteredSuppliers)
+            {
+                <div class="list-card">
+                    <h3>🏭 @s.Name</h3>
+                    @if (!string.IsNullOrEmpty(s.ContactPerson))
+                    {
+                        <div class="sub">👤 @s.ContactPerson</div>
+                    }
+                    <div class="mt-4 sub">
+                        @if (!string.IsNullOrEmpty(s.Email)) { <span>✉️ <a href="mailto:@s.Email">@s.Email</a></span> }
+                        @if (!string.IsNullOrEmpty(s.Phone)) { <span> 📞 @s.Phone</span> }
+                    </div>
+                    @if (!string.IsNullOrEmpty(s.DisplayAddress))
+                    {
+                        <div class="mt-4 sub">📍 @s.Address, @s.DisplayAddress @(!string.IsNullOrEmpty(s.Country) && s.Country != "Deutschland" ? $", {s.Country}" : "")</div>
+                    }
+                    @if (!string.IsNullOrEmpty(s.Notes))
+                    {
+                        <div class="mt-4 sub" style="font-style:italic;">@s.Notes</div>
+                    }
+                </div>
+            }
+        }
+    }
+    else if (_subTab == "orders")
+    {
+        @if (FilteredOrders.Count > 0)
+        {
+            <div class="stats-grid" style="margin-bottom:12px;">
+                <div class="stat-card">
+                    <div class="label">Offene Bestellungen</div>
+                    <div class="value" style="font-size:20px;">@_orders.Count(o => o.Status is "Offen" or "Bestellt")</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Gesamt Netto</div>
+                    <div class="value" style="font-size:20px;">@_orders.Sum(o => o.TotalNet).ToString("N0") €</div>
+                </div>
+            </div>
+        }
+
+        @if (FilteredOrders.Count == 0)
+        {
+            <div class="empty-state">Keine Bestellungen gefunden</div>
+        }
+        else
+        {
+            @foreach (var o in FilteredOrders)
+            {
+                <div class="list-card">
+                    <div class="row">
+                        <h3>@(!string.IsNullOrEmpty(o.OrderNumber) ? o.OrderNumber : $"Bestellung #{o.Id}")</h3>
+                        <span style="font-weight:700;color:var(--primary);">@o.TotalNetDisplay</span>
+                    </div>
+                    <div class="sub">@o.StatusDisplay</div>
+                    @if (!string.IsNullOrEmpty(o.SupplierName))
+                    {
+                        <div class="mt-4 sub">🏭 @o.SupplierName</div>
+                    }
+                    <div class="mt-4 sub">📅 Bestellt: @o.OrderDate.ToString("dd.MM.yyyy")</div>
+                    @if (o.DeliveryDateExpected.HasValue)
+                    {
+                        <div class="sub">🚚 Lieferung erwartet: @o.DeliveryDateExpected.Value.ToString("dd.MM.yyyy")</div>
+                    }
+                    @if (!string.IsNullOrEmpty(o.Notes))
+                    {
+                        <div class="mt-4 sub" style="font-style:italic;">@o.Notes</div>
+                    }
+                    <div class="mt-8">
+                        <select class="status-select" value="@o.Status" @onchange="(e) => UpdateOrderStatus(o, e)">
+                            <option value="Offen">🟡 Offen</option>
+                            <option value="Bestellt">🔵 Bestellt</option>
+                            <option value="Teilweise geliefert">🟠 Teilw. geliefert</option>
+                            <option value="Geliefert">🟢 Geliefert</option>
+                            <option value="Storniert">🔴 Storniert</option>
+                        </select>
+                    </div>
+                </div>
+            }
+        }
+    }
+
+    @if (_subTab == "suppliers")
+    {
+        <button class="add-btn" @onclick="() => _showSupplierForm = true">+</button>
+    }
+}
+
+@if (_showSupplierForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showSupplierForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>🏭 Neuer Lieferant</h3>
+            <div class="form-row"><label>Name *</label><input @bind="_sName" /></div>
+            <div class="form-row"><label>Ansprechpartner</label><input @bind="_sContact" /></div>
+            <div class="form-row"><label>E-Mail</label><input type="email" @bind="_sEmail" /></div>
+            <div class="form-row"><label>Telefon</label><input type="tel" @bind="_sPhone" /></div>
+            <div class="form-row"><label>Straße</label><input @bind="_sAddress" /></div>
+            <div class="form-row"><label>PLZ</label><input @bind="_sZip" /></div>
+            <div class="form-row"><label>Stadt</label><input @bind="_sCity" /></div>
+            <div class="form-row"><label>Notizen</label><textarea @bind="_sNotes"></textarea></div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showSupplierForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="SaveSupplier" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private string _subTab = "suppliers";
+    private string _search = "";
+    private List<SupplierDto> _suppliers = new();
+    private List<PurchaseOrderDto> _orders = new();
+    private bool _saving;
+
+    // Supplier form
+    private bool _showSupplierForm;
+    private string _sName = "", _sContact = "", _sEmail = "", _sPhone = "", _sAddress = "", _sZip = "", _sCity = "", _sNotes = "";
+
+    private List<SupplierDto> FilteredSuppliers => string.IsNullOrWhiteSpace(_search) ? _suppliers :
+        _suppliers.Where(s => s.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || s.ContactPerson.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || s.Email.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private List<PurchaseOrderDto> FilteredOrders => string.IsNullOrWhiteSpace(_search) ? _orders :
+        _orders.Where(o => o.SupplierName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || o.OrderNumber.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private string SubTabClass(string tab) => tab == _subTab ? "sub-tab active" : "sub-tab";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _suppliers = await Db.GetSuppliersAsync();
+            _orders = await Db.GetPurchaseOrdersAsync();
+        }
+        catch { }
+        _loading = false;
+    }
+
+    private async Task SaveSupplier()
+    {
+        if (string.IsNullOrWhiteSpace(_sName)) return;
+        _saving = true;
+        try
+        {
+            await Db.CreateSupplierAsync(_sName, _sContact, _sEmail, _sPhone, _sAddress, _sZip, _sCity, _sNotes);
+            _suppliers = await Db.GetSuppliersAsync();
+            _showSupplierForm = false;
+            _sName = _sContact = _sEmail = _sPhone = _sAddress = _sZip = _sCity = _sNotes = "";
+        }
+        catch { }
+        _saving = false;
+    }
+
+    private async Task UpdateOrderStatus(PurchaseOrderDto order, ChangeEventArgs e)
+    {
+        var status = e.Value?.ToString() ?? "Offen";
+        order.Status = status;
+        await Db.UpdatePurchaseOrderStatusAsync(order.Id, status);
+    }
+}

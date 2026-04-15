@@ -1,0 +1,82 @@
+@inject ApiDatabaseService Db
+@inject SessionService Session
+
+<div class="greeting">Hallo, @Session.Username 👋</div>
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else if (_data is not null)
+{
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="label">📁 Projekte</div>
+            <div class="value" style="color:var(--primary)">@_data.TotalProjects</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">🚀 Aktiv</div>
+            <div class="value" style="color:var(--warning)">@_data.ActiveProjects</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">✅ Abgeschlossen</div>
+            <div class="value" style="color:var(--success)">@_data.CompletedProjects</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">📋 Aufgaben</div>
+            <div class="value" style="color:var(--primary)">@_data.TotalTasks</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">🔓 Offen</div>
+            <div class="value" style="color:var(--warning)">@_data.OpenTasks</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">✔️ Erledigt</div>
+            <div class="value" style="color:var(--success)">@_data.CompletedTasks</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">⚠️ Überfällig</div>
+            <div class="value" style="color:var(--danger)">@_data.OverdueTasks</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">⏱️ Stunden</div>
+            <div class="value" style="color:#6A1B9A">@_data.TotalHoursLogged.ToString("F0")</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">👥 Mitarbeiter</div>
+            <div class="value" style="color:#00695C">@_data.ActiveEmployees</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">🏢 Kunden</div>
+            <div class="value" style="color:#1565C0">@_data.TotalCustomers</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">🎫 Offene Tickets</div>
+            <div class="value" style="color:#E65100">@_data.OpenTickets</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">💼 CRM Deals</div>
+            <div class="value" style="color:#7B1FA2">@_data.CrmDeals</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">📅 Meetings</div>
+            <div class="value" style="color:#00838F">@_data.UpcomingMeetings</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">🏭 Lieferanten</div>
+            <div class="value" style="color:#4E342E">@_data.TotalSuppliers</div>
+        </div>
+    </div>
+}
+
+@code {
+    private DashboardDto? _data;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _data = await Db.GetDashboardAsync(); }
+        catch { /* ignore */ }
+        finally { _loading = false; }
+    }
+}

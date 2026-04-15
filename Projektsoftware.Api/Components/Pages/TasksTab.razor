@@ -1,0 +1,149 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Aufgaben suchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    @if (Filtered.Any())
+    {
+        @foreach (var t in Filtered)
+        {
+            <div class="list-card">
+                <div class="row">
+                    <h3>@t.Title</h3>
+                    <span class="badge" style="background:@PriorityColor(t.Priority)">@t.Priority</span>
+                </div>
+                <div class="sub mt-4">📁 @t.ProjectName</div>
+                @if (!string.IsNullOrEmpty(t.AssignedTo))
+                {
+                    <div class="sub">👤 @t.AssignedTo</div>
+                }
+                @if (t.DueDate.HasValue)
+                {
+                    <div class="sub" style="color:@(t.DueDate < DateTime.Today ? "var(--danger)" : "var(--gray)")">
+                        📅 Fällig: @t.DueDate.Value.ToString("dd.MM.yyyy")
+                    </div>
+                }
+                <div class="mt-8 row">
+                    <select class="status-select" value="@t.Status"
+                            @onchange="(e) => ChangeStatus(t.Id, e.Value?.ToString())">
+                        <option value="Offen">🔓 Offen</option>
+                        <option value="In Arbeit">🔨 In Arbeit</option>
+                        <option value="Blockiert">🚫 Blockiert</option>
+                        <option value="Erledigt">✅ Erledigt</option>
+                    </select>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="empty-state">Keine Aufgaben gefunden.</div>
+    }
+}
+
+<button class="add-btn" @onclick="() => _showForm = true">+</button>
+
+@if (_showForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>📋 Neue Aufgabe</h3>
+            <div class="form-row"><label>Titel *</label><input @bind="_fTitle" /></div>
+            <div class="form-row"><label>Beschreibung</label><textarea @bind="_fDesc"></textarea></div>
+            <div class="form-row">
+                <label>Projekt *</label>
+                <select @bind="_fProjectId">
+                    <option value="0">– Bitte wählen –</option>
+                    @foreach (var p in _projects) { <option value="@p.Id">@p.Name</option> }
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Zugewiesen an</label>
+                <select @bind="_fAssigned">
+                    <option value="">– Nicht zugewiesen –</option>
+                    @foreach (var emp in _employees) { <option value="@emp.FullName">@emp.FullName</option> }
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Priorität</label>
+                <select @bind="_fPriority">
+                    <option value="Niedrig">Niedrig</option>
+                    <option value="Normal">Normal</option>
+                    <option value="Hoch">Hoch</option>
+                    <option value="Kritisch">Kritisch</option>
+                </select>
+            </div>
+            <div class="form-row"><label>Fällig am</label><input type="date" @bind="_fDue" /></div>
+            <div class="form-row"><label>Geschätzte Stunden</label><input type="number" @bind="_fHours" /></div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TaskDto> _tasks = [];
+    private List<ProjectDto> _projects = [];
+    private List<EmployeeDto> _employees = [];
+    private bool _loading = true;
+    private string _search = "";
+    private bool _showForm, _saving;
+    private string _fTitle = "", _fDesc = "", _fAssigned = "", _fPriority = "Normal";
+    private int _fProjectId;
+    private DateTime? _fDue;
+    private int _fHours;
+
+    private IEnumerable<TaskDto> Filtered => string.IsNullOrWhiteSpace(_search) ? _tasks :
+        _tasks.Where(t => t.Title.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || t.ProjectName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || t.AssignedTo.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _tasks = await Db.GetTasksAsync();
+            _projects = await Db.GetProjectsAsync();
+            _employees = await Db.GetEmployeesAsync();
+        }
+        catch { }
+        _loading = false;
+    }
+
+    private async Task ChangeStatus(int taskId, string? newStatus)
+    {
+        if (string.IsNullOrEmpty(newStatus)) return;
+        var task = _tasks.FirstOrDefault(t => t.Id == taskId);
+        if (task is null || task.Status == newStatus) return;
+        try { await Db.UpdateTaskStatusAsync(taskId, newStatus); task.Status = newStatus; } catch { }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_fTitle) || _fProjectId == 0) return;
+        _saving = true;
+        try
+        {
+            await Db.CreateTaskAsync(new TaskCreateRequest(_fProjectId, _fTitle, _fDesc, _fAssigned, "Offen", _fPriority, _fDue, _fHours));
+            _tasks = await Db.GetTasksAsync();
+            _showForm = false;
+            _fTitle = _fDesc = _fAssigned = ""; _fPriority = "Normal"; _fProjectId = 0; _fDue = null; _fHours = 0;
+        }
+        catch { }
+        _saving = false;
+    }
+
+    private static string PriorityColor(string priority) => priority switch
+    {
+        "Kritisch" => "#C62828", "Hoch" => "#E65100", "Normal" => "#1565C0", "Niedrig" => "#2E7D32", _ => "#757575"
+    };
+}

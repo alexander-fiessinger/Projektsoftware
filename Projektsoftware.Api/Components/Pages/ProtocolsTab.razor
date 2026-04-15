@@ -1,0 +1,105 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    @if (_protocols.Count == 0)
+    {
+        <div class="empty-state">Keine Besprechungsprotokolle vorhanden.</div>
+    }
+    else
+    {
+        @foreach (var p in _protocols)
+        {
+            <div class="list-card" @onclick="() => Toggle(p.Id)">
+                <div class="row">
+                    <h3>@p.Title</h3>
+                    <span class="badge" style="background:var(--primary-light);color:var(--primary)">
+                        @p.MeetingDate.ToString("dd.MM.yyyy")
+                    </span>
+                </div>
+                <div class="sub mt-4">📁 @p.ProjectName</div>
+                @if (!string.IsNullOrEmpty(p.Location)) { <div class="sub">📍 @p.Location</div> }
+                @if (!string.IsNullOrEmpty(p.Participants)) { <div class="sub">👥 @p.Participants</div> }
+
+                @if (_expandedId == p.Id)
+                {
+                    <div class="detail-section">
+                        @if (!string.IsNullOrEmpty(p.Agenda)) { <div class="detail-block"><div class="detail-label">📋 Agenda</div><div class="detail-text">@p.Agenda</div></div> }
+                        @if (!string.IsNullOrEmpty(p.Discussion)) { <div class="detail-block"><div class="detail-label">💬 Besprechung</div><div class="detail-text">@p.Discussion</div></div> }
+                        @if (!string.IsNullOrEmpty(p.Decisions)) { <div class="detail-block"><div class="detail-label">✅ Beschlüsse</div><div class="detail-text">@p.Decisions</div></div> }
+                        @if (!string.IsNullOrEmpty(p.ActionItems)) { <div class="detail-block"><div class="detail-label">📌 Maßnahmen</div><div class="detail-text">@p.ActionItems</div></div> }
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+
+<button class="add-btn" @onclick="() => _showForm = true">+</button>
+
+@if (_showForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>📝 Neues Protokoll</h3>
+            <div class="form-row"><label>Titel *</label><input @bind="_fTitle" /></div>
+            <div class="form-row"><label>Datum</label><input type="date" @bind="_fDate" /></div>
+            <div class="form-row">
+                <label>Projekt</label>
+                <select @bind="_fProjectId">
+                    <option value="">– Kein Projekt –</option>
+                    @foreach (var p in _projects) { <option value="@p.Id">@p.Name</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Ort</label><input @bind="_fLocation" /></div>
+            <div class="form-row"><label>Teilnehmer</label><input @bind="_fParticipants" /></div>
+            <div class="form-row"><label>Agenda</label><textarea @bind="_fAgenda"></textarea></div>
+            <div class="form-row"><label>Besprechung</label><textarea @bind="_fDiscussion"></textarea></div>
+            <div class="form-row"><label>Beschlüsse</label><textarea @bind="_fDecisions"></textarea></div>
+            <div class="form-row"><label>Maßnahmen</label><textarea @bind="_fActions"></textarea></div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<MeetingProtocolDto> _protocols = [];
+    private List<ProjectDto> _projects = [];
+    private bool _loading = true;
+    private int? _expandedId;
+    private bool _showForm, _saving;
+    private string _fTitle = "", _fLocation = "", _fParticipants = "", _fAgenda = "", _fDiscussion = "", _fDecisions = "", _fActions = "";
+    private DateTime _fDate = DateTime.Today;
+    private string _fProjectId = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _protocols = await Db.GetMeetingProtocolsAsync(); _projects = await Db.GetProjectsAsync(); } catch { }
+        _loading = false;
+    }
+
+    private void Toggle(int id) => _expandedId = _expandedId == id ? null : id;
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_fTitle)) return;
+        _saving = true;
+        try
+        {
+            int? pid = int.TryParse(_fProjectId, out var v) ? v : null;
+            await Db.CreateMeetingProtocolAsync(pid, _fTitle, _fDate, _fLocation, _fParticipants, _fAgenda, _fDiscussion, _fDecisions, _fActions);
+            _protocols = await Db.GetMeetingProtocolsAsync();
+            _showForm = false;
+            _fTitle = _fLocation = _fParticipants = _fAgenda = _fDiscussion = _fDecisions = _fActions = ""; _fDate = DateTime.Today; _fProjectId = "";
+        }
+        catch { }
+        _saving = false;
+    }
+}

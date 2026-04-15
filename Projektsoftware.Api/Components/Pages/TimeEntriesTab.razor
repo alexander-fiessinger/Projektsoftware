@@ -1,0 +1,111 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Zeiteinträge suchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    @if (FilteredEntries.Any())
+    {
+        <div class="sub" style="padding:0 16px;margin-bottom:8px;font-weight:600">
+            Gesamt: @FilteredEntries.Sum(e => e.Duration.TotalHours).ToString("F1") Stunden
+        </div>
+
+        @foreach (var t in FilteredEntries)
+        {
+            <div class="list-card">
+                <div class="row">
+                    <h3>@t.ProjectName</h3>
+                    <span class="badge" style="background:var(--primary-light);color:var(--primary)">
+                        @t.Duration.TotalHours.ToString("F1")h
+                    </span>
+                </div>
+                <div class="sub mt-4">📅 @t.Date.ToString("dd.MM.yyyy")</div>
+                <div class="sub">👤 @t.EmployeeName</div>
+                @if (!string.IsNullOrEmpty(t.Activity)) { <div class="sub">🏷️ @t.Activity</div> }
+                @if (!string.IsNullOrEmpty(t.Description)) { <div class="sub mt-4" style="color:#333">@t.Description</div> }
+            </div>
+        }
+    }
+    else
+    {
+        <div class="empty-state">Keine Zeiteinträge gefunden.</div>
+    }
+}
+
+<button class="add-btn" @onclick="() => _showForm = true">+</button>
+
+@if (_showForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>⏱️ Neuer Zeiteintrag</h3>
+            <div class="form-row">
+                <label>Projekt *</label>
+                <select @bind="_fProjectId">
+                    <option value="0">– Bitte wählen –</option>
+                    @foreach (var p in _projects) { <option value="@p.Id">@p.Name</option> }
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Mitarbeiter *</label>
+                <select @bind="_fEmployee">
+                    <option value="">– Bitte wählen –</option>
+                    @foreach (var emp in _employees) { <option value="@emp.FullName">@emp.FullName</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Datum</label><input type="date" @bind="_fDate" /></div>
+            <div class="form-row"><label>Dauer (Stunden) *</label><input type="number" step="0.25" @bind="_fHours" /></div>
+            <div class="form-row"><label>Tätigkeit</label><input @bind="_fActivity" /></div>
+            <div class="form-row"><label>Beschreibung</label><textarea @bind="_fDesc"></textarea></div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TimeEntryDto> _entries = [];
+    private List<ProjectDto> _projects = [];
+    private List<EmployeeDto> _employees = [];
+    private bool _loading = true;
+    private string _search = "";
+    private bool _showForm, _saving;
+    private int _fProjectId;
+    private string _fEmployee = "", _fActivity = "", _fDesc = "";
+    private DateTime _fDate = DateTime.Today;
+    private double _fHours = 1;
+
+    private IEnumerable<TimeEntryDto> FilteredEntries => string.IsNullOrWhiteSpace(_search) ? _entries :
+        _entries.Where(e => e.ProjectName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || e.EmployeeName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || e.Description.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _entries = await Db.GetTimeEntriesAsync(); _projects = await Db.GetProjectsAsync(); _employees = await Db.GetEmployeesAsync(); } catch { }
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        if (_fProjectId == 0 || string.IsNullOrWhiteSpace(_fEmployee) || _fHours <= 0) return;
+        _saving = true;
+        try
+        {
+            await Db.CreateTimeEntryAsync(new TimeEntryCreateRequest(_fProjectId, _fEmployee, _fDate, _fHours, _fDesc, _fActivity));
+            _entries = await Db.GetTimeEntriesAsync();
+            _showForm = false;
+            _fEmployee = _fActivity = _fDesc = ""; _fProjectId = 0; _fDate = DateTime.Today; _fHours = 1;
+        }
+        catch { }
+        _saving = false;
+    }
+}

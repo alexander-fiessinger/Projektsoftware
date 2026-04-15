@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Projektsoftware.Mobile.Pages.DashboardPage"
+             Title="Dashboard"
+             BackgroundColor="#F5F5F5">
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="12">
+
+            <Label x:Name="GreetingLabel" Text="Willkommen!" FontSize="24" FontAttributes="Bold" TextColor="#1565C0"/>
+
+            <ActivityIndicator x:Name="LoadingIndicator" IsRunning="True" IsVisible="True" Color="#1565C0"/>
+
+            <Grid x:Name="StatsGrid" IsVisible="False" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="12">
+
+                <!-- Projekte Gesamt -->
+                <Frame Grid.Row="0" Grid.Column="0" BackgroundColor="White" CornerRadius="10" Padding="14" HasShadow="True">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="📁 Projekte" FontSize="13" TextColor="#757575"/>
+                        <Label x:Name="TotalProjectsLabel" Text="-" FontSize="28" FontAttributes="Bold" TextColor="#1565C0"/>
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- Aktive Projekte -->
+                <Frame Grid.Row="0" Grid.Column="1" BackgroundColor="White" CornerRadius="10" Padding="14" HasShadow="True">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="🚀 Aktiv" FontSize="13" TextColor="#757575"/>
+                        <Label x:Name="ActiveProjectsLabel" Text="-" FontSize="28" FontAttributes="Bold" TextColor="#E65100"/>
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- Abgeschlossene Projekte -->
+                <Frame Grid.Row="1" Grid.Column="0" BackgroundColor="White" CornerRadius="10" Padding="14" HasShadow="True">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="✅ Abgeschlossen" FontSize="13" TextColor="#757575"/>
+                        <Label x:Name="CompletedProjectsLabel" Text="-" FontSize="28" FontAttributes="Bold" TextColor="#2E7D32"/>
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- Aufgaben Gesamt -->
+                <Frame Grid.Row="1" Grid.Column="1" BackgroundColor="White" CornerRadius="10" Padding="14" HasShadow="True">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="📋 Aufgaben" FontSize="13" TextColor="#757575"/>
+                        <Label x:Name="TotalTasksLabel" Text="-" FontSize="28" FontAttributes="Bold" TextColor="#1565C0"/>
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- Offene Aufgaben -->
+                <Frame Grid.Row="2" Grid.Column="0" BackgroundColor="White" CornerRadius="10" Padding="14" HasShadow="True">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="🔓 Offen" FontSize="13" TextColor="#757575"/>
+                        <Label x:Name="OpenTasksLabel" Text="-" FontSize="28" FontAttributes="Bold" TextColor="#E65100"/>
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- Erledigte Aufgaben -->
+                <Frame Grid.Row="2" Grid.Column="1" BackgroundColor="White" CornerRadius="10" Padding="14" HasShadow="True">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="✔️ Erledigt" FontSize="13" TextColor="#757575"/>
+                        <Label x:Name="CompletedTasksLabel" Text="-" FontSize="28" FontAttributes="Bold" TextColor="#2E7D32"/>
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- Überfällige Aufgaben -->
+                <Frame Grid.Row="3" Grid.Column="0" BackgroundColor="White" CornerRadius="10" Padding="14" HasShadow="True">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="⚠️ Überfällig" FontSize="13" TextColor="#757575"/>
+                        <Label x:Name="OverdueTasksLabel" Text="-" FontSize="28" FontAttributes="Bold" TextColor="#C62828"/>
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- Stunden -->
+                <Frame Grid.Row="3" Grid.Column="1" BackgroundColor="White" CornerRadius="10" Padding="14" HasShadow="True">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="⏱️ Stunden" FontSize="13" TextColor="#757575"/>
+                        <Label x:Name="HoursLabel" Text="-" FontSize="28" FontAttributes="Bold" TextColor="#6A1B9A"/>
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- Mitarbeiter -->
+                <Frame Grid.Row="4" Grid.Column="0" BackgroundColor="White" CornerRadius="10" Padding="14" HasShadow="True">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="👥 Mitarbeiter" FontSize="13" TextColor="#757575"/>
+                        <Label x:Name="EmployeesLabel" Text="-" FontSize="28" FontAttributes="Bold" TextColor="#00695C"/>
+                    </VerticalStackLayout>
+                </Frame>
+
+            </Grid>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

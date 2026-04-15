@@ -1,0 +1,147 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Tickets suchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    @if (FilteredTickets.Any())
+    {
+        @foreach (var t in FilteredTickets)
+        {
+            <div class="list-card">
+                <div class="row">
+                    <h3>#@t.Id @t.Subject</h3>
+                    <span class="badge" style="background:@PriorityColor(t.Priority)">@t.PriorityText</span>
+                </div>
+                <div class="sub mt-4">👤 @t.CustomerName</div>
+                @if (!string.IsNullOrEmpty(t.AssignedToEmployeeName)) { <div class="sub">🔧 @t.AssignedToEmployeeName</div> }
+                <div class="sub">📅 @t.CreatedAt.ToString("dd.MM.yyyy HH:mm")</div>
+                <div class="sub">🏷️ @t.CategoryText</div>
+                @if (!string.IsNullOrEmpty(t.Description) && t.Description.Length > 0)
+                {
+                    <div class="sub mt-4" style="color:#333">@(t.Description.Length > 120 ? t.Description[..120] + "..." : t.Description)</div>
+                }
+                <div class="mt-8 row">
+                    <select class="status-select" value="@t.Status"
+                            @onchange="(e) => ChangeStatus(t.Id, int.Parse(e.Value?.ToString() ?? string.Empty))">
+                        <option value="0">🆕 Neu</option>
+                        <option value="1">🔓 Offen</option>
+                        <option value="2">🔨 In Bearbeitung</option>
+                        <option value="3">⏳ Warten</option>
+                        <option value="4">✅ Gelöst</option>
+                        <option value="5">🔒 Geschlossen</option>
+                    </select>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="empty-state">Keine Tickets gefunden.</div>
+    }
+}
+
+<button class="add-btn" @onclick="() => _showForm = true">+</button>
+
+@if (_showForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>🎫 Neues Ticket</h3>
+            <div class="form-row"><label>Betreff *</label><input @bind="_fSubject" /></div>
+            <div class="form-row"><label>Beschreibung</label><textarea @bind="_fDesc"></textarea></div>
+            <div class="form-row">
+                <label>Kunde</label>
+                <select @bind="_fCustomerId" @bind:after="OnCustomerSelected">
+                    <option value="">– Kein Kunde –</option>
+                    @foreach (var c in _customers) { <option value="@c.Id">@c.DisplayName</option> }
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Priorität</label>
+                <select @bind="_fPriority">
+                    <option value="0">Niedrig</option>
+                    <option value="1">Mittel</option>
+                    <option value="2">Hoch</option>
+                    <option value="3">Kritisch</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Kategorie</label>
+                <select @bind="_fCategory">
+                    <option value="0">Allgemein</option>
+                    <option value="1">Bug</option>
+                    <option value="2">Feature</option>
+                    <option value="3">Support</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TicketDto> _tickets = [];
+    private List<CustomerDto> _customers = [];
+    private bool _loading = true;
+    private string _search = "";
+    private bool _showForm, _saving;
+    private string _fSubject = "", _fDesc = "", _fCustName = "", _fCustEmail = "", _fCustomerId = "";
+    private int _fPriority = 1, _fCategory;
+
+    private IEnumerable<TicketDto> FilteredTickets => string.IsNullOrWhiteSpace(_search) ? _tickets :
+        _tickets.Where(t => t.Subject.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || t.CustomerName.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _tickets = await Db.GetTicketsAsync(); _customers = await Db.GetCustomersAsync(); } catch { }
+        _loading = false;
+    }
+
+    private async Task ChangeStatus(int ticketId, int newStatus)
+    {
+        var ticket = _tickets.FirstOrDefault(t => t.Id == ticketId);
+        if (ticket is null || ticket.Status == newStatus) return;
+        try { await Db.UpdateTicketStatusAsync(ticketId, newStatus); ticket.Status = newStatus; } catch { }
+    }
+
+    private void OnCustomerSelected()
+    {
+        if (int.TryParse(_fCustomerId, out var id))
+        {
+            var c = _customers.FirstOrDefault(x => x.Id == id);
+            if (c is not null) { _fCustName = c.DisplayName; _fCustEmail = c.Email; }
+        }
+        else { _fCustName = ""; _fCustEmail = ""; }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_fSubject)) return;
+        _saving = true;
+        try
+        {
+            await Db.CreateTicketAsync(_fCustName, _fCustEmail, _fSubject, _fDesc, _fPriority, _fCategory);
+            _tickets = await Db.GetTicketsAsync();
+            _showForm = false;
+            _fSubject = _fDesc = _fCustName = _fCustEmail = ""; _fPriority = 1; _fCategory = 0;
+        }
+        catch { }
+        _saving = false;
+    }
+
+    private static string PriorityColor(int priority) => priority switch
+    {
+        3 => "#C62828", 2 => "#E65100", 1 => "#1565C0", 0 => "#2E7D32", _ => "#757575"
+    };
+}

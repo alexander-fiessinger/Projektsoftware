@@ -1,0 +1,17 @@
+[Unit]
+Description=Projektsoftware API + Web
+After=network.target mysql.service
+
+[Service]
+WorkingDirectory=/var/www/projektsoftware
+ExecStart=/usr/bin/dotnet /var/www/projektsoftware/Projektsoftware.Api.dll
+Restart=always
+RestartSec=5
+SyslogIdentifier=projektsoftware
+User=administrator
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5000
+Environment=DOTNET_ROOT=/usr/share/dotnet
+
+[Install]
+WantedBy=multi-user.target

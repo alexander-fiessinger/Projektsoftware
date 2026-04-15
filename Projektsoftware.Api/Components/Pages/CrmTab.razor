@@ -1,0 +1,379 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div><p>CRM laden...</p></div>
+}
+else
+{
+    <div class="sub-tabs">
+        <button class="@SubTabClass("contacts")" @onclick='() => _subTab = "contacts"'>👤 Kontakte (@_contacts.Count)</button>
+        <button class="@SubTabClass("activities")" @onclick='() => _subTab = "activities"'>📅 Aktivitäten (@_activities.Count)</button>
+        <button class="@SubTabClass("deals")" @onclick='() => _subTab = "deals"'>💰 Deals (@_deals.Count)</button>
+    </div>
+
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 CRM durchsuchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    @if (_subTab == "contacts")
+    {
+        @if (FilteredContacts.Count == 0)
+        {
+            <div class="empty-state">Keine CRM-Kontakte gefunden</div>
+        }
+        else
+        {
+            @foreach (var c in FilteredContacts)
+            {
+                <div class="list-card">
+                    <div class="row">
+                        <h3>@c.DisplayName</h3>
+                        <span class="badge" style="background:@(c.IsActive ? "var(--success)" : "var(--gray)")">
+                            @(c.IsActive ? "Aktiv" : "Inaktiv")
+                        </span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(c.Position) || !string.IsNullOrEmpty(c.CustomerName))
+                    {
+                        <div class="sub">@c.Position @(!string.IsNullOrEmpty(c.Position) && !string.IsNullOrEmpty(c.CustomerName) ? " • " : "")@c.CustomerName</div>
+                    }
+                    <div class="mt-4 sub">
+                        @if (!string.IsNullOrEmpty(c.Email)) { <span>✉️ @c.Email</span> }
+                        @if (!string.IsNullOrEmpty(c.Phone)) { <span> 📞 @c.Phone</span> }
+                        @if (!string.IsNullOrEmpty(c.Mobile)) { <span> 📱 @c.Mobile</span> }
+                    </div>
+                    @if (!string.IsNullOrEmpty(c.Notes))
+                    {
+                        <div class="mt-4 sub" style="font-style:italic;">@c.Notes</div>
+                    }
+                </div>
+            }
+        }
+    }
+    else if (_subTab == "activities")
+    {
+        @if (FilteredActivities.Count == 0)
+        {
+            <div class="empty-state">Keine CRM-Aktivitäten gefunden</div>
+        }
+        else
+        {
+            @foreach (var a in FilteredActivities)
+            {
+                <div class="list-card">
+                    <div class="row">
+                        <h3>@a.TypeText @a.Subject</h3>
+                        <span class="badge" style="background:@(a.IsCompleted ? "var(--success)" : a.StatusText.Contains("Überfällig") ? "var(--danger)" : "var(--warning)")">
+                            @a.StatusText
+                        </span>
+                    </div>
+                    <div class="sub">
+                        @if (!string.IsNullOrEmpty(a.ContactName)) { <span>👤 @a.ContactName</span> }
+                        @if (!string.IsNullOrEmpty(a.CustomerName)) { <span> • 🏢 @a.CustomerName</span> }
+                    </div>
+                    @if (a.DueDate.HasValue)
+                    {
+                        <div class="mt-4 sub">📅 Fällig: @a.DueDate.Value.ToString("dd.MM.yyyy")</div>
+                    }
+                    @if (!string.IsNullOrEmpty(a.Notes))
+                    {
+                        <div class="mt-4 sub" style="font-style:italic;">@a.Notes</div>
+                    }
+                    <div class="mt-4 sub" style="font-size:11px;">Von: @a.CreatedBy • @a.CreatedAt.ToString("dd.MM.yyyy HH:mm")</div>
+                </div>
+            }
+        }
+    }
+    else if (_subTab == "deals")
+    {
+        @if (FilteredDeals.Count > 0)
+        {
+            <div class="stats-grid" style="margin-bottom:12px;">
+                <div class="stat-card">
+                    <div class="label">Pipeline-Wert</div>
+                    <div class="value" style="font-size:20px;">@FilteredDeals.Sum(d => d.Value).ToString("N0") €</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Gewichtet</div>
+                    <div class="value" style="font-size:20px;">@FilteredDeals.Sum(d => d.WeightedValue).ToString("N0") €</div>
+                </div>
+            </div>
+        }
+
+        @if (FilteredDeals.Count == 0)
+        {
+            <div class="empty-state">Keine Deals gefunden</div>
+        }
+        else
+        {
+            @foreach (var d in FilteredDeals)
+            {
+                <div class="list-card">
+                    <div class="row">
+                        <h3>@d.Title</h3>
+                        <span style="font-weight:700;color:var(--primary);">@d.Value.ToString("N0") €</span>
+                    </div>
+                    <div class="sub">@d.StageText • @d.Probability% Wahrscheinlichkeit</div>
+                    @if (!string.IsNullOrEmpty(d.CustomerName))
+                    {
+                        <div class="mt-4 sub">🏢 @d.CustomerName</div>
+                    }
+                    @if (!string.IsNullOrEmpty(d.ContactName))
+                    {
+                        <div class="sub">👤 @d.ContactName</div>
+                    }
+                    @if (d.ExpectedCloseDate.HasValue)
+                    {
+                        <div class="mt-4 sub">📅 Abschluss erwartet: @d.ExpectedCloseDate.Value.ToString("dd.MM.yyyy")</div>
+                    }
+                    <div class="mt-8">
+                        <select class="status-select" value="@d.Stage" @onchange="(e) => UpdateDealStage(d, e)">
+                            <option value="0">🔵 Lead</option>
+                            <option value="1">🟡 Qualifiziert</option>
+                            <option value="2">🟠 Angebot</option>
+                            <option value="3">🔴 Verhandlung</option>
+                            <option value="4">✅ Gewonnen</option>
+                            <option value="5">❌ Verloren</option>
+                        </select>
+                    </div>
+                </div>
+            }
+        }
+    }
+
+    <button class="add-btn" @onclick="OpenAddForm">+</button>
+}
+
+@* ── Contact Form ── *@
+@if (_showContactForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showContactForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>👤 Neuer Kontakt</h3>
+            <div class="form-row"><label>Vorname *</label><input @bind="_cFirstName" /></div>
+            <div class="form-row"><label>Nachname *</label><input @bind="_cLastName" /></div>
+            <div class="form-row"><label>Position</label><input @bind="_cPosition" /></div>
+            <div class="form-row"><label>E-Mail</label><input type="email" @bind="_cEmail" /></div>
+            <div class="form-row"><label>Telefon</label><input type="tel" @bind="_cPhone" /></div>
+            <div class="form-row"><label>Mobil</label><input type="tel" @bind="_cMobile" /></div>
+            <div class="form-row">
+                <label>Kunde</label>
+                <select @bind="_cCustomerId">
+                    <option value="">– Kein Kunde –</option>
+                    @foreach (var cu in _customers) { <option value="@cu.Id">@cu.DisplayName</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Notizen</label><textarea @bind="_cNotes"></textarea></div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showContactForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="SaveContact" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Activity Form ── *@
+@if (_showActivityForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showActivityForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>📅 Neue Aktivität</h3>
+            <div class="form-row">
+                <label>Typ *</label>
+                <select @bind="_aType">
+                    <option value="0">📝 Notiz</option>
+                    <option value="1">📞 Anruf</option>
+                    <option value="2">✉️ E-Mail</option>
+                    <option value="3">🤝 Meeting</option>
+                    <option value="4">✓ Aufgabe</option>
+                </select>
+            </div>
+            <div class="form-row"><label>Betreff *</label><input @bind="_aSubject" /></div>
+            <div class="form-row"><label>Fällig am</label><input type="date" @bind="_aDueDate" /></div>
+            <div class="form-row">
+                <label>Kontakt</label>
+                <select @bind="_aContactId">
+                    <option value="">– Kein Kontakt –</option>
+                    @foreach (var c in _contacts) { <option value="@c.Id">@c.DisplayName</option> }
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Kunde</label>
+                <select @bind="_aCustomerId">
+                    <option value="">– Kein Kunde –</option>
+                    @foreach (var cu in _customers) { <option value="@cu.Id">@cu.DisplayName</option> }
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Erstellt von</label>
+                <select @bind="_aCreatedBy">
+                    <option value="">– Kein Mitarbeiter –</option>
+                    @foreach (var emp in _employees) { <option value="@emp.FullName">@emp.FullName</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Notizen</label><textarea @bind="_aNotes"></textarea></div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showActivityForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="SaveActivity" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Deal Form ── *@
+@if (_showDealForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showDealForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>💰 Neuer Deal</h3>
+            <div class="form-row"><label>Titel *</label><input @bind="_dTitle" /></div>
+            <div class="form-row"><label>Wert (€) *</label><input type="number" step="0.01" @bind="_dValue" /></div>
+            <div class="form-row"><label>Wahrscheinlichkeit (%)</label><input type="number" min="0" max="100" @bind="_dProbability" /></div>
+            <div class="form-row"><label>Erwarteter Abschluss</label><input type="date" @bind="_dExpectedClose" /></div>
+            <div class="form-row">
+                <label>Kunde</label>
+                <select @bind="_dCustomerId">
+                    <option value="">– Kein Kunde –</option>
+                    @foreach (var cu in _customers) { <option value="@cu.Id">@cu.DisplayName</option> }
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Zugewiesen an</label>
+                <select @bind="_dAssignedTo">
+                    <option value="">– Nicht zugewiesen –</option>
+                    @foreach (var emp in _employees) { <option value="@emp.FullName">@emp.FullName</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Notizen</label><textarea @bind="_dNotes"></textarea></div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showDealForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="SaveDeal" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private string _subTab = "contacts";
+    private string _search = "";
+    private List<CrmContactDto> _contacts = new();
+    private List<CrmActivityDto> _activities = new();
+    private List<CrmDealDto> _deals = new();
+    private List<CustomerDto> _customers = new();
+    private List<EmployeeDto> _employees = new();
+    private bool _saving;
+
+    // Contact form
+    private bool _showContactForm;
+    private string _cFirstName = "", _cLastName = "", _cPosition = "", _cEmail = "", _cPhone = "", _cMobile = "", _cNotes = "", _cCustomerId = "";
+
+    // Activity form
+    private bool _showActivityForm;
+    private int _aType;
+    private string _aSubject = "", _aNotes = "", _aCreatedBy = "", _aContactId = "", _aCustomerId = "";
+    private DateTime? _aDueDate;
+
+    // Deal form
+    private bool _showDealForm;
+    private string _dTitle = "", _dNotes = "", _dAssignedTo = "", _dCustomerId = "";
+    private decimal _dValue;
+    private int _dProbability = 50;
+    private DateTime? _dExpectedClose;
+
+    private List<CrmContactDto> FilteredContacts => string.IsNullOrWhiteSpace(_search) ? _contacts :
+        _contacts.Where(c => c.DisplayName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || c.CustomerName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || c.Position.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || c.Email.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private List<CrmActivityDto> FilteredActivities => string.IsNullOrWhiteSpace(_search) ? _activities :
+        _activities.Where(a => a.Subject.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || a.ContactName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || a.CustomerName.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private List<CrmDealDto> FilteredDeals => string.IsNullOrWhiteSpace(_search) ? _deals :
+        _deals.Where(d => d.Title.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || d.CustomerName.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private string SubTabClass(string tab) => tab == _subTab ? "sub-tab active" : "sub-tab";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _contacts = await Db.GetCrmContactsAsync();
+            _activities = await Db.GetCrmActivitiesAsync();
+            _deals = await Db.GetCrmDealsAsync();
+            _customers = await Db.GetCustomersAsync();
+            _employees = await Db.GetEmployeesAsync();
+        }
+        catch { }
+        _loading = false;
+    }
+
+    private void OpenAddForm()
+    {
+        if (_subTab == "contacts") _showContactForm = true;
+        else if (_subTab == "activities") _showActivityForm = true;
+        else if (_subTab == "deals") _showDealForm = true;
+    }
+
+    private async Task SaveContact()
+    {
+        if (string.IsNullOrWhiteSpace(_cFirstName) && string.IsNullOrWhiteSpace(_cLastName)) return;
+        _saving = true;
+        try
+        {
+            int? custId = int.TryParse(_cCustomerId, out var v) ? v : null;
+            await Db.CreateCrmContactAsync(_cFirstName, _cLastName, _cPosition, _cEmail, _cPhone, _cMobile, _cNotes, custId);
+            _contacts = await Db.GetCrmContactsAsync();
+            _showContactForm = false;
+            _cFirstName = _cLastName = _cPosition = _cEmail = _cPhone = _cMobile = _cNotes = _cCustomerId = "";
+        }
+        catch { }
+        _saving = false;
+    }
+
+    private async Task SaveActivity()
+    {
+        if (string.IsNullOrWhiteSpace(_aSubject)) return;
+        _saving = true;
+        try
+        {
+            int? contactId = int.TryParse(_aContactId, out var cv) ? cv : null;
+            int? custId = int.TryParse(_aCustomerId, out var cuv) ? cuv : null;
+            await Db.CreateCrmActivityAsync(_aType, _aSubject, _aNotes, _aDueDate, contactId, custId, _aCreatedBy);
+            _activities = await Db.GetCrmActivitiesAsync();
+            _showActivityForm = false;
+            _aType = 0; _aSubject = _aNotes = _aCreatedBy = _aContactId = _aCustomerId = ""; _aDueDate = null;
+        }
+        catch { }
+        _saving = false;
+    }
+
+    private async Task SaveDeal()
+    {
+        if (string.IsNullOrWhiteSpace(_dTitle)) return;
+        _saving = true;
+        try
+        {
+            int? custId = int.TryParse(_dCustomerId, out var v) ? v : null;
+            await Db.CreateCrmDealAsync(_dTitle, _dValue, _dProbability, _dExpectedClose, _dNotes, custId, _dAssignedTo);
+            _deals = await Db.GetCrmDealsAsync();
+            _showDealForm = false;
+            _dTitle = _dNotes = _dAssignedTo = _dCustomerId = ""; _dValue = 0; _dProbability = 50; _dExpectedClose = null;
+        }
+        catch { }
+        _saving = false;
+    }
+
+    private async Task UpdateDealStage(CrmDealDto deal, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var stage))
+        {
+            deal.Stage = stage;
+            await Db.UpdateDealStageAsync(deal.Id, stage);
+        }
+    }
+}

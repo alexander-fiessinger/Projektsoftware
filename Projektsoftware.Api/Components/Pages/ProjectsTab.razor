@@ -1,0 +1,116 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Projekte suchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    @if (Filtered.Any())
+    {
+        @foreach (var p in Filtered)
+        {
+            <div class="list-card">
+                <div class="row">
+                    <h3>@p.Name</h3>
+                    <span class="badge" style="background:var(--primary-light);color:var(--primary)">@p.Status</span>
+                </div>
+                @if (!string.IsNullOrEmpty(p.ClientName))
+                {
+                    <div class="sub mt-4">🏢 @p.ClientName</div>
+                }
+                <div class="progress-bar mt-8">
+                    <div class="fill" style="width:@(p.ProgressPercent)%"></div>
+                </div>
+                <div class="row mt-4">
+                    <span class="sub">
+                        @p.StartDate.ToString("dd.MM.yyyy")
+                        @if (p.EndDate.HasValue) { <text> – @p.EndDate.Value.ToString("dd.MM.yyyy")</text> }
+                    </span>
+                    <span class="sub" style="font-weight:600">@(p.ProgressPercent)%</span>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="empty-state">Keine Projekte gefunden.</div>
+    }
+}
+
+<button class="add-btn" @onclick="() => _showForm = true">+</button>
+
+@if (_showForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>📁 Neues Projekt</h3>
+            <div class="form-row"><label>Name *</label><input @bind="_fName" /></div>
+            <div class="form-row"><label>Beschreibung</label><textarea @bind="_fDesc"></textarea></div>
+            <div class="form-row">
+                <label>Kunde</label>
+                <select @bind="_fClient">
+                    <option value="">– Kein Kunde –</option>
+                    @foreach (var c in _customers) { <option value="@c.DisplayName">@c.DisplayName</option> }
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Status</label>
+                <select @bind="_fStatus">
+                    <option value="Aktiv">Aktiv</option>
+                    <option value="Geplant">Geplant</option>
+                    <option value="Pausiert">Pausiert</option>
+                    <option value="Abgeschlossen">Abgeschlossen</option>
+                </select>
+            </div>
+            <div class="form-row"><label>Startdatum</label><input type="date" @bind="_fStart" /></div>
+            <div class="form-row"><label>Enddatum</label><input type="date" @bind="_fEnd" /></div>
+            <div class="form-row"><label>Budget (€)</label><input type="number" step="0.01" @bind="_fBudget" /></div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ProjectDto> _projects = [];
+    private List<CustomerDto> _customers = [];
+    private bool _loading = true;
+    private string _search = "";
+    private bool _showForm, _saving;
+    private string _fName = "", _fDesc = "", _fClient = "", _fStatus = "Aktiv";
+    private DateTime _fStart = DateTime.Today;
+    private DateTime? _fEnd;
+    private decimal _fBudget;
+
+    private IEnumerable<ProjectDto> Filtered => string.IsNullOrWhiteSpace(_search) ? _projects :
+        _projects.Where(p => p.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || p.ClientName.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _projects = await Db.GetProjectsAsync(); _customers = await Db.GetCustomersAsync(); } catch { }
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_fName)) return;
+        _saving = true;
+        try
+        {
+            await Db.CreateProjectAsync(_fName, _fDesc, _fStatus, _fClient, _fStart, _fEnd, _fBudget);
+            _projects = await Db.GetProjectsAsync();
+            _showForm = false;
+            _fName = _fDesc = _fClient = ""; _fStatus = "Aktiv"; _fStart = DateTime.Today; _fEnd = null; _fBudget = 0;
+        }
+        catch { }
+        _saving = false;
+    }
+}

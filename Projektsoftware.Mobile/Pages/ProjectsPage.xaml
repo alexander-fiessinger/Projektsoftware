@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Projektsoftware.Mobile.Pages.ProjectsPage"
+             Title="Projekte"
+             BackgroundColor="#F5F5F5">
+
+    <Grid RowDefinitions="Auto,*" Padding="16" RowSpacing="12">
+        <ActivityIndicator x:Name="LoadingIndicator" Grid.Row="0" IsRunning="True" IsVisible="True" Color="#1565C0"/>
+
+        <CollectionView x:Name="ProjectsList" Grid.Row="1">
+            <CollectionView.EmptyView>
+                <Label Text="Keine Projekte vorhanden." HorizontalOptions="Center" VerticalOptions="Center" TextColor="#999"/>
+            </CollectionView.EmptyView>
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Frame Margin="0,0,0,8" Padding="14" BackgroundColor="White" CornerRadius="10" HasShadow="True">
+                        <VerticalStackLayout Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Text="{Binding Name}" FontSize="17" FontAttributes="Bold" TextColor="#212121"/>
+                                <Frame Grid.Column="1" BackgroundColor="#E3F2FD" CornerRadius="8" Padding="6,2" HasShadow="False">
+                                    <Label Text="{Binding Status}" FontSize="12" TextColor="#1565C0"/>
+                                </Frame>
+                            </Grid>
+
+                            <Label Text="{Binding ClientName}" FontSize="13" TextColor="#757575" IsVisible="{Binding ClientName, Converter={StaticResource StringToBoolConverter}}"/>
+
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                                <ProgressBar Progress="{Binding ProgressDecimal}" ProgressColor="#1565C0"/>
+                                <Label Grid.Column="1" Text="{Binding ProgressText}" FontSize="12" TextColor="#757575" Margin="8,0,0,0"/>
+                            </Grid>
+
+                            <Label Text="{Binding DateRange}" FontSize="12" TextColor="#999"/>
+                        </VerticalStackLayout>
+                    </Frame>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <local:StringToBoolConverter x:Key="StringToBoolConverter" xmlns:local="clr-namespace:Projektsoftware.Mobile.Pages"/>
+        </ResourceDictionary>
+    </ContentPage.Resources>
+</ContentPage>

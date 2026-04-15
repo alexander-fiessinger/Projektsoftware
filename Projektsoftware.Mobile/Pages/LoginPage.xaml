@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Projektsoftware.Mobile.Pages.LoginPage"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="#F5F5F5">
+    <ScrollView>
+        <VerticalStackLayout Padding="30" Spacing="20" VerticalOptions="Center" MaximumWidthRequest="400">
+
+            <Label Text="🏗️" FontSize="60" HorizontalOptions="Center"/>
+            <Label Text="Projektsoftware" FontSize="28" FontAttributes="Bold" 
+                   HorizontalOptions="Center" TextColor="#1565C0"/>
+            <Label Text="Mobile" FontSize="16" HorizontalOptions="Center" TextColor="#757575" Margin="0,-15,0,10"/>
+
+            <Frame BackgroundColor="White" CornerRadius="12" Padding="20" HasShadow="True">
+                <VerticalStackLayout Spacing="15">
+                    <Label Text="Benutzername" FontAttributes="Bold"/>
+                    <Entry x:Name="UsernameEntry" Placeholder="Benutzername eingeben" 
+                           Keyboard="Default" ReturnType="Next"/>
+
+                    <Label Text="Passwort" FontAttributes="Bold"/>
+                    <Entry x:Name="PasswordEntry" Placeholder="Passwort eingeben" 
+                           IsPassword="True" ReturnType="Go" Completed="OnLogin"/>
+
+                    <Label x:Name="ErrorLabel" TextColor="Red" IsVisible="False" FontSize="13"/>
+
+                    <Button x:Name="LoginButton" Text="Anmelden" 
+                            BackgroundColor="#1565C0" TextColor="White" FontAttributes="Bold"
+                            CornerRadius="8" HeightRequest="48"
+                            Clicked="OnLogin"/>
+
+                    <ActivityIndicator x:Name="LoadingIndicator" IsRunning="False" IsVisible="False"
+                                       Color="#1565C0"/>
+                </VerticalStackLayout>
+            </Frame>
+
+            <Label Text="Verbindung zum API-Server erforderlich" FontSize="11" 
+                   HorizontalOptions="Center" TextColor="#999"/>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

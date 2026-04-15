@@ -1,0 +1,534 @@
+@using Microsoft.JSInterop
+@inject ApiDatabaseService Db
+@inject SessionService Session
+@inject IJSRuntime JS
+
+@if (!_configured)
+{
+    <div class="list-card" style="text-align:center;padding:30px">
+        <h3 style="color:var(--primary)">🔑 Easybill API-Einrichtung</h3>
+        <p class="sub" style="margin:12px 0">Bitte hinterlegen Sie Ihre persönlichen Easybill-Zugangsdaten.</p>
+        <div class="form-group" style="text-align:left;max-width:350px;margin:0 auto">
+            <label>E-Mail</label>
+            <input @bind="_setEmail" placeholder="easybill@firma.de" />
+        </div>
+        <div class="form-group" style="text-align:left;max-width:350px;margin:0 auto">
+            <label>API-Key</label>
+            <input type="password" @bind="_setApiKey" placeholder="API-Schlüssel" />
+        </div>
+        @if (!string.IsNullOrEmpty(_setError))
+        {
+            <div class="error-msg">@_setError</div>
+        }
+        @if (!string.IsNullOrEmpty(_setSuccess))
+        {
+            <div style="color:var(--success);font-size:13px;margin-bottom:10px">@_setSuccess</div>
+        }
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+            <button class="btn btn-primary" style="width:auto;padding:10px 20px" @onclick="TestEasybill" disabled="@_setTesting">
+                @(_setTesting ? "Teste..." : "🔍 Verbindung testen")
+            </button>
+            <button class="btn btn-primary" style="width:auto;padding:10px 20px;background:var(--success)" @onclick="SaveSettings" disabled="@_setSaving">
+                @(_setSaving ? "..." : "💾 Speichern")
+            </button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="sub-tabs">
+        @foreach (var t in _docTypes)
+        {
+            <button class="sub-tab @(t.Key == _activeType ? "active" : "")" @onclick="() => SwitchType(t.Key)">@t.Value</button>
+        }
+        <button class="sub-tab" style="margin-left:auto;border-color:var(--gray);color:var(--gray)" @onclick="ShowSettings">⚙️ Einstellungen</button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="loading"><div class="spinner"></div></div>
+    }
+    else if (_error != null)
+    {
+        <div class="error-msg">@_error</div>
+    }
+    else
+    {
+        <div class="search-bar">
+            <input type="text" placeholder="🔍 Dokumente suchen..." @bind="_search" @bind:event="oninput" />
+        </div>
+
+        @if (Filtered.Any())
+        {
+            @foreach (var doc in Filtered)
+            {
+                <div class="list-card" @onclick="() => SelectDoc(doc)">
+                    <div class="row">
+                        <h3>@doc.DisplayType @(!string.IsNullOrEmpty(doc.Number) ? doc.Number : "(Entwurf)")</h3>
+                        <span class="badge" style="@StatusBadgeStyle(doc)">@doc.DisplayStatus</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(doc.CustomerDisplay))
+                    {
+                        <div class="sub mt-4">🏢 @doc.CustomerDisplay</div>
+                    }
+                    <div class="row mt-4">
+                        <span class="sub">@(doc.DocumentDate ?? "–")</span>
+                        <span style="font-weight:700;color:var(--primary)">@doc.TotalGrossDisplay</span>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="empty-state">Keine Dokumente gefunden.</div>
+        }
+    }
+
+    @* ── Detail / Aktionen Overlay ── *@
+    @if (_selectedDoc != null)
+    {
+        <div class="add-form-overlay" @onclick="() => _selectedDoc = null">
+            <div class="add-form" @onclick:stopPropagation="true">
+                <h3>@_selectedDoc.DisplayType @_selectedDoc.Number</h3>
+                <div class="detail-block">
+                    <div class="detail-label">Status</div>
+                    <div class="detail-text">@_selectedDoc.DisplayStatus</div>
+                </div>
+                <div class="detail-block">
+                    <div class="detail-label">Kunde</div>
+                    <div class="detail-text">@(_selectedDoc.CustomerDisplay ?? "–")</div>
+                </div>
+                <div class="detail-block">
+                    <div class="detail-label">Datum</div>
+                    <div class="detail-text">@(_selectedDoc.DocumentDate ?? "–")</div>
+                </div>
+                <div class="detail-block">
+                    <div class="detail-label">Betrag (brutto)</div>
+                    <div class="detail-text" style="font-size:18px;font-weight:700;color:var(--primary)">@_selectedDoc.TotalGrossDisplay</div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_actionMsg))
+                {
+                    <div style="color:var(--success);font-size:13px;margin:8px 0">@_actionMsg</div>
+                }
+                @if (!string.IsNullOrEmpty(_actionErr))
+                {
+                    <div class="error-msg">@_actionErr</div>
+                }
+
+                <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+                    <button class="btn btn-primary" @onclick="DownloadPdf" disabled="@_actionBusy">📄 PDF herunterladen</button>
+                    <button class="btn btn-primary" style="background:var(--success)" @onclick="() => _showEmailForm = true" disabled="@_actionBusy">📧 Per E-Mail senden</button>
+                    @if (_selectedDoc.IsDraft)
+                    {
+                        <button class="btn btn-primary" style="background:var(--warning)" @onclick="FinalizeDoc" disabled="@_actionBusy">✅ Abschließen</button>
+                    }
+                    <button class="btn btn-danger" style="opacity:0.7" @onclick="DeleteDoc" disabled="@_actionBusy">🗑 Löschen</button>
+                    <button class="btn-cancel" style="padding:10px;border:none;border-radius:10px;font-size:15px;cursor:pointer;background:#EEE" @onclick="() => _selectedDoc = null">Schließen</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ── E-Mail senden Overlay ── *@
+    @if (_showEmailForm)
+    {
+        <div class="add-form-overlay" @onclick="() => _showEmailForm = false" style="z-index:300">
+            <div class="add-form" @onclick:stopPropagation="true">
+                <h3>📧 Dokument per E-Mail senden</h3>
+                <div class="form-row"><label>Empfänger *</label><input @bind="_emailTo" placeholder="kunde@firma.de" /></div>
+                <div class="form-row"><label>Betreff</label><input @bind="_emailSubject" /></div>
+                <div class="form-row"><label>Nachricht</label><textarea @bind="_emailBody" rows="4"></textarea></div>
+                @if (!string.IsNullOrEmpty(_emailError))
+                {
+                    <div class="error-msg">@_emailError</div>
+                }
+                <div class="form-actions">
+                    <button class="btn-cancel" @onclick="() => _showEmailForm = false">Abbrechen</button>
+                    <button class="btn-save" @onclick="SendEmail" disabled="@_emailSending">@(_emailSending ? "Sende..." : "📧 Senden")</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ── Neues Dokument erstellen ── *@
+    <button class="add-btn" @onclick="() => _showCreate = true">+</button>
+
+    @if (_showCreate)
+    {
+        <div class="add-form-overlay" @onclick="() => _showCreate = false">
+            <div class="add-form" @onclick:stopPropagation="true">
+                <h3>📄 Neues Dokument</h3>
+                <div class="form-row">
+                    <label>Typ *</label>
+                    <select @bind="_cType">
+                        <option value="INVOICE">Rechnung</option>
+                        <option value="OFFER">Angebot</option>
+                        <option value="DELIVERY_NOTE">Lieferschein</option>
+                        <option value="CREDIT">Gutschrift</option>
+                        <option value="PROFORMA_INVOICE">Proforma-Rechnung</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Easybill-Kunde</label>
+                    <select @bind="_cCustomerId">
+                        <option value="0">– Kein Kunde –</option>
+                        @foreach (var c in _ebCustomers)
+                        {
+                            <option value="@c.Id">@c.DisplayName</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-row"><label>Titel</label><input @bind="_cTitle" /></div>
+                <div class="form-row"><label>Betreff</label><input @bind="_cSubject" /></div>
+                <div class="form-row"><label>Text</label><textarea @bind="_cText" rows="3"></textarea></div>
+                <div class="form-row"><label>Fällig in Tagen</label><input type="number" @bind="_cDueDays" /></div>
+
+                <div style="border:1px solid #EEE;border-radius:10px;padding:12px;margin-top:8px">
+                    <div class="row" style="margin-bottom:8px">
+                        <strong style="font-size:14px">Positionen</strong>
+                        <button style="background:var(--primary);color:#FFF;border:none;border-radius:8px;padding:4px 12px;font-size:13px;cursor:pointer" @onclick="AddItem">+ Position</button>
+                    </div>
+                    @for (int i = 0; i < _cItems.Count; i++)
+                    {
+                        var idx = i;
+                        <div style="display:grid;grid-template-columns:1fr 60px 80px 30px;gap:6px;margin-bottom:6px;align-items:end">
+                            <div>
+                                <label style="font-size:11px;color:var(--gray)">Beschreibung</label>
+                                <input style="padding:8px;border:1px solid #DDD;border-radius:6px;font-size:14px;width:100%" @bind="_cItems[idx].Description" />
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:var(--gray)">Menge</label>
+                                <input type="number" style="padding:8px;border:1px solid #DDD;border-radius:6px;font-size:14px;width:100%" @bind="_cItems[idx].Quantity" />
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:var(--gray)">€ Netto</label>
+                                <input type="number" step="0.01" style="padding:8px;border:1px solid #DDD;border-radius:6px;font-size:14px;width:100%" @bind="_cItems[idx].PriceNet" />
+                            </div>
+                            <button style="background:var(--danger);color:#FFF;border:none;border-radius:6px;padding:8px;cursor:pointer;font-size:12px" @onclick="() => _cItems.RemoveAt(idx)">✕</button>
+                        </div>
+                    }
+                </div>
+
+                <div class="form-row" style="margin-top:8px">
+                    <label>
+                        <input type="checkbox" @bind="_cDraft" /> Als Entwurf speichern
+                    </label>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_createError))
+                {
+                    <div class="error-msg">@_createError</div>
+                }
+                <div class="form-actions">
+                    <button class="btn-cancel" @onclick="() => _showCreate = false">Abbrechen</button>
+                    <button class="btn-save" @onclick="CreateDocument" disabled="@_creating">@(_creating ? "..." : "Erstellen")</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    // ── Settings ──
+    private bool _configured;
+    private string _setEmail = "", _setApiKey = "", _setError = "", _setSuccess = "";
+    private bool _setTesting, _setSaving;
+
+    // ── Documents list ──
+    private bool _loading = true;
+    private string? _error;
+    private string _search = "";
+    private string _activeType = "";
+    private List<EbDocument> _documents = [];
+    private List<EbCustomer> _ebCustomers = [];
+
+    private static readonly Dictionary<string, string> _docTypes = new()
+    {
+        { "", "Alle" },
+        { "INVOICE", "Rechnungen" },
+        { "OFFER", "Angebote" },
+        { "DELIVERY_NOTE", "Lieferscheine" },
+        { "CREDIT", "Gutschriften" }
+    };
+
+    // ── Detail / Actions ──
+    private EbDocument? _selectedDoc;
+    private string _actionMsg = "", _actionErr = "";
+    private bool _actionBusy;
+
+    // ── Email ──
+    private bool _showEmailForm;
+    private string _emailTo = "", _emailSubject = "", _emailBody = "", _emailError = "";
+    private bool _emailSending;
+
+    // ── Create ──
+    private bool _showCreate, _creating;
+    private string _createError = "";
+    private string _cType = "INVOICE", _cTitle = "", _cSubject = "", _cText = "";
+    private long _cCustomerId;
+    private int _cDueDays = 14;
+    private bool _cDraft = true;
+    private List<ItemInput> _cItems = [new()];
+
+    private class ItemInput
+    {
+        public string Description { get; set; } = "";
+        public decimal Quantity { get; set; } = 1;
+        public decimal PriceNet { get; set; }
+    }
+
+    private IEnumerable<EbDocument> Filtered
+    {
+        get
+        {
+            var docs = string.IsNullOrEmpty(_activeType) ? _documents : _documents.Where(d => d.Type == _activeType);
+            if (!string.IsNullOrWhiteSpace(_search))
+                docs = docs.Where(d =>
+                    (d.Number ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                    (d.Title ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                    (d.CustomerDisplay ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase));
+            return docs.OrderByDescending(d => d.DocumentDate);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var settings = await Db.GetEasybillSettingsAsync(Session.UserId);
+        if (settings is { IsConfigured: true })
+        {
+            _configured = true;
+            _setEmail = settings.Email;
+            _setApiKey = settings.ApiKey;
+            await LoadDocuments();
+        }
+    }
+
+    // ── Settings ──
+
+    private async Task TestEasybill()
+    {
+        _setError = _setSuccess = "";
+        if (string.IsNullOrWhiteSpace(_setEmail) || string.IsNullOrWhiteSpace(_setApiKey))
+        {
+            _setError = "E-Mail und API-Key erforderlich.";
+            return;
+        }
+        _setTesting = true;
+        try
+        {
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            var (ok, msg) = await svc.TestConnectionAsync();
+            if (ok) _setSuccess = msg;
+            else _setError = msg;
+        }
+        catch (Exception ex) { _setError = ex.Message; }
+        _setTesting = false;
+    }
+
+    private async Task SaveSettings()
+    {
+        if (string.IsNullOrWhiteSpace(_setEmail) || string.IsNullOrWhiteSpace(_setApiKey))
+        {
+            _setError = "E-Mail und API-Key erforderlich.";
+            return;
+        }
+        _setSaving = true;
+        try
+        {
+            await Db.SaveEasybillSettingsAsync(Session.UserId, _setEmail, _setApiKey);
+            _configured = true;
+            await LoadDocuments();
+        }
+        catch (Exception ex) { _setError = ex.Message; }
+        _setSaving = false;
+    }
+
+    private void ShowSettings()
+    {
+        _configured = false;
+    }
+
+    // ── Load ──
+
+    private async Task LoadDocuments()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            _documents = await svc.GetDocumentsAsync();
+            try { _ebCustomers = await svc.GetCustomersAsync(); } catch { }
+        }
+        catch (Exception ex) { _error = $"Fehler: {ex.Message}"; }
+        _loading = false;
+    }
+
+    private async Task SwitchType(string type)
+    {
+        _activeType = type;
+        await Task.CompletedTask;
+    }
+
+    // ── Document Actions ──
+
+    private void SelectDoc(EbDocument doc)
+    {
+        _selectedDoc = doc;
+        _actionMsg = _actionErr = "";
+        _emailTo = doc.CustomerSnapshot?.CompanyName != null ? "" : "";
+        _emailSubject = $"{doc.DisplayType} {doc.Number}";
+        _emailBody = $"Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie {doc.DisplayType} {doc.Number}.\n\nMit freundlichen Grüßen";
+    }
+
+    private async Task DownloadPdf()
+    {
+        if (_selectedDoc?.Id == null) return;
+        _actionBusy = true;
+        _actionMsg = _actionErr = "";
+        try
+        {
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            var pdf = await svc.DownloadPdfAsync(_selectedDoc.Id.Value);
+            var fileName = $"{_selectedDoc.DisplayType}_{_selectedDoc.Number?.Replace("/", "-") ?? "Dokument"}.pdf";
+            var base64 = Convert.ToBase64String(pdf);
+            await JS.InvokeVoidAsync("downloadFile", fileName, base64);
+            _actionMsg = $"✅ PDF heruntergeladen ({pdf.Length / 1024} KB)";
+        }
+        catch (Exception ex) { _actionErr = ex.Message; }
+        _actionBusy = false;
+    }
+
+    private async Task FinalizeDoc()
+    {
+        if (_selectedDoc?.Id == null) return;
+        _actionBusy = true;
+        _actionMsg = _actionErr = "";
+        try
+        {
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            var updated = await svc.FinalizeDocumentAsync(_selectedDoc.Id.Value);
+            _actionMsg = $"✅ Dokument {updated.Number} abgeschlossen!";
+            await LoadDocuments();
+            _selectedDoc = null;
+        }
+        catch (Exception ex) { _actionErr = ex.Message; }
+        _actionBusy = false;
+    }
+
+    private async Task DeleteDoc()
+    {
+        if (_selectedDoc?.Id == null) return;
+        _actionBusy = true;
+        _actionMsg = _actionErr = "";
+        try
+        {
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            await svc.DeleteDocumentAsync(_selectedDoc.Id.Value);
+            await LoadDocuments();
+            _selectedDoc = null;
+        }
+        catch (Exception ex) { _actionErr = ex.Message; }
+        _actionBusy = false;
+    }
+
+    // ── Email ──
+
+    [Inject] private ApiEmailService EmailService { get; set; } = default!;
+
+    private async Task SendEmail()
+    {
+        _emailError = "";
+        if (string.IsNullOrWhiteSpace(_emailTo)) { _emailError = "Empfänger erforderlich."; return; }
+        if (_selectedDoc?.Id == null) return;
+        _emailSending = true;
+        try
+        {
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            var pdf = await svc.DownloadPdfAsync(_selectedDoc.Id.Value);
+            var fileName = $"{_selectedDoc.DisplayType}_{_selectedDoc.Number?.Replace("/", "-") ?? "Dokument"}.pdf";
+
+            await EmailService.SendEmailAsync(_emailTo, _emailSubject,
+                _emailBody.Replace("\n", "<br/>"), fileName, pdf);
+
+            _showEmailForm = false;
+            _actionMsg = $"✅ E-Mail an {_emailTo} gesendet!";
+        }
+        catch (Exception ex) { _emailError = ex.Message; }
+        _emailSending = false;
+    }
+
+    // ── Create Document ──
+
+    private void AddItem() => _cItems.Add(new ItemInput());
+
+    private async Task CreateDocument()
+    {
+        _createError = "";
+        if (!_cItems.Any(i => !string.IsNullOrWhiteSpace(i.Description)))
+        {
+            _createError = "Mindestens eine Position erforderlich.";
+            return;
+        }
+        _creating = true;
+        try
+        {
+            var items = _cItems
+                .Where(i => !string.IsNullOrWhiteSpace(i.Description))
+                .Select((item, idx) => new EbDocumentItem
+                {
+                    Type = "POSITION",
+                    Description = item.Description,
+                    Quantity = item.Quantity,
+                    SinglePriceNet = (long)(item.PriceNet * 100),
+                    VatPercent = 19
+                }).ToArray();
+
+            var doc = new EbDocument
+            {
+                Type = _cType,
+                CustomerId = _cCustomerId > 0 ? _cCustomerId : null,
+                DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
+                Title = string.IsNullOrWhiteSpace(_cTitle) ? null : _cTitle,
+                Subject = string.IsNullOrWhiteSpace(_cSubject) ? null : _cSubject,
+                Text = string.IsNullOrWhiteSpace(_cText) ? null : _cText,
+                DueInDays = _cDueDays,
+                Currency = "EUR",
+                Items = items
+            };
+
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            var created = await svc.CreateDocumentAsync(doc);
+
+            if (!_cDraft && created.Id.HasValue)
+                await svc.FinalizeDocumentAsync(created.Id.Value);
+
+            await LoadDocuments();
+            _showCreate = false;
+            ResetCreateForm();
+        }
+        catch (Exception ex) { _createError = ex.Message; }
+        _creating = false;
+    }
+
+    private void ResetCreateForm()
+    {
+        _cType = "INVOICE"; _cTitle = _cSubject = _cText = ""; _cCustomerId = 0;
+        _cDueDays = 14; _cDraft = true; _cItems = [new()];
+    }
+
+    private static string StatusBadgeStyle(EbDocument doc)
+    {
+        var color = doc.DisplayStatus switch
+        {
+            "Bezahlt" => "var(--success)",
+            "Gesendet" => "var(--primary)",
+            "Entwurf" => "var(--gray)",
+            "Storniert" => "var(--danger)",
+            "Überfällig" => "var(--warning)",
+            _ => "var(--gray)"
+        };
+        return $"background:{color}";
+    }
+}

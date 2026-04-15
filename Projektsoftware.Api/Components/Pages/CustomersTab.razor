@@ -1,0 +1,93 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Kunden suchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    @if (FilteredCustomers.Any())
+    {
+        @foreach (var c in FilteredCustomers)
+        {
+            <div class="list-card">
+                <div class="row">
+                    <h3>@c.DisplayName</h3>
+                    <span class="badge" style="background:@(c.IsActive ? "var(--success-light)" : "#fee");color:@(c.IsActive ? "var(--success)" : "var(--danger)")">
+                        @(c.IsActive ? "Aktiv" : "Inaktiv")
+                    </span>
+                </div>
+                @if (!string.IsNullOrEmpty(c.Email)) { <div class="sub mt-4">✉️ <a href="mailto:@c.Email" style="color:var(--primary)">@c.Email</a></div> }
+                @if (!string.IsNullOrEmpty(c.Phone)) { <div class="sub">📞 <a href="tel:@c.Phone" style="color:var(--primary)">@c.Phone</a></div> }
+                @if (!string.IsNullOrEmpty(c.Street) || !string.IsNullOrEmpty(c.City)) { <div class="sub">📍 @c.Street, @c.ZipCode @c.City</div> }
+                @if (!string.IsNullOrEmpty(c.Note)) { <div class="sub mt-4" style="color:#666;font-style:italic">📝 @c.Note</div> }
+            </div>
+        }
+    }
+    else
+    {
+        <div class="empty-state">Keine Kunden gefunden.</div>
+    }
+}
+
+<button class="add-btn" @onclick="() => _showForm = true">+</button>
+
+@if (_showForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>🏢 Neuer Kunde</h3>
+            <div class="form-row"><label>Firma</label><input @bind="_fComp" /></div>
+            <div class="form-row"><label>Vorname</label><input @bind="_fFirst" /></div>
+            <div class="form-row"><label>Nachname</label><input @bind="_fLast" /></div>
+            <div class="form-row"><label>E-Mail</label><input type="email" @bind="_fEmail" /></div>
+            <div class="form-row"><label>Telefon</label><input type="tel" @bind="_fPhone" /></div>
+            <div class="form-row"><label>Straße</label><input @bind="_fStreet" /></div>
+            <div class="form-row"><label>PLZ</label><input @bind="_fZip" /></div>
+            <div class="form-row"><label>Ort</label><input @bind="_fCity" /></div>
+            <div class="form-row"><label>Notiz</label><textarea @bind="_fNote"></textarea></div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<CustomerDto> _customers = [];
+    private bool _loading = true;
+    private string _search = "";
+    private bool _showForm, _saving;
+    private string _fComp = "", _fFirst = "", _fLast = "", _fEmail = "", _fPhone = "", _fStreet = "", _fZip = "", _fCity = "", _fNote = "";
+
+    private IEnumerable<CustomerDto> FilteredCustomers => string.IsNullOrWhiteSpace(_search) ? _customers :
+        _customers.Where(c => c.DisplayName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || c.Email.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || c.City.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _customers = await Db.GetCustomersAsync(); } catch { }
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_fComp) && string.IsNullOrWhiteSpace(_fFirst) && string.IsNullOrWhiteSpace(_fLast)) return;
+        _saving = true;
+        try
+        {
+            await Db.CreateCustomerAsync(_fComp, _fFirst, _fLast, _fEmail, _fPhone, _fStreet, _fZip, _fCity, _fNote);
+            _customers = await Db.GetCustomersAsync();
+            _showForm = false;
+            _fComp = _fFirst = _fLast = _fEmail = _fPhone = _fStreet = _fZip = _fCity = _fNote = "";
+        }
+        catch { }
+        _saving = false;
+    }
+}

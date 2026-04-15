@@ -1,3 +1,5 @@
 <Solution>
+  <Project Path="Projektsoftware.Api/Projektsoftware.Api.csproj" />
+  <Project Path="Projektsoftware.Mobile/Projektsoftware.Mobile.csproj" />
   <Project Path="Projektsoftware/Projektsoftware.csproj" />
 </Solution>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell
+    x:Class="Projektsoftware.Mobile.AppShell"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:pages="clr-namespace:Projektsoftware.Mobile.Pages"
+    Title="Projektsoftware"
+    Shell.FlyoutBehavior="Disabled">
+
+    <TabBar>
+        <ShellContent Title="Dashboard" Icon="icon_dashboard.png"
+                      ContentTemplate="{DataTemplate pages:DashboardPage}"
+                      Route="dashboard"/>
+        <ShellContent Title="Projekte" Icon="icon_projects.png"
+                      ContentTemplate="{DataTemplate pages:ProjectsPage}"
+                      Route="projects"/>
+        <ShellContent Title="Aufgaben" Icon="icon_tasks.png"
+                      ContentTemplate="{DataTemplate pages:TasksPage}"
+                      Route="tasks"/>
+    </TabBar>
+
+    <Shell.FlyoutFooter>
+        <VerticalStackLayout Padding="16">
+            <Button Text="Abmelden" BackgroundColor="#C62828" TextColor="White"
+                    CornerRadius="8" Clicked="OnLogout"/>
+        </VerticalStackLayout>
+    </Shell.FlyoutFooter>
+
+</Shell>

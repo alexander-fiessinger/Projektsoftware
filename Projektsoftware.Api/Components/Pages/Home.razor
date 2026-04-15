@@ -1,0 +1,93 @@
+@page "/"
+@inject ApiDatabaseService Db
+@inject SessionService Session
+@inject NavigationManager Nav
+
+@if (Session.IsAuthenticated)
+{
+    <AppShell/>
+}
+else
+{
+    <div class="login-container">
+        <div style="margin-bottom:12px">
+            <div class="login-emoji">🏗️</div>
+            <div class="login-title">Projektsoftware</div>
+            <div class="login-subtitle">Mobile</div>
+        </div>
+        <div class="login-card">
+            <div class="form-group">
+                <label>Benutzername</label>
+                <input @bind="_username" @bind:event="oninput" placeholder="Benutzername eingeben"
+                       @onkeydown="HandleKey" autocomplete="username"/>
+            </div>
+            <div class="form-group">
+                <label>Passwort</label>
+                <input type="password" @bind="_password" @bind:event="oninput" placeholder="Passwort eingeben"
+                       @onkeydown="HandleKey" autocomplete="current-password"/>
+            </div>
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="error-msg">@_error</div>
+            }
+            <button class="btn btn-primary" @onclick="DoLogin" disabled="@_loading">
+                @if (_loading)
+                {
+                    <span>Wird angemeldet…</span>
+                }
+                else
+                {
+                    <span>Anmelden</span>
+                }
+            </button>
+        </div>
+        <div style="text-align:center;margin-top:16px;color:#999;font-size:12px;">
+            Verbindung zum Server erforderlich
+        </div>
+    </div>
+}
+
+@code {
+    private string _username = "";
+    private string _password = "";
+    private string _error = "";
+    private bool _loading;
+
+    private async Task HandleKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await DoLogin();
+    }
+
+    private async Task DoLogin()
+    {
+        _error = "";
+        if (string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Bitte Benutzername und Passwort eingeben.";
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            var result = await Db.AuthenticateAsync(_username.Trim(), _password);
+            if (result.Success)
+            {
+                var permissions = await Db.GetUserPermissionsAsync(result.UserId);
+                Session.Login(result.UserId, result.Username!, result.Role ?? "Mitarbeiter", permissions);
+            }
+            else
+            {
+                _error = result.Error ?? "Anmeldung fehlgeschlagen.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Verbindungsfehler: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}
