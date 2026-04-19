@@ -111,6 +111,7 @@
                 <MenuItem Header="💳 Gutschrift erstellen" Click="CreateDocument_CreditNote_Click" Style="{StaticResource ModernMenuItem}"/>
                 <Separator/>
                 <MenuItem Header="📝 Vertrag erstellen" Click="CreateContract_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="✉ Brief erstellen" Click="CreateLetter_Click" Style="{StaticResource ModernMenuItem}"/>
             </MenuItem>
             <MenuItem Header="_Hilfe" Style="{StaticResource ModernMenuItem}">
                 <MenuItem Header="Über" Click="About_Click" Style="{StaticResource ModernMenuItem}"/>
@@ -337,6 +338,7 @@
                                 <MenuItem Header="Bearbeiten" Click="EditCustomer_Click"/>
                                 <MenuItem Header="📄 Dokumente" Click="DocumentsCustomer_Click"/>
                                 <MenuItem Header="📝 Vertrag erstellen" Click="CreateContractForCustomer_Click"/>
+                                <MenuItem Header="✉ Brief erstellen" Click="CreateLetterForCustomer_Click"/>
                                 <MenuItem Header="Synchronisieren" Click="SyncCustomer_Click"/>
                                 <Separator/>
                                 <MenuItem Header="Löschen" Click="DeleteCustomer_Click" Foreground="Red"/>

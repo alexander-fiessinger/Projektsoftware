@@ -2398,6 +2398,36 @@ private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
             dialog.ShowDialog();
         }
 
+        private void CreateLetter_Click(object sender, RoutedEventArgs e)
+        {
+            var customers = viewModel?.Customers?.ToList() ?? new List<Customer>();
+            var dialog = new LetterGeneratorDialog(customers);
+            dialog.Owner = this;
+            dialog.ShowDialog();
+        }
+
+        private void CreateLetterForCustomer_Click(object sender, RoutedEventArgs e)
+        {
+            Customer? customer = null;
+
+            if (sender is Button button)
+                customer = button.DataContext as Customer;
+            else if (sender is MenuItem)
+                customer = CustomersDataGrid.SelectedItem as Customer;
+
+            if (customer == null)
+            {
+                MessageBox.Show("Bitte wählen Sie zuerst einen Kunden aus.",
+                    "Hinweis", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var customers = viewModel?.Customers?.ToList() ?? new List<Customer>();
+            var dialog = new LetterGeneratorDialog(customers, customer);
+            dialog.Owner = this;
+            dialog.ShowDialog();
+        }
+
         private void CreateContractForCustomer_Click(object sender, RoutedEventArgs e)
         {
             Customer? customer = null;

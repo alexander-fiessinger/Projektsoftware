@@ -1,0 +1,200 @@
+<Window x:Class="Projektsoftware.Views.LetterGeneratorDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Briefgenerator" Height="780" Width="700"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BackgroundBrush}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0"
+                   Text="✉ Briefgenerator (DIN 5008 / Fensterumschlag)"
+                   FontSize="22"
+                   FontWeight="Bold"
+                   Foreground="{StaticResource PrimaryBrush}"
+                   Margin="0,0,0,15"/>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- Empfänger auswählen -->
+                <TextBlock Text="Empfänger aus Kundenliste wählen (optional):" FontWeight="Bold" Margin="0,0,0,5"/>
+                <Grid Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="CustomerCombo"
+                              Height="35"
+                              DisplayMemberPath="DisplayName"
+                              SelectionChanged="CustomerCombo_SelectionChanged"
+                              VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1" Content="Übernehmen" Style="{StaticResource ModernButton}"
+                            Padding="12,6" Margin="8,0,0,0" Height="35"
+                            Click="ApplyCustomer_Click"/>
+                </Grid>
+
+                <!-- Empfänger manuell -->
+                <Border Background="{StaticResource PrimaryLightBrush}" CornerRadius="6" Padding="12" Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="Empfänger" FontWeight="Bold" FontSize="14" Margin="0,0,0,8"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,8">
+                                <TextBlock Text="Firma:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="RecipientCompanyBox" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,8">
+                                <TextBlock Text="Ansprechpartner:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="RecipientNameBox" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,0,8">
+                                <TextBlock Text="Straße:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="RecipientStreetBox" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,8">
+                                <TextBlock Text="PLZ + Ort:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="RecipientZipCityBox" Height="30"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Absender (aus ContractorConfig) -->
+                <Border Background="{StaticResource PrimaryLightBrush}" CornerRadius="6" Padding="12" Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="Absender (af software Engineering)" FontWeight="Bold" FontSize="14" Margin="0,0,0,8"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,8">
+                                <TextBlock Text="Firma:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="SenderCompanyBox" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,8">
+                                <TextBlock Text="Name:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="SenderNameBox" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,0,8">
+                                <TextBlock Text="Straße:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="SenderStreetBox" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,8">
+                                <TextBlock Text="PLZ + Ort:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="SenderZipCityBox" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,0,8">
+                                <TextBlock Text="E-Mail:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="SenderEmailBox" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,8">
+                                <TextBlock Text="Telefon:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="SenderPhoneBox" Height="30"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Briefdaten -->
+                <Border Background="{StaticResource PrimaryLightBrush}" CornerRadius="6" Padding="12" Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="Briefdaten" FontWeight="Bold" FontSize="14" Margin="0,0,0,8"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,8">
+                                <TextBlock Text="Betreff:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="SubjectBox" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,8">
+                                <TextBlock Text="Datum:" Margin="0,0,0,3"/>
+                                <DatePicker x:Name="DatePicker" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,0,8">
+                                <TextBlock Text="Ort:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="PlaceBox" Height="30" Text="Marktredwitz"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,8">
+                                <TextBlock Text="Unser Zeichen:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ReferenceBox" Height="30"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,0,8">
+                                <TextBlock Text="Anrede:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="SalutationBox" Height="30" Text="Sehr geehrte Damen und Herren,"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,8">
+                                <TextBlock Text="Grußformel:" Margin="0,0,0,3"/>
+                                <TextBox x:Name="ClosingBox" Height="30" Text="Mit freundlichen Grüßen"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Logo -->
+                <Border Background="{StaticResource PrimaryLightBrush}" CornerRadius="6" Padding="12" Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="Firmenlogo (optional)" FontWeight="Bold" FontSize="14" Margin="0,0,0,8"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="LogoPathBox" Height="30" Width="400" IsReadOnly="True" Margin="0,0,8,0"/>
+                            <Button Content="Durchsuchen..." Style="{StaticResource ModernButton}" Padding="12,6" Height="30" Click="BrowseLogo_Click"/>
+                            <Button Content="✕" Style="{StaticResource ModernButton}" Padding="8,6" Height="30" Margin="4,0,0,0" Click="ClearLogo_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Brieftext -->
+                <TextBlock Text="Brieftext:" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBox x:Name="BodyBox"
+                         Height="200"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         Margin="0,0,0,15"/>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button Content="Abbrechen" Style="{StaticResource ModernButton}"
+                    Padding="20,8" Margin="0,0,10,0" Click="Cancel_Click"/>
+            <Button Content="✉ Brief als PDF generieren" Style="{StaticResource ModernButton}"
+                    Padding="20,8" FontWeight="Bold" Click="Generate_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
