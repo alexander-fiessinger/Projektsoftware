@@ -36,7 +36,15 @@ app.UseForwardedHeaders();
 
 // Datenbank-Tabellen automatisch erstellen
 var dbService = app.Services.GetRequiredService<ApiDatabaseService>();
-await dbService.InitializeDatabaseAsync();
+try
+{
+    await dbService.InitializeDatabaseAsync();
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Warning: Database initialization failed: {ex.Message}");
+    // App läuft weiter, auch wenn DB-Init fehlschlägt
+}
 
 if (app.Environment.IsDevelopment())
 {
