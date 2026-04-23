@@ -141,8 +141,15 @@ if ($staged) {
     # Rebase: nach git add -A gibt es keine untracked files mehr -> kein Konflikt
     git -C $root rebase -X theirs origin/main
     if ($LASTEXITCODE -ne 0) { throw "git rebase origin/main fehlgeschlagen (Exit: $LASTEXITCODE)" }
-    git -C $root push
-    if ($LASTEXITCODE -ne 0) { throw "git push fehlgeschlagen (Exit: $LASTEXITCODE)" }
+
+    # Push mit vollstaendiger Fehlerausgabe
+    Write-Host "    Pushe zu origin main ..." -ForegroundColor DarkGray
+    $pushOutput = git -C $root push origin main 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "`n    Git Push Fehler:" -ForegroundColor Red
+        Write-Host $pushOutput -ForegroundColor Red
+        throw "git push fehlgeschlagen (Exit: $LASTEXITCODE)`nUeberprüfe GitHub Apps, Webhooks oder Repository-Einstellungen."
+    }
     Write-Host "    OK  (gepusht: $($staged -join ', '))" -ForegroundColor Green
 } else {
     throw "Keine Aenderungen staged — Version $Version wurde moeglicherweise bereits veroeffentlicht.`nPrüfe: https://github.com/$gitHubRepo/releases"
