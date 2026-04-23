@@ -368,3 +368,6 @@ build/publish.config.json
 publish/
 build/Output/
 manifest.json
+
+# Deploy-Output (API, Desktop, etc.)
+deploy/

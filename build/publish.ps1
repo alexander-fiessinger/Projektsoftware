@@ -125,15 +125,14 @@ Write-Host "    OK" -ForegroundColor Green
 
 # ── 5. csproj + manifest.json nach GitHub pushen ─────────────────────────────
 Write-Host "[5/6] Git commit & push (csproj + manifest.json) ..." -ForegroundColor Yellow
-$relPath = "Projektsoftware/Projektsoftware.csproj"
 
 # Remote-Refs holen BEVOR wir committen (beruehrt Working-Tree nicht)
 Write-Host "    Fetche remote ..." -ForegroundColor DarkGray
 git -C $root fetch origin
 if ($LASTEXITCODE -ne 0) { throw "git fetch fehlgeschlagen (Exit: $LASTEXITCODE)" }
 
-# Alle neuen/geaenderten Dateien stagen (inkl. bisher untracked Source-Files)
-git -C $root add -A
+# NUR die relevanten Dateien stagen (NICHT git add -A, da das Build-Outputs hinzufuegt!)
+git -C $root add Projektsoftware/Projektsoftware.csproj manifest.json
 $staged = git -C $root diff --cached --name-only
 if ($staged) {
     git -C $root commit -m "Release v$Version"
