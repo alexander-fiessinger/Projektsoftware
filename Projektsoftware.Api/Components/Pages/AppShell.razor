@@ -193,6 +193,8 @@
     private bool _showMore;
     private bool _isDark;
 
+    [Parameter] public EventCallback OnLogout { get; set; }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -322,6 +324,6 @@
 
     private void Logout()
     {
-        Session.Logout();
+        _ = OnLogout.InvokeAsync();
     }
 }

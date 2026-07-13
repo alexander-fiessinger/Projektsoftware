@@ -578,3 +578,94 @@ body {
     .shop-actions { justify-content: space-between; }
     .shop-actions .btn-action { flex: 1; justify-content: center; }
 }
+
+/* ============================================================
+   Geräte-Optimierung
+   – iPhone 17 Pro (Smartphone, ~402px CSS-Breite, Dynamic Island)
+   – Samsung Galaxy Tab S11 (Tablet, breiter Viewport)
+   ============================================================ */
+
+/* ── iPhone 17 Pro & vergleichbare moderne Smartphones ──────
+   Safe-Area wird bereits global genutzt. Hier Feintuning für
+   Touch-Komfort, Dynamic Island und flüssige Darstellung.      */
+@media only screen and (max-width: 440px) {
+    :root { --tab-height: 60px; }
+
+    /* Etwas kompakterer Header, damit unter der Dynamic Island
+       mehr Inhalt sichtbar ist. */
+    .app-header { padding-left: 16px; padding-right: 16px; }
+    .app-header h1 { font-size: 18px; }
+
+    /* Komfortable Tap-Ziele (Apple HIG: min. 44px). */
+    .tab-bar button { min-height: 48px; }
+    .more-item { min-height: 76px; }
+
+    /* Grids einspaltig / kompakt für schmale Screens. */
+    .more-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Verhindert iOS-Auto-Zoom beim Fokussieren von Eingabefeldern
+   (Font < 16px löst auf iPhone einen Zoom aus). */
+@supports (-webkit-touch-callout: none) {
+    input, select, textarea { font-size: 16px; }
+}
+
+/* ── Samsung Galaxy Tab S11 & Tablets (ab 768px) ────────────
+   Aus der Smartphone-Einspalten-Ansicht wird ein zentriertes,
+   mehrspaltiges Layout mit seitlicher Navigation statt der
+   unteren Tab-Leiste.                                          */
+@media only screen and (min-width: 768px) {
+    .app-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        box-shadow: var(--shadow-lg, 0 8px 40px rgba(0,0,0,.10));
+        background: var(--bg);
+    }
+
+    .app-header {
+        padding: 18px 32px;
+        padding-top: calc(env(safe-area-inset-top) + 18px);
+    }
+    .app-header h1 { font-size: 22px; }
+    .app-header-subtitle { font-size: 12px; }
+
+    /* Mehr Weißraum & breitere Inhaltsfläche auf dem Tablet. */
+    .app-content {
+        padding: 24px 32px;
+        padding-bottom: calc(var(--tab-height) + env(safe-area-inset-bottom) + 24px);
+        max-width: 100%;
+    }
+
+    /* Untere Tab-Leiste zentrieren und begrenzen, damit die
+       Buttons auf breiten Displays nicht auseinanderdriften. */
+    .tab-bar {
+        max-width: 1100px;
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+    }
+    .tab-bar button { max-width: 180px; }
+
+    /* Das „Mehr"-Menü als zentriertes Panel statt Vollbreite. */
+    .more-menu {
+        max-width: 640px;
+        border-radius: var(--radius-lg);
+        margin-bottom: 24px;
+    }
+    .more-overlay { align-items: center; }
+    .more-grid { grid-template-columns: repeat(5, 1fr); gap: 12px; }
+
+    /* Mehrspaltige Daten- und KPI-Ansichten nutzen die Breite. */
+    .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+    .perm-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ── Tablet im Querformat / große Tablets (ab 1024px) ─────── */
+@media only screen and (min-width: 1024px) {
+    .app-container { max-width: 1280px; }
+    .tab-bar { max-width: 1280px; }
+    .more-grid { grid-template-columns: repeat(6, 1fr); }
+    .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+}
+

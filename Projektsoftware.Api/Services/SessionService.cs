@@ -28,6 +28,32 @@ public class SessionService
     }
 
     /// <summary>
+    /// Erstellt einen serialisierbaren Snapshot des aktuellen Login-Zustands,
+    /// damit die Session über einen Seiten-Reload hinweg wiederhergestellt werden kann.
+    /// </summary>
+    public SessionSnapshot? CreateSnapshot()
+    {
+        if (!IsAuthenticated) return null;
+        return new SessionSnapshot
+        {
+            UserId = UserId,
+            Username = Username,
+            Role = Role,
+            Permissions = _allowedModules.ToList()
+        };
+    }
+
+    /// <summary>
+    /// Stellt den Login-Zustand aus einem zuvor gespeicherten Snapshot wieder her
+    /// (z. B. nach einem Reload aus dem verschlüsselten Browser-Storage).
+    /// </summary>
+    public void Restore(SessionSnapshot snapshot)
+    {
+        if (snapshot is null || snapshot.UserId <= 0) return;
+        Login(snapshot.UserId, snapshot.Username, snapshot.Role, snapshot.Permissions ?? new List<string>());
+    }
+
+    /// <summary>
     /// Prüft ob der aktuelle Benutzer Zugriff auf ein Modul hat.
     /// Admins haben immer Zugriff; Dashboard ist immer sichtbar.
     /// </summary>
@@ -47,4 +73,15 @@ public class SessionService
         _isAdmin = false;
         _allowedModules.Clear();
     }
+}
+
+/// <summary>
+/// Serialisierbarer Snapshot des Login-Zustands für die Wiederherstellung nach Reload.
+/// </summary>
+public class SessionSnapshot
+{
+    public int UserId { get; set; }
+    public string Username { get; set; } = "";
+    public string Role { get; set; } = "";
+    public List<string> Permissions { get; set; } = new();
 }

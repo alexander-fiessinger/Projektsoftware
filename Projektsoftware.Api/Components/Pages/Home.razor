@@ -2,10 +2,18 @@
 @inject ApiDatabaseService Db
 @inject SessionService Session
 @inject NavigationManager Nav
+@inject ProtectedLocalStorage Storage
 
 @if (Session.IsAuthenticated)
 {
-    <AppShell/>
+    <AppShell OnLogout="HandleLogout"/>
+}
+else if (!_restoreChecked)
+{
+    <div class="login-container">
+        <div class="login-title" style="margin-top:40px;">Projektsoftware</div>
+        <div style="text-align:center;margin-top:16px;color:#999;font-size:13px;">Sitzung wird geladen…</div>
+    </div>
 }
 else
 {
@@ -62,10 +70,39 @@ else
 }
 
 @code {
+    private const string SessionKey = "ps-session";
+
     private string _username = "";
     private string _password = "";
     private string _error = "";
     private bool _loading;
+    private bool _restoreChecked;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !Session.IsAuthenticated)
+        {
+            try
+            {
+                var stored = await Storage.GetAsync<SessionSnapshot>(SessionKey);
+                if (stored.Success && stored.Value is not null)
+                {
+                    Session.Restore(stored.Value);
+                }
+            }
+            catch { /* z. B. Prerender / Storage nicht verfügbar */ }
+            finally
+            {
+                _restoreChecked = true;
+                StateHasChanged();
+            }
+        }
+        else if (firstRender)
+        {
+            _restoreChecked = true;
+            StateHasChanged();
+        }
+    }
 
     private async Task HandleKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
     {
@@ -89,6 +126,14 @@ else
             {
                 var permissions = await Db.GetUserPermissionsAsync(result.UserId);
                 Session.Login(result.UserId, result.Username!, result.Role ?? "Mitarbeiter", permissions);
+
+                // Session verschlüsselt im Browser speichern, damit ein Reload (F5)
+                // nicht erneut einen Login erfordert.
+                var snapshot = Session.CreateSnapshot();
+                if (snapshot is not null)
+                {
+                    try { await Storage.SetAsync(SessionKey, snapshot); } catch { }
+                }
             }
             else
             {
@@ -103,5 +148,12 @@ else
         {
             _loading = false;
         }
+    }
+
+    private async Task HandleLogout()
+    {
+        Session.Logout();
+        try { await Storage.DeleteAsync(SessionKey); } catch { }
+        StateHasChanged();
     }
 }

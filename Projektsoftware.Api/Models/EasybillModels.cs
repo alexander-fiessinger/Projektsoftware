@@ -74,6 +74,25 @@ public class EbDocument
     [JsonConverter(typeof(EbPriceConverter))]
     public long? TotalNet { get; set; }
 
+    // Easybill liefert im Dokument-(Listen-)Endpunkt den Bruttobetrag unter "amount" (in Cent),
+    // nicht unter "total_gross". Analog "amount_net" für netto.
+    [JsonPropertyName("amount")]
+    [JsonConverter(typeof(EbPriceConverter))]
+    public long? Amount { get; set; }
+
+    [JsonPropertyName("amount_net")]
+    [JsonConverter(typeof(EbPriceConverter))]
+    public long? AmountNet { get; set; }
+
+    // Bereits (an)gezahlter Betrag (in Cent). Zuverlässiger Indikator für offen/bezahlt,
+    // da "status" bei diesem Endpunkt leer sein kann und "paid_at" nicht verlässlich ist.
+    [JsonPropertyName("paid_amount")]
+    [JsonConverter(typeof(EbPriceConverter))]
+    public long? PaidAmount { get; set; }
+
+    [JsonPropertyName("paid_at")]
+    public string? PaidAt { get; set; }
+
     [JsonPropertyName("currency")]
     public string? Currency { get; set; }
 
@@ -128,10 +147,67 @@ public class EbDocument
         }
     }
 
+    /// <summary>Effektiver Bruttobetrag in Cent (Easybill nutzt je Endpunkt "amount" oder "total_gross").</summary>
+    [JsonIgnore]
+    public long EffectiveGrossCents => Amount ?? TotalGross ?? 0;
+
+    /// <summary>True für Dokumenttypen, die eine Zahlung erwarten (Rechnung, Mahnung).</summary>
+    [JsonIgnore]
+    public bool IsPayable => Type is "INVOICE" or "DUNNING";
+
+    /// <summary>
+    /// Ermittelt den Zahlungsstatus zuverlässig aus paid_amount vs. Bruttobetrag und Fälligkeit.
+    /// Liefert null für nicht zahlungsrelevante Dokumente (Angebote, Lieferscheine …).
+    /// </summary>
+    [JsonIgnore]
+    public string? PaymentStatus
+    {
+        get
+        {
+            if (!IsPayable) return null;
+            if (IsDraft) return "Entwurf";
+
+            var gross = EffectiveGrossCents;
+            var paid = PaidAmount ?? 0;
+
+            if (string.Equals(Status, "CANCELLED", StringComparison.OrdinalIgnoreCase))
+                return "Storniert";
+            if (gross > 0 && paid >= gross) return "Bezahlt";
+            if (paid > 0) return "Teilw. bezahlt";
+
+            // Offen: prüfen, ob überfällig.
+            if (DateTime.TryParse(DueDate, out var due) && due.Date < DateTime.Today)
+                return "Überfällig";
+            return "Offen";
+        }
+    }
+
+    /// <summary>Farb-Token (CSS-Variable) passend zum Zahlungsstatus für Badge-Darstellung.</summary>
+    [JsonIgnore]
+    public string PaymentBadgeColor => PaymentStatus switch
+    {
+        "Bezahlt" => "var(--success)",
+        "Teilw. bezahlt" => "var(--warning)",
+        "Überfällig" => "var(--danger)",
+        "Offen" => "var(--primary)",
+        "Storniert" => "var(--gray)",
+        "Entwurf" => "var(--gray)",
+        _ => "var(--gray)"
+    };
+
+    /// <summary>Bereits gezahlter Betrag als formatierter Euro-Wert.</summary>
+    [JsonIgnore]
+    public string PaidAmountDisplay => ((PaidAmount ?? 0) / 100m).ToString("N2") + " €";
+
+    /// <summary>Noch offener Betrag (Brutto minus bezahlt) als formatierter Euro-Wert.</summary>
+    [JsonIgnore]
+    public string OpenAmountDisplay =>
+        (Math.Max(0, EffectiveGrossCents - (PaidAmount ?? 0)) / 100m).ToString("N2") + " €";
+
     [JsonIgnore]
     public string TotalGrossDisplay =>
-        TotalGross.HasValue
-            ? (TotalGross.Value / 100m).ToString("N2") + " €"
+        EffectiveGrossCents > 0
+            ? (EffectiveGrossCents / 100m).ToString("N2") + " €"
             : "–";
 
     [JsonIgnore]

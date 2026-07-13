@@ -58,6 +58,13 @@ else
             <input type="text" placeholder="🔍 Dokumente suchen..." @bind="_search" @bind:event="oninput" />
         </div>
 
+        <div class="sub-tabs" style="margin-top:6px">
+            @foreach (var f in _payFilters)
+            {
+                <button class="sub-tab @(f.Key == _payFilter ? "active" : "")" @onclick="() => _payFilter = f.Key">@f.Value</button>
+            }
+        </div>
+
         @if (Filtered.Any())
         {
             @foreach (var doc in Filtered)
@@ -65,7 +72,14 @@ else
                 <div class="list-card" @onclick="() => SelectDoc(doc)">
                     <div class="row">
                         <h3>@doc.DisplayType @(!string.IsNullOrEmpty(doc.Number) ? doc.Number : "(Entwurf)")</h3>
-                        <span class="badge" style="@StatusBadgeStyle(doc)">@doc.DisplayStatus</span>
+                        @if (doc.PaymentStatus is not null)
+                        {
+                            <span class="badge" style="background:@doc.PaymentBadgeColor">@doc.PaymentStatus</span>
+                        }
+                        else
+                        {
+                            <span class="badge" style="@StatusBadgeStyle(doc)">@doc.DisplayStatus</span>
+                        }
                     </div>
                     @if (!string.IsNullOrEmpty(doc.CustomerDisplay))
                     {
@@ -75,6 +89,10 @@ else
                         <span class="sub">@(doc.DocumentDate ?? "–")</span>
                         <span style="font-weight:700;color:var(--primary)">@doc.TotalGrossDisplay</span>
                     </div>
+                    @if (doc.PaymentStatus is "Offen" or "Teilw. bezahlt" or "Überfällig")
+                    {
+                        <div class="sub mt-4" style="color:var(--danger)">Offen: @doc.OpenAmountDisplay</div>
+                    }
                 </div>
             }
         }
@@ -92,7 +110,11 @@ else
                 <h3>@_selectedDoc.DisplayType @_selectedDoc.Number</h3>
                 <div class="detail-block">
                     <div class="detail-label">Status</div>
-                    <div class="detail-text">@_selectedDoc.DisplayStatus</div>
+                    <div class="detail-text">
+                        <span class="badge" style="background:@(_selectedDoc.PaymentStatus is not null ? _selectedDoc.PaymentBadgeColor : StatusBadgeStyleColor(_selectedDoc))">
+                            @(_selectedDoc.PaymentStatus ?? _selectedDoc.DisplayStatus)
+                        </span>
+                    </div>
                 </div>
                 <div class="detail-block">
                     <div class="detail-label">Kunde</div>
@@ -102,6 +124,24 @@ else
                     <div class="detail-label">Datum</div>
                     <div class="detail-text">@(_selectedDoc.DocumentDate ?? "–")</div>
                 </div>
+                @if (_selectedDoc.IsPayable && !_selectedDoc.IsDraft)
+                {
+                    <div class="detail-block">
+                        <div class="detail-label">Fällig bis</div>
+                        <div class="detail-text">@(_selectedDoc.DueDate ?? "–")</div>
+                    </div>
+                    <div class="detail-block">
+                        <div class="detail-label">Bezahlt</div>
+                        <div class="detail-text">@_selectedDoc.PaidAmountDisplay</div>
+                    </div>
+                    @if (_selectedDoc.PaymentStatus is "Offen" or "Teilw. bezahlt" or "Überfällig")
+                    {
+                        <div class="detail-block">
+                            <div class="detail-label">Offener Betrag</div>
+                            <div class="detail-text" style="color:var(--danger);font-weight:700">@_selectedDoc.OpenAmountDisplay</div>
+                        </div>
+                    }
+                }
                 <div class="detail-block">
                     <div class="detail-label">Betrag (brutto)</div>
                     <div class="detail-text" style="font-size:18px;font-weight:700;color:var(--primary)">@_selectedDoc.TotalGrossDisplay</div>
@@ -252,6 +292,16 @@ else
         { "CREDIT", "Gutschriften" }
     };
 
+    // ── Zahlungsstatus-Schnellfilter ──
+    private string _payFilter = "";
+    private static readonly Dictionary<string, string> _payFilters = new()
+    {
+        { "", "Alle" },
+        { "offen", "🔵 Offen" },
+        { "ueberfaellig", "🔴 Überfällig" },
+        { "bezahlt", "🟢 Bezahlt" }
+    };
+
     // ── Detail / Actions ──
     private EbDocument? _selectedDoc;
     private string _actionMsg = "", _actionErr = "";
@@ -288,6 +338,13 @@ else
                     (d.Number ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase) ||
                     (d.Title ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase) ||
                     (d.CustomerDisplay ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase));
+            docs = _payFilter switch
+            {
+                "offen" => docs.Where(d => d.PaymentStatus is "Offen" or "Teilw. bezahlt" or "Überfällig"),
+                "ueberfaellig" => docs.Where(d => d.PaymentStatus == "Überfällig"),
+                "bezahlt" => docs.Where(d => d.PaymentStatus == "Bezahlt"),
+                _ => docs
+            };
             return docs.OrderByDescending(d => d.DocumentDate);
         }
     }
@@ -520,7 +577,12 @@ else
 
     private static string StatusBadgeStyle(EbDocument doc)
     {
-        var color = doc.DisplayStatus switch
+        return $"background:{StatusBadgeStyleColor(doc)}";
+    }
+
+    private static string StatusBadgeStyleColor(EbDocument doc)
+    {
+        return doc.DisplayStatus switch
         {
             "Bezahlt" => "var(--success)",
             "Gesendet" => "var(--primary)",
@@ -529,6 +591,5 @@ else
             "Überfällig" => "var(--warning)",
             _ => "var(--gray)"
         };
-        return $"background:{color}";
     }
 }
