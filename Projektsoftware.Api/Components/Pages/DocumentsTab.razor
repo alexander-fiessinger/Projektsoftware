@@ -168,6 +168,16 @@ else
                     {
                         <button class="btn btn-primary" style="background:var(--success)" @onclick="MarkPaid" disabled="@_actionBusy">💶 Als bezahlt markieren</button>
                     }
+                    @if (_selectedDoc.Type == "OFFER" && !_selectedDoc.IsDraft)
+                    {
+                        <button class="btn btn-primary" @onclick='() => ConvertDoc("INVOICE")' disabled="@_actionBusy">➡️ In Rechnung umwandeln</button>
+                        <button class="btn btn-primary" style="background:var(--gray)" @onclick='() => ConvertDoc("ORDER_CONFIRMATION")' disabled="@_actionBusy">➡️ In Auftragsbestätigung</button>
+                    }
+                    @if (_selectedDoc.Type == "INVOICE" && !_selectedDoc.IsDraft
+                        && !string.Equals(_selectedDoc.Status, "CANCELLED", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <button class="btn btn-danger" style="background:var(--warning)" @onclick="CancelDoc" disabled="@_actionBusy">🚫 Stornieren</button>
+                    }
                     <button class="btn btn-danger" style="opacity:0.7" @onclick="DeleteDoc" disabled="@_actionBusy">🗑 Löschen</button>
                     <button class="btn-cancel" style="padding:10px;border:none;border-radius:10px;font-size:15px;cursor:pointer;background:#EEE" @onclick="() => _selectedDoc = null">Schließen</button>
                 </div>
@@ -496,6 +506,40 @@ else
         _actionBusy = false;
     }
 
+    private async Task ConvertDoc(string targetType)
+    {
+        if (_selectedDoc?.Id == null) return;
+        _actionBusy = true;
+        _actionMsg = _actionErr = "";
+        try
+        {
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            var created = await svc.ConvertDocumentAsync(_selectedDoc.Id.Value, targetType);
+            _actionMsg = $"✅ {created.DisplayType} {created.Number} erstellt.";
+            await LoadDocuments();
+            _selectedDoc = null;
+        }
+        catch (Exception ex) { _actionErr = ex.Message; }
+        _actionBusy = false;
+    }
+
+    private async Task CancelDoc()
+    {
+        if (_selectedDoc?.Id == null) return;
+        _actionBusy = true;
+        _actionMsg = _actionErr = "";
+        try
+        {
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            var cancelled = await svc.CancelDocumentAsync(_selectedDoc.Id.Value);
+            _actionMsg = $"✅ Storniert (Storno {cancelled.Number}).";
+            await LoadDocuments();
+            _selectedDoc = null;
+        }
+        catch (Exception ex) { _actionErr = ex.Message; }
+        _actionBusy = false;
+    }
+
     private async Task DeleteDoc()
     {
         if (_selectedDoc?.Id == null) return;
@@ -511,8 +555,6 @@ else
         catch (Exception ex) { _actionErr = ex.Message; }
         _actionBusy = false;
     }
-
-    // ── Email ──
 
     [Inject] private ApiEmailService EmailService { get; set; } = default!;
 

@@ -172,6 +172,43 @@ public class ApiEasybillService : IDisposable
         return await GetDocumentAsync(documentId);
     }
 
+    /// <summary>
+    /// Konvertiert ein Dokument in einen anderen Typ über POST documents/{id}/{apiType}.
+    /// Erlaubte Ziel-Typen (Easybill): INVOICE, CREDIT, DELIVERY (Lieferschein),
+    /// CHARGE_CONFIRM (Auftragsbestätigung), ORDER, DUNNING, REMINDER, CHARGE.
+    /// </summary>
+    public async Task<EbDocument> ConvertDocumentAsync(long documentId, string targetType)
+    {
+        var apiType = targetType switch
+        {
+            "DELIVERY_NOTE" => "DELIVERY",
+            "ORDER_CONFIRMATION" => "CHARGE_CONFIRM",
+            _ => targetType
+        };
+
+        var resp = await _http.PostAsync($"documents/{documentId}/{apiType}", null);
+        var json = await resp.Content.ReadAsStringAsync();
+
+        if (!resp.IsSuccessStatusCode)
+            throw new Exception($"Fehler beim Konvertieren: {resp.StatusCode} – {json}");
+
+        return JsonSerializer.Deserialize<EbDocument>(json, _json)!;
+    }
+
+    /// <summary>
+    /// Storniert ein Dokument über POST documents/{id}/cancel (erzeugt i. d. R. eine Storno-Rechnung).
+    /// </summary>
+    public async Task<EbDocument> CancelDocumentAsync(long documentId)
+    {
+        var resp = await _http.PostAsync($"documents/{documentId}/cancel", null);
+        var json = await resp.Content.ReadAsStringAsync();
+
+        if (!resp.IsSuccessStatusCode)
+            throw new Exception($"Fehler beim Stornieren: {resp.StatusCode} – {json}");
+
+        return JsonSerializer.Deserialize<EbDocument>(json, _json)!;
+    }
+
     // ── Customers ───────────────────────────────────────────────────
 
     public async Task<List<EbCustomer>> GetCustomersAsync()

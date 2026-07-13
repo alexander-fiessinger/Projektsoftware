@@ -71,7 +71,9 @@ parität zu bringen.
    - ✅ Zahlungsstatus sichtbar gemacht (Bezahlt / Teilw. bezahlt / Offen / Überfällig)
      über `paid_amount` vs. Bruttobetrag; korrektes Betrags-Mapping (`amount`);
      Schnellfilter + offener Betrag in `DocumentsTab`.
-   - ⏭️ Offen: „Als bezahlt markieren", Angebot→Rechnung konvertieren, Rechnung aus Projekt.
+   - ✅ „Als bezahlt markieren" (document-payments, Beträge in Cent).
+   - ✅ Angebot→Rechnung / Auftragsbestätigung konvertieren; Rechnung stornieren.
+   - ⏭️ Offen: Rechnung aus Projekt (Zeiteinträge→Positionen), Proforma, Mahnung.
 2. **Detail-/Edit-Dialoge** je Tab vervollständigen (Kunden, Projekte, Tickets, CRM)
 3. **PDF-Erzeugung** serverseitig (Brief, Vertrag, Rechnung) über API-Endpunkte
 4. **E-Mail/Exchange-Posteingang** und Ticket-E-Mail-Versand
