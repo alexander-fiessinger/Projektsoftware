@@ -75,7 +75,8 @@ parität zu bringen.
    - ✅ Angebot→Rechnung / Auftragsbestätigung konvertieren; Rechnung stornieren.
    - ✅ Rechnung/Angebot aus Projekt erstellen (Zeiteinträge→Positionen mit Stundensatz,
      MwSt, Leistungszeitraum; optional direkt abschließen) im `EasybillExportTab`.
-   - ⏭️ Offen: Proforma, Mahnung.
+   - ✅ Proforma-Rechnung aus Projekt erstellen (`EasybillExportTab`).
+   - ✅ Mahnung (DUNNING) zu offener Rechnung erstellen im `DocumentsTab`.
 2. **Detail-/Edit-Dialoge** je Tab vervollständigen (Kunden, Projekte, Tickets, CRM)
 3. **PDF-Erzeugung** serverseitig (Brief, Vertrag, Rechnung) über API-Endpunkte
 4. **E-Mail/Exchange-Posteingang** und Ticket-E-Mail-Versand

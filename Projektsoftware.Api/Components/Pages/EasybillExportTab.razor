@@ -101,6 +101,9 @@ else
                     📄 Als Angebot erstellen
                 </button>
             </div>
+            <button class="btn-action neutral block mt-8" disabled="@(_busy || _selectedCustomerId == 0 || _timeEntries.Count == 0)" @onclick='() => CreateDocument("PROFORMA_INVOICE")'>
+                📋 Als Proforma-Rechnung erstellen
+            </button>
         </div>
 
         @if (_busy) { <div class="spinner"></div> }
@@ -229,7 +232,12 @@ else
                 projectId,
                 finalize: _finalize);
 
-            var label = documentType == "OFFER" ? "Angebot" : "Rechnung";
+            var label = documentType switch
+            {
+                "OFFER" => "Angebot",
+                "PROFORMA_INVOICE" => "Proforma-Rechnung",
+                _ => "Rechnung"
+            };
             var numberInfo = string.IsNullOrWhiteSpace(doc.Number) ? "" : $" (Nr. {doc.Number})";
             _message = $"{label}{numberInfo} erfolgreich {(_finalize ? "erstellt und abgeschlossen" : "als Entwurf erstellt")}.";
         }

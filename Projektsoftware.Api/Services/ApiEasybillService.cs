@@ -248,16 +248,19 @@ public class ApiEasybillService : IDisposable
         }
 
         var isOffer = string.Equals(documentType, "OFFER", StringComparison.OrdinalIgnoreCase);
+        var isProforma = string.Equals(documentType, "PROFORMA_INVOICE", StringComparison.OrdinalIgnoreCase);
+        var docType = isOffer ? "OFFER" : isProforma ? "PROFORMA_INVOICE" : "INVOICE";
+        var docLabel = isOffer ? "Angebot" : isProforma ? "Proforma-Rechnung" : "Rechnung";
         var doc = new EbDocument
         {
-            Type = isOffer ? "OFFER" : "INVOICE",
+            Type = docType,
             CustomerId = customerId,
             ProjectId = projectId,
             DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
-            Title = isOffer ? $"Angebot für Projekt: {projectName}" : $"Rechnung für Projekt: {projectName}",
-            Subject = isOffer ? $"Angebot {projectName}" : $"Leistungen {projectName}",
+            Title = $"{docLabel} für Projekt: {projectName}",
+            Subject = $"{(isOffer ? "Angebot" : "Leistungen")} {projectName}",
             Currency = "EUR",
-            DueInDays = isOffer ? null : dueInDays,
+            DueInDays = (isOffer || isProforma) ? null : dueInDays,
             Items = items.ToArray()
         };
 
@@ -272,6 +275,40 @@ public class ApiEasybillService : IDisposable
         }
 
         var created = await CreateDocumentAsync(doc);
+
+        if (finalize && created.Id.HasValue)
+            created = await FinalizeDocumentAsync(created.Id.Value);
+
+        return created;
+    }
+
+    /// <summary>
+    /// Erstellt eine Mahnung (DUNNING) zu einer bestehenden Rechnung. Mahnstufe 1–3 steuert die
+    /// Zahlungsfrist (7/5/3 Tage). Übernimmt Kunde und Positionen der Original-Rechnung.
+    /// </summary>
+    public async Task<EbDocument> CreateDunningAsync(long invoiceId, int dunningLevel = 1, bool finalize = false)
+    {
+        var invoice = await GetDocumentAsync(invoiceId);
+
+        var grossEuro = (invoice.EffectiveGrossCents / 100m).ToString("N2");
+        var dunning = new EbDocument
+        {
+            Type = "DUNNING",
+            CustomerId = invoice.CustomerId,
+            DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
+            Title = $"Zahlungserinnerung {dunningLevel}. Mahnung",
+            Subject = $"Mahnung zur Rechnung {invoice.Number}",
+            Text = $"Sehr geehrte Damen und Herren,\n\nzu unserer Rechnung {invoice.Number} vom {invoice.DocumentDate} über {grossEuro} EUR haben wir bisher keinen Zahlungseingang verzeichnet.",
+            DueInDays = dunningLevel switch
+            {
+                1 => 7,
+                2 => 5,
+                _ => 3
+            },
+            Items = invoice.Items
+        };
+
+        var created = await CreateDocumentAsync(dunning);
 
         if (finalize && created.Id.HasValue)
             created = await FinalizeDocumentAsync(created.Id.Value);
