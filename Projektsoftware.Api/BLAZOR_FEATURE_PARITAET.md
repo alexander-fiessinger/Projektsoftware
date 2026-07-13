@@ -79,6 +79,10 @@ parität zu bringen.
    - ✅ Mahnung (DUNNING) zu offener Rechnung erstellen im `DocumentsTab`.
 2. **Detail-/Edit-Dialoge** je Tab vervollständigen (Kunden, Projekte, Tickets, CRM)
 3. **PDF-Erzeugung** serverseitig (Brief, Vertrag, Rechnung) über API-Endpunkte
+   - ✅ Brief-PDF (DIN 5008) via `PdfLetterService` im `LetterTab`.
+   - ✅ Vertrags-PDF (Dienstleistungs-/Werkvertrag) via `ContractPdfService` im `ContractTab`.
+   - ✅ Rechnungs-/Dokument-PDF via Easybill (`DownloadPdfAsync`) im `DocumentsTab`.
+   - ✅ Ticket-Listen-PDF via `TicketPdfService` im `TicketsTab` (QuestPDF, analog WPF-`PdfExportService`).
 4. **E-Mail/Exchange-Posteingang** und Ticket-E-Mail-Versand
 5. **Restliche Spezialmodule** (Zahlungsabgleich, Produkt-Sync, LogicC)
 

@@ -1,4 +1,6 @@
 @inject ApiDatabaseService Db
+@inject TicketPdfService TicketPdf
+@inject IJSRuntime JS
 
 @if (_loading)
 {
@@ -9,6 +11,11 @@ else
     <div class="search-bar">
         <input type="text" placeholder="🔍 Tickets suchen..." @bind="_search" @bind:event="oninput" />
     </div>
+
+    <button class="btn-action block mt-8" disabled="@_exporting" @onclick="ExportPdf">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Tickets als PDF exportieren
+    </button>
 
     @if (FilteredTickets.Any())
     {
@@ -94,7 +101,7 @@ else
     private List<CustomerDto> _customers = [];
     private bool _loading = true;
     private string _search = "";
-    private bool _showForm, _saving;
+    private bool _showForm, _saving, _exporting;
     private string _fSubject = "", _fDesc = "", _fCustName = "", _fCustEmail = "", _fCustomerId = "";
     private int _fPriority = 1, _fCategory;
 
@@ -138,6 +145,20 @@ else
         }
         catch { }
         _saving = false;
+    }
+
+    private async Task ExportPdf()
+    {
+        _exporting = true;
+        try
+        {
+            var bytes = TicketPdf.Generate(FilteredTickets.ToList());
+            var base64 = Convert.ToBase64String(bytes);
+            var fileName = $"Tickets_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JS.InvokeVoidAsync("downloadFile", fileName, base64, "application/pdf");
+        }
+        catch { }
+        _exporting = false;
     }
 
     private static string PriorityColor(int priority) => priority switch

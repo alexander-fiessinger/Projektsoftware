@@ -33,6 +33,10 @@ else
                     </span>
                     <span class="sub" style="font-weight:600">@(p.ProgressPercent)%</span>
                 </div>
+                <div class="row mt-8" style="gap:8px;justify-content:flex-end">
+                    <button class="btn-icon" @onclick="() => EditProject(p)">✏️ Bearbeiten</button>
+                    <button class="btn-icon" style="color:var(--danger)" @onclick="() => DeleteProject(p)">🗑 Löschen</button>
+                </div>
             </div>
         }
     }
@@ -42,13 +46,13 @@ else
     }
 }
 
-<button class="add-btn" @onclick="() => _showForm = true">+</button>
+<button class="add-btn" @onclick="() => { CloseForm(); _showForm = true; }">+</button>
 
 @if (_showForm)
 {
-    <div class="add-form-overlay" @onclick="() => _showForm = false">
+    <div class="add-form-overlay" @onclick="CloseForm">
         <div class="add-form" @onclick:stopPropagation="true">
-            <h3>📁 Neues Projekt</h3>
+            <h3>@(_editId.HasValue ? "✏️ Projekt bearbeiten" : "📁 Neues Projekt")</h3>
             <div class="form-row"><label>Name *</label><input @bind="_fName" /></div>
             <div class="form-row"><label>Beschreibung</label><textarea @bind="_fDesc"></textarea></div>
             <div class="form-row">
@@ -71,7 +75,7 @@ else
             <div class="form-row"><label>Enddatum</label><input type="date" @bind="_fEnd" /></div>
             <div class="form-row"><label>Budget (€)</label><input type="number" step="0.01" @bind="_fBudget" /></div>
             <div class="form-actions">
-                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-cancel" @onclick="CloseForm">Abbrechen</button>
                 <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
             </div>
         </div>
@@ -84,6 +88,7 @@ else
     private bool _loading = true;
     private string _search = "";
     private bool _showForm, _saving;
+    private int? _editId;
     private string _fName = "", _fDesc = "", _fClient = "", _fStatus = "Aktiv";
     private DateTime _fStart = DateTime.Today;
     private DateTime? _fEnd;
@@ -99,16 +104,43 @@ else
         _loading = false;
     }
 
+    private void EditProject(ProjectDto p)
+    {
+        _editId = p.Id;
+        _fName = p.Name; _fDesc = p.Description; _fClient = p.ClientName; _fStatus = p.Status;
+        _fStart = p.StartDate; _fEnd = p.EndDate; _fBudget = p.Budget;
+        _showForm = true;
+    }
+
+    private async Task DeleteProject(ProjectDto p)
+    {
+        try
+        {
+            await Db.DeleteProjectAsync(p.Id);
+            _projects = await Db.GetProjectsAsync();
+        }
+        catch { }
+    }
+
+    private void CloseForm()
+    {
+        _showForm = false;
+        _editId = null;
+        _fName = _fDesc = _fClient = ""; _fStatus = "Aktiv"; _fStart = DateTime.Today; _fEnd = null; _fBudget = 0;
+    }
+
     private async Task Save()
     {
         if (string.IsNullOrWhiteSpace(_fName)) return;
         _saving = true;
         try
         {
-            await Db.CreateProjectAsync(_fName, _fDesc, _fStatus, _fClient, _fStart, _fEnd, _fBudget);
+            if (_editId.HasValue)
+                await Db.UpdateProjectAsync(_editId.Value, _fName, _fDesc, _fStatus, _fClient, _fStart, _fEnd, _fBudget);
+            else
+                await Db.CreateProjectAsync(_fName, _fDesc, _fStatus, _fClient, _fStart, _fEnd, _fBudget);
             _projects = await Db.GetProjectsAsync();
-            _showForm = false;
-            _fName = _fDesc = _fClient = ""; _fStatus = "Aktiv"; _fStart = DateTime.Today; _fEnd = null; _fBudget = 0;
+            CloseForm();
         }
         catch { }
         _saving = false;

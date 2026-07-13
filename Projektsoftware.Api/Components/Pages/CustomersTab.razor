@@ -25,6 +25,10 @@ else
                 @if (!string.IsNullOrEmpty(c.Phone)) { <div class="sub">📞 <a href="tel:@c.Phone" style="color:var(--primary)">@c.Phone</a></div> }
                 @if (!string.IsNullOrEmpty(c.Street) || !string.IsNullOrEmpty(c.City)) { <div class="sub">📍 @c.Street, @c.ZipCode @c.City</div> }
                 @if (!string.IsNullOrEmpty(c.Note)) { <div class="sub mt-4" style="color:#666;font-style:italic">📝 @c.Note</div> }
+                <div class="row mt-8" style="gap:8px;justify-content:flex-end">
+                    <button class="btn-icon" @onclick="() => EditCustomer(c)">✏️ Bearbeiten</button>
+                    <button class="btn-icon" style="color:var(--danger)" @onclick="() => DeleteCustomer(c)">🗑 Löschen</button>
+                </div>
             </div>
         }
     }
@@ -34,13 +38,13 @@ else
     }
 }
 
-<button class="add-btn" @onclick="() => _showForm = true">+</button>
+<button class="add-btn" @onclick="() => { CloseForm(); _showForm = true; }">+</button>
 
 @if (_showForm)
 {
-    <div class="add-form-overlay" @onclick="() => _showForm = false">
+    <div class="add-form-overlay" @onclick="CloseForm">
         <div class="add-form" @onclick:stopPropagation="true">
-            <h3>🏢 Neuer Kunde</h3>
+            <h3>@(_editId.HasValue ? "✏️ Kunde bearbeiten" : "🏢 Neuer Kunde")</h3>
             <div class="form-row"><label>Firma</label><input @bind="_fComp" /></div>
             <div class="form-row"><label>Vorname</label><input @bind="_fFirst" /></div>
             <div class="form-row"><label>Nachname</label><input @bind="_fLast" /></div>
@@ -50,8 +54,12 @@ else
             <div class="form-row"><label>PLZ</label><input @bind="_fZip" /></div>
             <div class="form-row"><label>Ort</label><input @bind="_fCity" /></div>
             <div class="form-row"><label>Notiz</label><textarea @bind="_fNote"></textarea></div>
+            @if (_editId.HasValue)
+            {
+                <div class="form-row"><label>Aktiv</label><input type="checkbox" @bind="_fActive" /></div>
+            }
             <div class="form-actions">
-                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-cancel" @onclick="CloseForm">Abbrechen</button>
                 <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
             </div>
         </div>
@@ -63,6 +71,8 @@ else
     private bool _loading = true;
     private string _search = "";
     private bool _showForm, _saving;
+    private int? _editId;
+    private bool _fActive = true;
     private string _fComp = "", _fFirst = "", _fLast = "", _fEmail = "", _fPhone = "", _fStreet = "", _fZip = "", _fCity = "", _fNote = "";
 
     private IEnumerable<CustomerDto> FilteredCustomers => string.IsNullOrWhiteSpace(_search) ? _customers :
@@ -76,16 +86,45 @@ else
         _loading = false;
     }
 
+    private void EditCustomer(CustomerDto c)
+    {
+        _editId = c.Id;
+        _fComp = c.CompanyName; _fFirst = c.FirstName; _fLast = c.LastName;
+        _fEmail = c.Email; _fPhone = c.Phone; _fStreet = c.Street;
+        _fZip = c.ZipCode; _fCity = c.City; _fNote = c.Note; _fActive = c.IsActive;
+        _showForm = true;
+    }
+
+    private async Task DeleteCustomer(CustomerDto c)
+    {
+        try
+        {
+            await Db.DeleteCustomerAsync(c.Id);
+            _customers = await Db.GetCustomersAsync();
+        }
+        catch { }
+    }
+
+    private void CloseForm()
+    {
+        _showForm = false;
+        _editId = null;
+        _fComp = _fFirst = _fLast = _fEmail = _fPhone = _fStreet = _fZip = _fCity = _fNote = "";
+        _fActive = true;
+    }
+
     private async Task Save()
     {
         if (string.IsNullOrWhiteSpace(_fComp) && string.IsNullOrWhiteSpace(_fFirst) && string.IsNullOrWhiteSpace(_fLast)) return;
         _saving = true;
         try
         {
-            await Db.CreateCustomerAsync(_fComp, _fFirst, _fLast, _fEmail, _fPhone, _fStreet, _fZip, _fCity, _fNote);
+            if (_editId.HasValue)
+                await Db.UpdateCustomerAsync(_editId.Value, _fComp, _fFirst, _fLast, _fEmail, _fPhone, _fStreet, _fZip, _fCity, _fNote, _fActive);
+            else
+                await Db.CreateCustomerAsync(_fComp, _fFirst, _fLast, _fEmail, _fPhone, _fStreet, _fZip, _fCity, _fNote);
             _customers = await Db.GetCustomersAsync();
-            _showForm = false;
-            _fComp = _fFirst = _fLast = _fEmail = _fPhone = _fStreet = _fZip = _fCity = _fNote = "";
+            CloseForm();
         }
         catch { }
         _saving = false;

@@ -39,6 +39,10 @@ else
                         <option value="Erledigt">✅ Erledigt</option>
                     </select>
                 </div>
+                <div class="row mt-8" style="gap:8px;justify-content:flex-end">
+                    <button class="btn-icon" @onclick="() => EditTask(t)">✏️ Bearbeiten</button>
+                    <button class="btn-icon" style="color:var(--danger)" @onclick="() => DeleteTask(t)">🗑 Löschen</button>
+                </div>
             </div>
         }
     }
@@ -48,13 +52,13 @@ else
     }
 }
 
-<button class="add-btn" @onclick="() => _showForm = true">+</button>
+<button class="add-btn" @onclick="() => { CloseForm(); _showForm = true; }">+</button>
 
 @if (_showForm)
 {
-    <div class="add-form-overlay" @onclick="() => _showForm = false">
+    <div class="add-form-overlay" @onclick="CloseForm">
         <div class="add-form" @onclick:stopPropagation="true">
-            <h3>📋 Neue Aufgabe</h3>
+            <h3>@(_editId.HasValue ? "✏️ Aufgabe bearbeiten" : "📋 Neue Aufgabe")</h3>
             <div class="form-row"><label>Titel *</label><input @bind="_fTitle" /></div>
             <div class="form-row"><label>Beschreibung</label><textarea @bind="_fDesc"></textarea></div>
             <div class="form-row">
@@ -83,7 +87,7 @@ else
             <div class="form-row"><label>Fällig am</label><input type="date" @bind="_fDue" /></div>
             <div class="form-row"><label>Geschätzte Stunden</label><input type="number" @bind="_fHours" /></div>
             <div class="form-actions">
-                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-cancel" @onclick="CloseForm">Abbrechen</button>
                 <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
             </div>
         </div>
@@ -97,6 +101,7 @@ else
     private bool _loading = true;
     private string _search = "";
     private bool _showForm, _saving;
+    private int? _editId;
     private string _fTitle = "", _fDesc = "", _fAssigned = "", _fPriority = "Normal";
     private int _fProjectId;
     private DateTime? _fDue;
@@ -133,13 +138,45 @@ else
         _saving = true;
         try
         {
-            await Db.CreateTaskAsync(new TaskCreateRequest(_fProjectId, _fTitle, _fDesc, _fAssigned, "Offen", _fPriority, _fDue, _fHours));
+            if (_editId.HasValue)
+            {
+                var existing = _tasks.FirstOrDefault(t => t.Id == _editId.Value);
+                await Db.UpdateTaskAsync(_editId.Value, _fTitle, _fDesc, _fAssigned, existing?.Status ?? "Offen", _fPriority, _fDue, _fHours);
+            }
+            else
+            {
+                await Db.CreateTaskAsync(new TaskCreateRequest(_fProjectId, _fTitle, _fDesc, _fAssigned, "Offen", _fPriority, _fDue, _fHours));
+            }
             _tasks = await Db.GetTasksAsync();
-            _showForm = false;
-            _fTitle = _fDesc = _fAssigned = ""; _fPriority = "Normal"; _fProjectId = 0; _fDue = null; _fHours = 0;
+            CloseForm();
         }
         catch { }
         _saving = false;
+    }
+
+    private void EditTask(TaskDto t)
+    {
+        _editId = t.Id;
+        _fTitle = t.Title; _fDesc = t.Description; _fAssigned = t.AssignedTo; _fPriority = t.Priority;
+        _fProjectId = t.ProjectId; _fDue = t.DueDate; _fHours = t.EstimatedHours;
+        _showForm = true;
+    }
+
+    private async Task DeleteTask(TaskDto t)
+    {
+        try
+        {
+            await Db.DeleteTaskAsync(t.Id);
+            _tasks = await Db.GetTasksAsync();
+        }
+        catch { }
+    }
+
+    private void CloseForm()
+    {
+        _showForm = false;
+        _editId = null;
+        _fTitle = _fDesc = _fAssigned = ""; _fPriority = "Normal"; _fProjectId = 0; _fDue = null; _fHours = 0;
     }
 
     private static string PriorityColor(string priority) => priority switch

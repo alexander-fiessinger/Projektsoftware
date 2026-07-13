@@ -46,6 +46,10 @@ else
                     {
                         <div class="mt-4 sub" style="font-style:italic;">@c.Notes</div>
                     }
+                    <div class="row mt-8" style="gap:8px;justify-content:flex-end">
+                        <button class="btn-icon" @onclick="() => EditContact(c)">✏️ Bearbeiten</button>
+                        <button class="btn-icon" style="color:var(--danger)" @onclick="() => DeleteContact(c)">🗑 Löschen</button>
+                    </div>
                 </div>
             }
         }
@@ -80,6 +84,10 @@ else
                         <div class="mt-4 sub" style="font-style:italic;">@a.Notes</div>
                     }
                     <div class="mt-4 sub" style="font-size:11px;">Von: @a.CreatedBy • @a.CreatedAt.ToString("dd.MM.yyyy HH:mm")</div>
+                    <div class="row mt-8" style="gap:8px;justify-content:flex-end">
+                        <button class="btn-icon" @onclick="() => EditActivity(a)">✏️ Bearbeiten</button>
+                        <button class="btn-icon" style="color:var(--danger)" @onclick="() => DeleteActivity(a)">🗑 Löschen</button>
+                    </div>
                 </div>
             }
         }
@@ -136,6 +144,10 @@ else
                             <option value="5">❌ Verloren</option>
                         </select>
                     </div>
+                    <div class="row mt-8" style="gap:8px;justify-content:flex-end">
+                        <button class="btn-icon" @onclick="() => EditDeal(d)">✏️ Bearbeiten</button>
+                        <button class="btn-icon" style="color:var(--danger)" @onclick="() => DeleteDeal(d)">🗑 Löschen</button>
+                    </div>
                 </div>
             }
         }
@@ -147,9 +159,9 @@ else
 @* ── Contact Form ── *@
 @if (_showContactForm)
 {
-    <div class="add-form-overlay" @onclick="() => _showContactForm = false">
+    <div class="add-form-overlay" @onclick="CloseContactForm">
         <div class="add-form" @onclick:stopPropagation="true">
-            <h3>👤 Neuer Kontakt</h3>
+            <h3>@(_editContactId.HasValue ? "✏️ Kontakt bearbeiten" : "👤 Neuer Kontakt")</h3>
             <div class="form-row"><label>Vorname *</label><input @bind="_cFirstName" /></div>
             <div class="form-row"><label>Nachname *</label><input @bind="_cLastName" /></div>
             <div class="form-row"><label>Position</label><input @bind="_cPosition" /></div>
@@ -165,7 +177,7 @@ else
             </div>
             <div class="form-row"><label>Notizen</label><textarea @bind="_cNotes"></textarea></div>
             <div class="form-actions">
-                <button class="btn-cancel" @onclick="() => _showContactForm = false">Abbrechen</button>
+                <button class="btn-cancel" @onclick="CloseContactForm">Abbrechen</button>
                 <button class="btn-save" @onclick="SaveContact" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
             </div>
         </div>
@@ -175,9 +187,9 @@ else
 @* ── Activity Form ── *@
 @if (_showActivityForm)
 {
-    <div class="add-form-overlay" @onclick="() => _showActivityForm = false">
+    <div class="add-form-overlay" @onclick="CloseActivityForm">
         <div class="add-form" @onclick:stopPropagation="true">
-            <h3>📅 Neue Aktivität</h3>
+            <h3>@(_editActivityId.HasValue ? "✏️ Aktivität bearbeiten" : "📅 Neue Aktivität")</h3>
             <div class="form-row">
                 <label>Typ *</label>
                 <select @bind="_aType">
@@ -213,7 +225,7 @@ else
             </div>
             <div class="form-row"><label>Notizen</label><textarea @bind="_aNotes"></textarea></div>
             <div class="form-actions">
-                <button class="btn-cancel" @onclick="() => _showActivityForm = false">Abbrechen</button>
+                <button class="btn-cancel" @onclick="CloseActivityForm">Abbrechen</button>
                 <button class="btn-save" @onclick="SaveActivity" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
             </div>
         </div>
@@ -223,9 +235,9 @@ else
 @* ── Deal Form ── *@
 @if (_showDealForm)
 {
-    <div class="add-form-overlay" @onclick="() => _showDealForm = false">
+    <div class="add-form-overlay" @onclick="CloseDealForm">
         <div class="add-form" @onclick:stopPropagation="true">
-            <h3>💰 Neuer Deal</h3>
+            <h3>@(_editDealId.HasValue ? "✏️ Deal bearbeiten" : "💰 Neuer Deal")</h3>
             <div class="form-row"><label>Titel *</label><input @bind="_dTitle" /></div>
             <div class="form-row"><label>Wert (€) *</label><input type="number" step="0.01" @bind="_dValue" /></div>
             <div class="form-row"><label>Wahrscheinlichkeit (%)</label><input type="number" min="0" max="100" @bind="_dProbability" /></div>
@@ -246,7 +258,7 @@ else
             </div>
             <div class="form-row"><label>Notizen</label><textarea @bind="_dNotes"></textarea></div>
             <div class="form-actions">
-                <button class="btn-cancel" @onclick="() => _showDealForm = false">Abbrechen</button>
+                <button class="btn-cancel" @onclick="CloseDealForm">Abbrechen</button>
                 <button class="btn-save" @onclick="SaveDeal" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
             </div>
         </div>
@@ -266,16 +278,19 @@ else
 
     // Contact form
     private bool _showContactForm;
+    private int? _editContactId;
     private string _cFirstName = "", _cLastName = "", _cPosition = "", _cEmail = "", _cPhone = "", _cMobile = "", _cNotes = "", _cCustomerId = "";
 
     // Activity form
     private bool _showActivityForm;
+    private int? _editActivityId;
     private int _aType;
     private string _aSubject = "", _aNotes = "", _aCreatedBy = "", _aContactId = "", _aCustomerId = "";
     private DateTime? _aDueDate;
 
     // Deal form
     private bool _showDealForm;
+    private int? _editDealId;
     private string _dTitle = "", _dNotes = "", _dAssignedTo = "", _dCustomerId = "";
     private decimal _dValue;
     private int _dProbability = 50;
@@ -314,9 +329,71 @@ else
 
     private void OpenAddForm()
     {
-        if (_subTab == "contacts") _showContactForm = true;
-        else if (_subTab == "activities") _showActivityForm = true;
-        else if (_subTab == "deals") _showDealForm = true;
+        if (_subTab == "contacts") { CloseContactForm(); _showContactForm = true; }
+        else if (_subTab == "activities") { CloseActivityForm(); _showActivityForm = true; }
+        else if (_subTab == "deals") { CloseDealForm(); _showDealForm = true; }
+    }
+
+    private void CloseContactForm()
+    {
+        _showContactForm = false;
+        _editContactId = null;
+        _cFirstName = _cLastName = _cPosition = _cEmail = _cPhone = _cMobile = _cNotes = _cCustomerId = "";
+    }
+
+    private void CloseActivityForm()
+    {
+        _showActivityForm = false;
+        _editActivityId = null;
+        _aType = 0; _aSubject = _aNotes = _aCreatedBy = _aContactId = _aCustomerId = ""; _aDueDate = null;
+    }
+
+    private void CloseDealForm()
+    {
+        _showDealForm = false;
+        _editDealId = null;
+        _dTitle = _dNotes = _dAssignedTo = _dCustomerId = ""; _dValue = 0; _dProbability = 50; _dExpectedClose = null;
+    }
+
+    private void EditContact(CrmContactDto c)
+    {
+        _editContactId = c.Id;
+        _cFirstName = c.FirstName; _cLastName = c.LastName; _cPosition = c.Position;
+        _cEmail = c.Email; _cPhone = c.Phone; _cMobile = c.Mobile; _cNotes = c.Notes;
+        _cCustomerId = c.CustomerId?.ToString() ?? "";
+        _showContactForm = true;
+    }
+
+    private async Task DeleteContact(CrmContactDto c)
+    {
+        try { await Db.DeleteCrmContactAsync(c.Id); _contacts = await Db.GetCrmContactsAsync(); } catch { }
+    }
+
+    private void EditActivity(CrmActivityDto a)
+    {
+        _editActivityId = a.Id;
+        _aType = a.Type; _aSubject = a.Subject; _aNotes = a.Notes; _aDueDate = a.DueDate;
+        _aCreatedBy = a.CreatedBy;
+        _showActivityForm = true;
+    }
+
+    private async Task DeleteActivity(CrmActivityDto a)
+    {
+        try { await Db.DeleteCrmActivityAsync(a.Id); _activities = await Db.GetCrmActivitiesAsync(); } catch { }
+    }
+
+    private void EditDeal(CrmDealDto d)
+    {
+        _editDealId = d.Id;
+        _dTitle = d.Title; _dValue = d.Value; _dProbability = d.Probability;
+        _dExpectedClose = d.ExpectedCloseDate; _dNotes = d.Notes; _dAssignedTo = d.AssignedTo;
+        _dCustomerId = d.CustomerId?.ToString() ?? "";
+        _showDealForm = true;
+    }
+
+    private async Task DeleteDeal(CrmDealDto d)
+    {
+        try { await Db.DeleteCrmDealAsync(d.Id); _deals = await Db.GetCrmDealsAsync(); } catch { }
     }
 
     private async Task SaveContact()
@@ -326,10 +403,12 @@ else
         try
         {
             int? custId = int.TryParse(_cCustomerId, out var v) ? v : null;
-            await Db.CreateCrmContactAsync(_cFirstName, _cLastName, _cPosition, _cEmail, _cPhone, _cMobile, _cNotes, custId);
+            if (_editContactId.HasValue)
+                await Db.UpdateCrmContactAsync(_editContactId.Value, _cFirstName, _cLastName, _cPosition, _cEmail, _cPhone, _cMobile, _cNotes, custId);
+            else
+                await Db.CreateCrmContactAsync(_cFirstName, _cLastName, _cPosition, _cEmail, _cPhone, _cMobile, _cNotes, custId);
             _contacts = await Db.GetCrmContactsAsync();
-            _showContactForm = false;
-            _cFirstName = _cLastName = _cPosition = _cEmail = _cPhone = _cMobile = _cNotes = _cCustomerId = "";
+            CloseContactForm();
         }
         catch { }
         _saving = false;
@@ -343,10 +422,12 @@ else
         {
             int? contactId = int.TryParse(_aContactId, out var cv) ? cv : null;
             int? custId = int.TryParse(_aCustomerId, out var cuv) ? cuv : null;
-            await Db.CreateCrmActivityAsync(_aType, _aSubject, _aNotes, _aDueDate, contactId, custId, _aCreatedBy);
+            if (_editActivityId.HasValue)
+                await Db.UpdateCrmActivityAsync(_editActivityId.Value, _aType, _aSubject, _aNotes, _aDueDate, false);
+            else
+                await Db.CreateCrmActivityAsync(_aType, _aSubject, _aNotes, _aDueDate, contactId, custId, _aCreatedBy);
             _activities = await Db.GetCrmActivitiesAsync();
-            _showActivityForm = false;
-            _aType = 0; _aSubject = _aNotes = _aCreatedBy = _aContactId = _aCustomerId = ""; _aDueDate = null;
+            CloseActivityForm();
         }
         catch { }
         _saving = false;
@@ -359,10 +440,12 @@ else
         try
         {
             int? custId = int.TryParse(_dCustomerId, out var v) ? v : null;
-            await Db.CreateCrmDealAsync(_dTitle, _dValue, _dProbability, _dExpectedClose, _dNotes, custId, _dAssignedTo);
+            if (_editDealId.HasValue)
+                await Db.UpdateCrmDealAsync(_editDealId.Value, _dTitle, _dValue, _dProbability, _dExpectedClose, _dNotes, custId, _dAssignedTo);
+            else
+                await Db.CreateCrmDealAsync(_dTitle, _dValue, _dProbability, _dExpectedClose, _dNotes, custId, _dAssignedTo);
             _deals = await Db.GetCrmDealsAsync();
-            _showDealForm = false;
-            _dTitle = _dNotes = _dAssignedTo = _dCustomerId = ""; _dValue = 0; _dProbability = 50; _dExpectedClose = null;
+            CloseDealForm();
         }
         catch { }
         _saving = false;

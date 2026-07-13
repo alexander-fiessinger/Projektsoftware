@@ -358,6 +358,7 @@ public class CrmActivityDto
 public class CrmDealDto
 {
     public int Id { get; set; }
+    public int? CustomerId { get; set; }
     public string CustomerName { get; set; } = "";
     public string ContactName { get; set; } = "";
     public string Title { get; set; } = "";

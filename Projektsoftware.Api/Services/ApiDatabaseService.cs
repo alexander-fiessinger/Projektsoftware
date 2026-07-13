@@ -613,6 +613,35 @@ public class ApiDatabaseService
         return Convert.ToInt32(result);
     }
 
+    public async Task UpdateTaskAsync(int id, string title, string description, string assignedTo, string status, string priority, DateTime? dueDate, int estimatedHours)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        const string query = @"UPDATE tasks SET
+                                   title=@title, description=@desc, assigned_to=@assignedTo, status=@status,
+                                   priority=@priority, due_date=@dueDate, estimated_hours=@estHours
+                               WHERE id=@id";
+        using var cmd = new MySqlCommand(query, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@title", title);
+        cmd.Parameters.AddWithValue("@desc", description ?? "");
+        cmd.Parameters.AddWithValue("@assignedTo", assignedTo ?? "");
+        cmd.Parameters.AddWithValue("@status", status);
+        cmd.Parameters.AddWithValue("@priority", priority);
+        cmd.Parameters.AddWithValue("@dueDate", dueDate.HasValue ? dueDate.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("@estHours", estimatedHours);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task DeleteTaskAsync(int id)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        using var cmd = new MySqlCommand("DELETE FROM tasks WHERE id=@id", conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     // ── Employees ───────────────────────────────────────────────────
 
     public async Task<List<EmployeeDto>> GetEmployeesAsync()
@@ -912,6 +941,7 @@ public class ApiDatabaseService
             list.Add(new CrmDealDto
             {
                 Id = r.GetInt32(r.GetOrdinal("id")),
+                CustomerId = r.IsDBNull(r.GetOrdinal("customer_id")) ? null : r.GetInt32(r.GetOrdinal("customer_id")),
                 CustomerName = r.IsDBNull(r.GetOrdinal("customer_display_name")) ? "" : r.GetString(r.GetOrdinal("customer_display_name")),
                 ContactName = r.IsDBNull(r.GetOrdinal("contact_display_name")) ? "" : r.GetString(r.GetOrdinal("contact_display_name")).Trim(),
                 Title = r.IsDBNull(r.GetOrdinal("title")) ? "" : r.GetString(r.GetOrdinal("title")),
@@ -1517,6 +1547,35 @@ public class ApiDatabaseService
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
 
+    public async Task UpdateProjectAsync(int id, string name, string description, string status, string clientName, DateTime startDate, DateTime? endDate, decimal budget)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        const string q = @"UPDATE projects SET
+                               name=@name, description=@desc, status=@status, client_name=@client,
+                               start_date=@start, end_date=@end, budget=@budget
+                           WHERE id=@id";
+        using var cmd = new MySqlCommand(q, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@name", name);
+        cmd.Parameters.AddWithValue("@desc", description ?? "");
+        cmd.Parameters.AddWithValue("@status", status);
+        cmd.Parameters.AddWithValue("@client", clientName ?? "");
+        cmd.Parameters.AddWithValue("@start", startDate);
+        cmd.Parameters.AddWithValue("@end", endDate.HasValue ? endDate.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("@budget", budget);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task DeleteProjectAsync(int id)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        using var cmd = new MySqlCommand("DELETE FROM projects WHERE id=@id", conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     public async Task<int> CreateEmployeeAsync(string firstName, string lastName, string email, string phone, string position, string department, decimal hourlyRate)
     {
         using var conn = new MySqlConnection(_connectionString);
@@ -1551,6 +1610,38 @@ public class ApiDatabaseService
         cmd.Parameters.AddWithValue("@city", city ?? "");
         cmd.Parameters.AddWithValue("@note", note ?? "");
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+
+    public async Task UpdateCustomerAsync(int id, string companyName, string firstName, string lastName, string email, string phone, string street, string zipCode, string city, string note, bool isActive)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        const string q = @"UPDATE customers SET
+                               company_name=@comp, first_name=@fn, last_name=@ln, email=@email, phone=@phone,
+                               street=@street, zip_code=@zip, city=@city, note=@note, is_active=@active, updated_at=NOW()
+                           WHERE id=@id";
+        using var cmd = new MySqlCommand(q, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@comp", companyName ?? "");
+        cmd.Parameters.AddWithValue("@fn", firstName ?? "");
+        cmd.Parameters.AddWithValue("@ln", lastName ?? "");
+        cmd.Parameters.AddWithValue("@email", email ?? "");
+        cmd.Parameters.AddWithValue("@phone", phone ?? "");
+        cmd.Parameters.AddWithValue("@street", street ?? "");
+        cmd.Parameters.AddWithValue("@zip", zipCode ?? "");
+        cmd.Parameters.AddWithValue("@city", city ?? "");
+        cmd.Parameters.AddWithValue("@note", note ?? "");
+        cmd.Parameters.AddWithValue("@active", isActive);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task DeleteCustomerAsync(int id)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        using var cmd = new MySqlCommand("DELETE FROM customers WHERE id=@id", conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        await cmd.ExecuteNonQueryAsync();
     }
 
     public async Task<int> CreateTicketAsync(string customerName, string customerEmail, string subject, string description, int priority, int category)
@@ -1633,6 +1724,36 @@ public class ApiDatabaseService
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
 
+    public async Task UpdateCrmContactAsync(int id, string firstName, string lastName, string position, string email, string phone, string mobile, string notes, int? customerId)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        const string q = @"UPDATE crm_contacts SET
+                               customer_id=@cid, first_name=@fn, last_name=@ln, position=@pos,
+                               email=@email, phone=@phone, mobile=@mobile, notes=@notes
+                           WHERE id=@id";
+        using var cmd = new MySqlCommand(q, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@cid", customerId.HasValue ? customerId.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("@fn", firstName ?? "");
+        cmd.Parameters.AddWithValue("@ln", lastName ?? "");
+        cmd.Parameters.AddWithValue("@pos", position ?? "");
+        cmd.Parameters.AddWithValue("@email", email ?? "");
+        cmd.Parameters.AddWithValue("@phone", phone ?? "");
+        cmd.Parameters.AddWithValue("@mobile", mobile ?? "");
+        cmd.Parameters.AddWithValue("@notes", notes ?? "");
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task DeleteCrmContactAsync(int id)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        using var cmd = new MySqlCommand("DELETE FROM crm_contacts WHERE id=@id", conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     public async Task<int> CreateCrmActivityAsync(int type, string subject, string notes, DateTime? dueDate, int? contactId, int? customerId, string createdBy)
     {
         using var conn = new MySqlConnection(_connectionString);
@@ -1650,6 +1771,32 @@ public class ApiDatabaseService
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
 
+    public async Task UpdateCrmActivityAsync(int id, int type, string subject, string notes, DateTime? dueDate, bool isCompleted)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        const string q = @"UPDATE crm_activities SET
+                               type=@type, subject=@subj, notes=@notes, due_date=@due, is_completed=@done
+                           WHERE id=@id";
+        using var cmd = new MySqlCommand(q, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@type", type);
+        cmd.Parameters.AddWithValue("@subj", subject);
+        cmd.Parameters.AddWithValue("@notes", notes ?? "");
+        cmd.Parameters.AddWithValue("@due", dueDate.HasValue ? dueDate.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("@done", isCompleted);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task DeleteCrmActivityAsync(int id)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        using var cmd = new MySqlCommand("DELETE FROM crm_activities WHERE id=@id", conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     public async Task<int> CreateCrmDealAsync(string title, decimal value, int probability, DateTime? expectedCloseDate, string notes, int? customerId, string assignedTo)
     {
         using var conn = new MySqlConnection(_connectionString);
@@ -1665,6 +1812,35 @@ public class ApiDatabaseService
         cmd.Parameters.AddWithValue("@notes", notes ?? "");
         cmd.Parameters.AddWithValue("@assigned", assignedTo ?? "");
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+
+    public async Task UpdateCrmDealAsync(int id, string title, decimal value, int probability, DateTime? expectedCloseDate, string notes, int? customerId, string assignedTo)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        const string q = @"UPDATE crm_deals SET
+                               customer_id=@cid, title=@title, value=@val, probability=@prob,
+                               expected_close_date=@close, notes=@notes, assigned_to=@assigned
+                           WHERE id=@id";
+        using var cmd = new MySqlCommand(q, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@cid", customerId.HasValue ? customerId.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("@title", title);
+        cmd.Parameters.AddWithValue("@val", value);
+        cmd.Parameters.AddWithValue("@prob", probability);
+        cmd.Parameters.AddWithValue("@close", expectedCloseDate.HasValue ? expectedCloseDate.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("@notes", notes ?? "");
+        cmd.Parameters.AddWithValue("@assigned", assignedTo ?? "");
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task DeleteCrmDealAsync(int id)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        using var cmd = new MySqlCommand("DELETE FROM crm_deals WHERE id=@id", conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        await cmd.ExecuteNonQueryAsync();
     }
 
     public async Task<int> CreateMeetingProtocolAsync(int? projectId, string title, DateTime meetingDate, string location, string participants, string agenda, string discussion, string decisions, string actionItems)

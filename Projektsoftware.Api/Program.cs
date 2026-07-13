@@ -10,6 +10,7 @@ builder.Services.AddSingleton<ApiDatabaseService>();
 builder.Services.AddSingleton<ApiEmailService>();
 builder.Services.AddSingleton<PdfLetterService>();
 builder.Services.AddSingleton<ContractPdfService>();
+builder.Services.AddSingleton<TicketPdfService>();
 builder.Services.AddSingleton<VatCalculatorService>();
 builder.Services.AddSingleton<KpiAnalyticsService>();
 
