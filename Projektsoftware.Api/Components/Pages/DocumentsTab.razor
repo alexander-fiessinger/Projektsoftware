@@ -163,6 +163,11 @@ else
                     {
                         <button class="btn btn-primary" style="background:var(--warning)" @onclick="FinalizeDoc" disabled="@_actionBusy">✅ Abschließen</button>
                     }
+                    @if (_selectedDoc.IsPayable && !_selectedDoc.IsDraft
+                        && _selectedDoc.PaymentStatus is "Offen" or "Teilw. bezahlt" or "Überfällig")
+                    {
+                        <button class="btn btn-primary" style="background:var(--success)" @onclick="MarkPaid" disabled="@_actionBusy">💶 Als bezahlt markieren</button>
+                    }
                     <button class="btn btn-danger" style="opacity:0.7" @onclick="DeleteDoc" disabled="@_actionBusy">🗑 Löschen</button>
                     <button class="btn-cancel" style="padding:10px;border:none;border-radius:10px;font-size:15px;cursor:pointer;background:#EEE" @onclick="() => _selectedDoc = null">Schließen</button>
                 </div>
@@ -469,6 +474,23 @@ else
             _actionMsg = $"✅ Dokument {updated.Number} abgeschlossen!";
             await LoadDocuments();
             _selectedDoc = null;
+        }
+        catch (Exception ex) { _actionErr = ex.Message; }
+        _actionBusy = false;
+    }
+
+    private async Task MarkPaid()
+    {
+        if (_selectedDoc?.Id == null) return;
+        _actionBusy = true;
+        _actionMsg = _actionErr = "";
+        try
+        {
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            var updated = await svc.MarkAsPaidAsync(_selectedDoc.Id.Value);
+            _actionMsg = $"✅ {updated.DisplayType} {updated.Number} als bezahlt gebucht.";
+            await LoadDocuments();
+            _selectedDoc = _documents.FirstOrDefault(d => d.Id == updated.Id);
         }
         catch (Exception ex) { _actionErr = ex.Message; }
         _actionBusy = false;

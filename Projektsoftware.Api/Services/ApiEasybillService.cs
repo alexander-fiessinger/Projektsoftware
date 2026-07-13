@@ -138,6 +138,40 @@ public class ApiEasybillService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Erfasst eine Zahlung für ein Dokument. Beträge werden – wie von Easybill erwartet – in Cent gesendet.
+    /// </summary>
+    /// <param name="amountCents">Zu buchender Betrag in Cent. Wenn null, wird der noch offene Betrag gebucht.</param>
+    /// <param name="markFullyPaid">true = Rechnung vollständig als bezahlt markieren; false = nur (Teil-)Zahlung erfassen.</param>
+    public async Task<EbDocument> MarkAsPaidAsync(long documentId, long? amountCents = null, bool markFullyPaid = true, string paymentType = "BANK_TRANSFER")
+    {
+        // Aktuellen Stand laden, um den offenen Betrag zu bestimmen.
+        var document = await GetDocumentAsync(documentId);
+        var gross = document.Amount ?? document.TotalGross ?? 0;
+        var open = gross - (document.PaidAmount ?? 0);
+        var payAmount = amountCents ?? (open > 0 ? open : gross);
+
+        var payment = new
+        {
+            document_id = documentId,
+            amount = payAmount, // Cent
+            type = paymentType,
+            payment_at = DateTime.Now.ToString("yyyy-MM-dd")
+        };
+
+        var paidFlag = markFullyPaid ? "true" : "false";
+        var content = new StringContent(JsonSerializer.Serialize(payment), Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync($"document-payments?paid={paidFlag}", content);
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            var error = await resp.Content.ReadAsStringAsync();
+            throw new Exception($"Fehler beim Buchen der Zahlung: {resp.StatusCode} – {error}");
+        }
+
+        return await GetDocumentAsync(documentId);
+    }
+
     // ── Customers ───────────────────────────────────────────────────
 
     public async Task<List<EbCustomer>> GetCustomersAsync()
