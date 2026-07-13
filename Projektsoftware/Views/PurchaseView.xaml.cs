@@ -306,13 +306,26 @@ namespace Projektsoftware.Views
             if (dlg.ShowDialog() == true)
             {
                 if (dlg.SelectedFileBytes != null)
+                {
+                    dlg.Result.FileData = dlg.SelectedFileBytes;
                     dlg.Result.LocalFilePath = SaveDocumentLocally(dlg.Result.OriginalFileName, dlg.SelectedFileBytes);
+                }
 
                 int newId = await _db.AddPurchaseDocumentAsync(dlg.Result);
                 dlg.Result.Id = newId;
 
                 if (_easybill != null && dlg.SelectedFileBytes != null)
-                    await TrySyncDocumentToEasybillAsync(dlg.Result, dlg.SelectedFileBytes);
+                {
+                    try
+                    {
+                        await TrySyncDocumentToEasybillAsync(dlg.Result, dlg.SelectedFileBytes);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Easybill-Synchronisation fehlgeschlagen:\n{ex.Message}",
+                            "Easybill Sync Fehler", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                }
 
                 await LoadDataAsync();
             }
@@ -325,12 +338,25 @@ namespace Projektsoftware.Views
             if (dlg.ShowDialog() == true)
             {
                 if (dlg.SelectedFileBytes != null)
+                {
+                    dlg.Result.FileData = dlg.SelectedFileBytes;
                     dlg.Result.LocalFilePath = SaveDocumentLocally(dlg.Result.OriginalFileName, dlg.SelectedFileBytes);
+                }
 
                 await _db.UpdatePurchaseDocumentAsync(dlg.Result);
 
                 if (_easybill != null && dlg.SelectedFileBytes != null)
-                    await TrySyncDocumentToEasybillAsync(dlg.Result, dlg.SelectedFileBytes);
+                {
+                    try
+                    {
+                        await TrySyncDocumentToEasybillAsync(dlg.Result, dlg.SelectedFileBytes);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Easybill-Synchronisation fehlgeschlagen:\n{ex.Message}",
+                            "Easybill Sync Fehler", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                }
 
                 await LoadDataAsync();
             }
@@ -344,8 +370,15 @@ namespace Projektsoftware.Views
 
             if (_easybill != null && doc.EasybillAttachmentId.HasValue)
             {
-                try { await _easybill.DeleteGlobalAttachmentAsync(doc.EasybillAttachmentId.Value); }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Easybill-Beleg-Löschung: {ex.Message}"); }
+                try
+                {
+                    await _easybill.DeleteGlobalAttachmentAsync(doc.EasybillAttachmentId.Value);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Beleg konnte in Easybill nicht gelöscht werden:\n{ex.Message}",
+                        "Easybill Fehler", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
             }
 
             if (!string.IsNullOrEmpty(doc.LocalFilePath) && File.Exists(doc.LocalFilePath))
@@ -361,15 +394,43 @@ namespace Projektsoftware.Views
         private void OpenDocumentFile_Click(object sender, RoutedEventArgs e)
         {
             if (((FrameworkElement)sender).DataContext is not PurchaseDocument doc) return;
-            if (string.IsNullOrEmpty(doc.LocalFilePath) || !File.Exists(doc.LocalFilePath))
+
+            byte[]? bytes = null;
+            string ext = Path.GetExtension(doc.OriginalFileName);
+            if (string.IsNullOrEmpty(ext)) ext = ".pdf";
+
+            // Primär: Bytes aus Datenbank
+            if (doc.HasFileInDb)
             {
-                MessageBox.Show("Die Datei ist lokal nicht mehr vorhanden.\n\nBitte laden Sie die Datei erneut hoch.", "Datei nicht gefunden",
+                bytes = doc.FileData;
+            }
+            // Fallback: lokale Datei (Altbestand)
+            else if (!string.IsNullOrEmpty(doc.LocalFilePath) && File.Exists(doc.LocalFilePath))
+            {
+                try { bytes = File.ReadAllBytes(doc.LocalFilePath); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Lokale Datei konnte nicht gelesen werden:\n{ex.Message}", "Fehler",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+            }
+
+            if (bytes == null || bytes.Length == 0)
+            {
+                MessageBox.Show("Keine Datei vorhanden.\n\nBitte laden Sie die Datei erneut hoch.", "Datei nicht gefunden",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
+
             try
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(doc.LocalFilePath) { UseShellExecute = true });
+                var tempDir = Path.Combine(Path.GetTempPath(), "ProjektsoftwareDocs");
+                Directory.CreateDirectory(tempDir);
+                var safeName = string.Concat((doc.OriginalFileName ?? $"Beleg{ext}").Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+                var tempPath = Path.Combine(tempDir, safeName);
+                File.WriteAllBytes(tempPath, bytes);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(tempPath) { UseShellExecute = true });
             }
             catch (Exception ex)
             {
@@ -385,15 +446,25 @@ namespace Projektsoftware.Views
                 MessageBox.Show("Easybill ist nicht konfiguriert.", "Hinweis", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            if (string.IsNullOrEmpty(doc.LocalFilePath) || !File.Exists(doc.LocalFilePath))
+
+            byte[]? fileBytes = null;
+            if (doc.HasFileInDb)
             {
-                MessageBox.Show("Keine lokale Datei vorhanden. Bitte laden Sie zuerst eine Datei hoch.", "Keine Datei",
+                fileBytes = doc.FileData;
+            }
+            else if (!string.IsNullOrEmpty(doc.LocalFilePath) && File.Exists(doc.LocalFilePath))
+            {
+                fileBytes = File.ReadAllBytes(doc.LocalFilePath);
+            }
+
+            if (fileBytes == null || fileBytes.Length == 0)
+            {
+                MessageBox.Show("Keine Datei vorhanden. Bitte laden Sie zuerst eine Datei hoch.", "Keine Datei",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             try
             {
-                var fileBytes = File.ReadAllBytes(doc.LocalFilePath);
                 await TrySyncDocumentToEasybillAsync(doc, fileBytes);
                 await LoadDataAsync();
                 MessageBox.Show($"Beleg '{doc.DocumentName}' erfolgreich mit Easybill synchronisiert.", "Easybill Sync",
@@ -413,12 +484,25 @@ namespace Projektsoftware.Views
                 if (dlg.ShowDialog() == true)
                 {
                     if (dlg.SelectedFileBytes != null)
+                    {
+                        dlg.Result.FileData = dlg.SelectedFileBytes;
                         dlg.Result.LocalFilePath = SaveDocumentLocally(dlg.Result.OriginalFileName, dlg.SelectedFileBytes);
+                    }
 
                     await _db.UpdatePurchaseDocumentAsync(dlg.Result);
 
                     if (_easybill != null && dlg.SelectedFileBytes != null)
-                        await TrySyncDocumentToEasybillAsync(dlg.Result, dlg.SelectedFileBytes);
+                    {
+                        try
+                        {
+                            await TrySyncDocumentToEasybillAsync(dlg.Result, dlg.SelectedFileBytes);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Easybill-Synchronisation fehlgeschlagen:\n{ex.Message}",
+                                "Easybill Sync Fehler", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        }
+                    }
                 }
                 await LoadDataAsync();
             }
@@ -469,29 +553,75 @@ namespace Projektsoftware.Views
                     }
                 }
 
-                // Dateiname für Easybill zusammenstellen
+                // Dateiname für Easybill zusammenstellen (ungültige Zeichen ersetzen)
                 var ext = Path.GetExtension(doc.OriginalFileName);
                 if (string.IsNullOrEmpty(ext)) ext = ".pdf";
-                var ebFileName = $"{doc.DocumentType}_{doc.DocumentName}_{doc.DocumentDate:yyyyMMdd}{ext}";
+                var rawName = $"{doc.DocumentType}_{doc.DocumentName}_{doc.DocumentDate:yyyyMMdd}";
+                var safeName = string.Concat(rawName.Select(c => Path.GetInvalidFileNameChars().Contains(c) || c == ':' || c == '/' ? '_' : c));
+                var ebFileName = safeName + ext;
 
-                // Beleg zu Easybill hochladen (erscheint unter Belege → Uploads)
-                var attachment = await _easybill.UploadGlobalAttachmentAsync(ebFileName, fileBytes);
-                if (attachment?.Id > 0)
+                // Beleg zu Easybill hochladen – nur wenn noch nicht synchronisiert
+                if (!doc.EasybillAttachmentId.HasValue)
                 {
-                    // Dem Lieferanten-Kundenkonto zuordnen, falls vorhanden
-                    if (supplier?.EasybillCustomerId > 0)
-                        await _easybill.UpdateAttachmentAsync(attachment.Id.Value, supplier.EasybillCustomerId);
+                    var attachment = await _easybill.UploadGlobalAttachmentAsync(ebFileName, fileBytes);
+                    if (attachment?.Id > 0)
+                    {
+                        if (supplier?.EasybillCustomerId > 0)
+                            await _easybill.UpdateAttachmentAsync(attachment.Id.Value, supplier.EasybillCustomerId);
 
-                    await _db.UpdatePurchaseDocumentEasybillAttachmentIdAsync(doc.Id, attachment.Id.Value);
-                    doc.EasybillAttachmentId = attachment.Id;
-                    doc.EasybillSyncedAt = DateTime.Now;
+                        await _db.UpdatePurchaseDocumentEasybillAttachmentIdAsync(doc.Id, attachment.Id.Value);
+                        doc.EasybillAttachmentId = attachment.Id;
+                        doc.EasybillSyncedAt = DateTime.Now;
+                    }
                 }
+
+                // Beleg per E-Mail an Easybill-Belegerfassung senden (OCR) – immer bei neuem Upload
+                await SendDocumentToEasybillBelegMailAsync(doc, fileBytes, ebFileName);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Dokument-Sync Fehler: {ex.Message}");
                 throw;
             }
+        }
+
+        private async Task SendDocumentToEasybillBelegMailAsync(PurchaseDocument doc, byte[] fileBytes, string fileName)
+        {
+            var emailService = new ExchangeEmailService();
+            if (!emailService.IsConfigured)
+            {
+                MessageBox.Show(
+                    "E-Mail-Konto (SMTP) ist nicht konfiguriert.\nBitte unter Einstellungen → E-Mail einrichten.",
+                    "Easybill Belegmail", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            const string easybillBelegEmail = "a0af9d17f3024149bfb14472dc4fb738@belege.easybill.de";
+
+            var ext = Path.GetExtension(fileName).ToLowerInvariant();
+            var mimeType = ext switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".tiff" or ".tif" => "image/tiff",
+                ".bmp" => "image/bmp",
+                _ => "application/pdf"
+            };
+
+            var subject = $"Beleg: {doc.DocumentName} ({doc.DocumentDate:dd.MM.yyyy})";
+            var body = $"<p>Eingangsbeleg vom {doc.DocumentDate:dd.MM.yyyy}</p>" +
+                       $"<p>Bezeichnung: {doc.DocumentName}</p>" +
+                       $"<p>Typ: {doc.DocumentType}</p>" +
+                       (!string.IsNullOrWhiteSpace(doc.SupplierName) ? $"<p>Lieferant: {doc.SupplierName}</p>" : "");
+
+            // Fehler werden nach oben geworfen und in den aufrufenden Methoden angezeigt
+            await emailService.SendEmailAsync(
+                to: easybillBelegEmail,
+                subject: subject,
+                body: body,
+                attachmentFileName: fileName,
+                attachmentBytes: fileBytes,
+                attachmentMimeType: mimeType);
         }
 
         #endregion

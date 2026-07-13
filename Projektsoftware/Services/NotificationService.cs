@@ -24,6 +24,43 @@ namespace Projektsoftware.Services
                 using var connection = new MySqlConnection(connectionString);
                 await connection.OpenAsync();
 
+                // Neue Webshop-Bestellungen aus dem Kundenportal
+                try
+                {
+                    string newOrdersQuery = @"
+                        SELECT o.order_number, o.total_gross, o.payment_method, o.created_at,
+                               COALESCE(NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                                        c.company_name, 'Unbekannter Kunde') AS customer_name
+                        FROM portal_orders o
+                        LEFT JOIN customers c ON o.customer_id = c.id
+                        WHERE o.status = 0
+                        ORDER BY o.created_at DESC
+                        LIMIT 20";
+
+                    using var cmdOrders = new MySqlCommand(newOrdersQuery, connection);
+                    using var rdrOrders = await cmdOrders.ExecuteReaderAsync();
+                    while (await rdrOrders.ReadAsync())
+                    {
+                        var orderNumber = rdrOrders.GetString(0);
+                        var totalGross = rdrOrders.GetDecimal(1);
+                        var payment = rdrOrders.GetInt32(2) == 1 ? "Auf Rechnung" : "Vorkasse";
+                        var createdAt = rdrOrders.GetDateTime(3);
+                        var customerName = rdrOrders.IsDBNull(4) ? "Unbekannter Kunde" : rdrOrders.GetString(4);
+                        notifications.Add(new AppNotification
+                        {
+                            Title = "🛒 Neue Bestellung eingegangen",
+                            Message = $"{orderNumber} von {customerName} — {totalGross:N2} € ({payment})",
+                            Severity = NotificationSeverity.Info,
+                            Timestamp = createdAt
+                        });
+                    }
+                    rdrOrders.Close();
+                }
+                catch
+                {
+                    // Webshop-Tabellen evtl. noch nicht vorhanden — restliche Benachrichtigungen nicht blockieren
+                }
+
                 // Overdue tasks
                 string overdueTasksQuery = @"
                     SELECT t.title, p.name as project_name, t.due_date

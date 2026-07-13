@@ -1,0 +1,54 @@
+<Window x:Class="Projektsoftware.Views.FollowUpDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Wiedervorlage / Follow-up" Height="560" Width="780"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" Text="Wiedervorlagen" FontSize="18" FontWeight="Bold" Margin="0,0,0,8"/>
+
+        <GroupBox Grid.Row="1" Header="Neue Wiedervorlage anlegen" Margin="0,0,0,8">
+            <Grid Margin="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="140"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <ComboBox x:Name="LeadCombo" Grid.Row="0" Grid.Column="0" Margin="4" DisplayMemberPath="Title"/>
+                <TextBox x:Name="NoteBox" Grid.Row="0" Grid.Column="1" Margin="4" Padding="4" />
+                <DatePicker x:Name="DueDatePicker" Grid.Row="0" Grid.Column="2" Margin="4"/>
+                <Button Grid.Row="0" Grid.Column="3" Content="Hinzufügen" Width="110" Margin="4" Click="Add_Click"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Lead" FontSize="10" Foreground="#666" Margin="4,0"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="Notiz" FontSize="10" Foreground="#666" Margin="4,0"/>
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="Fällig am" FontSize="10" Foreground="#666" Margin="4,0"/>
+            </Grid>
+        </GroupBox>
+
+        <DataGrid Grid.Row="2" x:Name="RemindersGrid" AutoGenerateColumns="False" HeadersVisibility="Column" IsReadOnly="False"
+                  CanUserAddRows="False" SelectionMode="Single">
+            <DataGrid.Columns>
+                <DataGridCheckBoxColumn Header="✓" Binding="{Binding Completed, UpdateSourceTrigger=PropertyChanged}" Width="40"/>
+                <DataGridTextColumn Header="Fällig am" Binding="{Binding DueDate, StringFormat={}{0:dd.MM.yyyy}}" Width="110" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Lead" Binding="{Binding LeadTitle}" Width="*" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Kontakt" Binding="{Binding ContactName}" Width="150" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Notiz" Binding="{Binding Note}" Width="2*" IsReadOnly="True"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Markierte speichern" Width="160" Click="SaveCompleted_Click"/>
+            <Button Content="Löschen" Width="100" Margin="8,0,0,0" Click="Delete_Click"/>
+            <Button Content="Schließen" Width="100" Margin="8,0,0,0" Click="Close_Click" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

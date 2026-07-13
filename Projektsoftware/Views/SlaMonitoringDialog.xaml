@@ -1,0 +1,62 @@
+<Window x:Class="Projektsoftware.Views.SlaMonitoringDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SLA-Überwachung" Height="520" Width="820"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="SLA-Status für Tickets"
+                   FontSize="18" FontWeight="Bold" Margin="0,0,0,12"/>
+
+        <UniformGrid Grid.Row="1" Columns="4" Margin="0,0,0,12">
+            <Border BorderBrush="#DDD" BorderThickness="1" Margin="4" Padding="10" CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Text="Gesamt" FontSize="11" Foreground="#666"/>
+                    <TextBlock x:Name="TotalText" Text="–" FontSize="22" FontWeight="Bold"/>
+                </StackPanel>
+            </Border>
+            <Border BorderBrush="#FFD700" BorderThickness="1" Margin="4" Padding="10" CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Text="Warnung" FontSize="11" Foreground="#666"/>
+                    <TextBlock x:Name="WarningText" Text="–" FontSize="22" FontWeight="Bold" Foreground="#B58900"/>
+                </StackPanel>
+            </Border>
+            <Border BorderBrush="#DC143C" BorderThickness="1" Margin="4" Padding="10" CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Text="Verletzt" FontSize="11" Foreground="#666"/>
+                    <TextBlock x:Name="BreachedText" Text="–" FontSize="22" FontWeight="Bold" Foreground="#DC143C"/>
+                </StackPanel>
+            </Border>
+            <Border BorderBrush="#2E8B57" BorderThickness="1" Margin="4" Padding="10" CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Text="OK" FontSize="11" Foreground="#666"/>
+                    <TextBlock x:Name="OkText" Text="–" FontSize="22" FontWeight="Bold" Foreground="#2E8B57"/>
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <GroupBox Grid.Row="2" Header="Tickets mit SLA-Verletzung">
+            <DataGrid x:Name="BreachedGrid" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Ticket-Nr." Binding="{Binding TicketNumber}" Width="100"/>
+                    <DataGridTextColumn Header="Betreff" Binding="{Binding Subject}" Width="*"/>
+                    <DataGridTextColumn Header="Kunde" Binding="{Binding CustomerName}" Width="160"/>
+                    <DataGridTextColumn Header="Priorität" Binding="{Binding PriorityText}" Width="90"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </GroupBox>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Überwachung ausführen" Width="170" Click="Monitor_Click"/>
+            <Button Content="Aktualisieren" Width="120" Margin="8,0,0,0" Click="Refresh_Click"/>
+            <Button Content="Schließen" Width="100" Margin="8,0,0,0" Click="Close_Click" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

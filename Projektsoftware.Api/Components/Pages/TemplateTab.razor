@@ -1,0 +1,157 @@
+@inject ApiDatabaseService Db
+@using Projektsoftware.Api.Models
+
+<div class="section-title">📋 Projektvorlagen</div>
+
+<div class="list-card">
+    <div class="row"><h3>➕ Neue Vorlage</h3></div>
+    <label class="form-label mt-8">Name</label>
+    <input class="form-input" @bind="_new.Name" placeholder="z. B. Standard Web-Projekt" />
+    <label class="form-label mt-8">Beschreibung</label>
+    <textarea class="form-input" rows="2" @bind="_new.Description"></textarea>
+    <label class="form-label mt-8">Standard-Dauer (Tage)</label>
+    <input class="form-input" type="number" @bind="_new.DefaultDurationDays" />
+
+    <div class="row mt-8"><strong>Aufgaben</strong></div>
+    @foreach (var t in _new.Tasks)
+    {
+        <div class="row mt-8" style="gap:6px;align-items:center;">
+            <input class="form-input" style="flex:2;" @bind="t.Title" placeholder="Titel" />
+            <input class="form-input" style="flex:1;" type="number" @bind="t.DueAfterDays" placeholder="Tag" />
+            <button class="btn-action danger icon-only" title="Entfernen" @onclick="() => _new.Tasks.Remove(t)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+    }
+    <button class="btn-action neutral block mt-8" @onclick="AddTaskRow">+ Aufgabe</button>
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="mt-8" style="color:var(--accent);">@_message</div>
+    }
+    <button class="btn-action block mt-8" disabled="@_saving" @onclick="SaveTemplate">Vorlage speichern</button>
+</div>
+
+@if (_loading)
+{
+    <div class="spinner"></div>
+}
+else if (_items.Count == 0)
+{
+    <div class="empty-state">Keine Vorlagen vorhanden.</div>
+}
+else
+{
+    @foreach (var tpl in _items)
+    {
+        <div class="list-card">
+            <div class="row" style="justify-content:space-between;">
+                <strong>@tpl.Name</strong>
+                <span style="font-size:0.85rem;color:var(--text-muted);">@tpl.DefaultDurationDays Tage</span>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(tpl.Description))
+            {
+                <div class="mt-8" style="font-size:0.9rem;color:var(--text-muted);">@tpl.Description</div>
+            }
+            <div class="mt-8" style="font-size:0.85rem;">📝 @tpl.Tasks.Count Aufgabe(n)</div>
+
+            <div class="row mt-8" style="gap:8px;">
+                <button class="btn-action" style="flex:1;" @onclick="() => StartUse(tpl)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Projekt erstellen
+                </button>
+                <button class="btn-action danger icon-only" title="Löschen" @onclick="() => Delete(tpl.Id)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+            </div>
+
+            @if (_useTemplateId == tpl.Id)
+            {
+                <div class="mt-8" style="border-top:1px solid var(--card-border);padding-top:8px;">
+                    <label class="form-label">Projektname</label>
+                    <input class="form-input" @bind="_projectName" />
+                    <label class="form-label mt-8">Kunde</label>
+                    <input class="form-input" @bind="_clientName" />
+                    <label class="form-label mt-8">Startdatum</label>
+                    <input class="form-input" type="date" @bind="_startDate" />
+                    <button class="btn-action block mt-8" disabled="@_creating" @onclick="() => CreateProject(tpl.Id)">Übernehmen</button>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private List<ProjectTemplateDto> _items = new();
+    private ProjectTemplateDto _new = NewTemplate();
+    private bool _loading;
+    private bool _saving;
+    private bool _creating;
+    private string _message = "";
+
+    private int _useTemplateId;
+    private string _projectName = "";
+    private string _clientName = "";
+    private DateTime _startDate = DateTime.Today;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try { _items = await Db.GetProjectTemplatesAsync(); }
+        catch { _items = new(); }
+        _loading = false;
+    }
+
+    private void AddTaskRow() => _new.Tasks.Add(new TemplateTaskDto { DueAfterDays = 7 });
+
+    private async Task SaveTemplate()
+    {
+        if (string.IsNullOrWhiteSpace(_new.Name)) { _message = "Bitte einen Namen angeben."; return; }
+        _saving = true;
+        _message = "";
+        try
+        {
+            await Db.AddProjectTemplateAsync(_new);
+            _new = NewTemplate();
+            await Load();
+        }
+        catch (Exception ex) { _message = $"Fehler: {ex.Message}"; }
+        _saving = false;
+    }
+
+    private async Task Delete(int id)
+    {
+        await Db.DeleteProjectTemplateAsync(id);
+        await Load();
+    }
+
+    private void StartUse(ProjectTemplateDto tpl)
+    {
+        _useTemplateId = _useTemplateId == tpl.Id ? 0 : tpl.Id;
+        _projectName = tpl.Name;
+        _clientName = "";
+        _startDate = DateTime.Today;
+    }
+
+    private async Task CreateProject(int templateId)
+    {
+        if (string.IsNullOrWhiteSpace(_projectName)) return;
+        _creating = true;
+        try
+        {
+            await Db.CreateProjectFromTemplateAsync(templateId, _projectName, _clientName, _startDate);
+            _useTemplateId = 0;
+            _message = "Projekt aus Vorlage erstellt.";
+        }
+        catch (Exception ex) { _message = $"Fehler: {ex.Message}"; }
+        _creating = false;
+    }
+
+    private static ProjectTemplateDto NewTemplate() => new()
+    {
+        DefaultDurationDays = 30,
+        Tasks = new() { new TemplateTaskDto { DueAfterDays = 7 } }
+    };
+}

@@ -1,0 +1,166 @@
+@inject ApiDatabaseService Db
+@inject PdfLetterService Pdf
+@inject IJSRuntime JS
+
+<div class="section-title">📤 Daten als CSV exportieren</div>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <div class="list-card" style="border-left:4px solid var(--accent);">@_message</div>
+}
+
+<div class="list-card">
+    <div class="row"><h3>👤 Kunden</h3><span class="sub">Firmen- und Kontaktdaten</span></div>
+    <button class="status-select mt-8" disabled="@_busy" @onclick="ExportCustomers">⬇️ Exportieren</button>
+</div>
+
+<div class="list-card">
+    <div class="row"><h3>📁 Projekte</h3><span class="sub">Status, Zeitraum, Budget</span></div>
+    <button class="status-select mt-8" disabled="@_busy" @onclick="ExportProjects">⬇️ Exportieren</button>
+</div>
+
+<div class="list-card">
+    <div class="row"><h3>✓ Aufgaben</h3><span class="sub">Titel, Status, Fälligkeit</span></div>
+    <button class="status-select mt-8" disabled="@_busy" @onclick="ExportTasks">⬇️ Exportieren</button>
+</div>
+
+<div class="list-card">
+    <div class="row"><h3>⏱ Zeiterfassung</h3><span class="sub">Stunden je Projekt</span></div>
+    <button class="status-select mt-8" disabled="@_busy" @onclick="ExportTimeEntries">⬇️ Exportieren</button>
+</div>
+
+<div class="list-card">
+    <div class="row"><h3>👥 Mitarbeiter</h3><span class="sub">Team und Stundensätze</span></div>
+    <button class="status-select mt-8" disabled="@_busy" @onclick="ExportEmployees">⬇️ Exportieren</button>
+</div>
+
+<div class="section-title">📄 PDF-Berichte</div>
+
+<div class="list-card">
+    <div class="row"><h3>🎫 Tickets</h3><span class="sub">Support-Tickets als PDF-Liste</span></div>
+    <button class="status-select mt-8" disabled="@_busy" @onclick="ExportTicketsPdf">⬇️ PDF erstellen</button>
+</div>
+
+<div class="list-card">
+    <div class="row"><h3>📈 Auswertung</h3><span class="sub">Kennzahlen-Statistik als PDF</span></div>
+    <button class="status-select mt-8" disabled="@_busy" @onclick="ExportStatisticsPdf">⬇️ PDF erstellen</button>
+</div>
+
+@code {
+    private bool _busy;
+    private string _message = "";
+
+    private static string Esc(object? value)
+    {
+        var s = value?.ToString() ?? "";
+        if (s.Contains('"') || s.Contains(';') || s.Contains('\n') || s.Contains('\r'))
+            s = "\"" + s.Replace("\"", "\"\"") + "\"";
+        return s;
+    }
+
+    private static string Line(params object?[] cells) => string.Join(";", cells.Select(Esc));
+
+    private async Task DownloadCsv(string fileName, System.Text.StringBuilder sb)
+    {
+        // UTF-8 BOM für korrekte Umlaut-Darstellung in Excel
+        var bytes = new byte[] { 0xEF, 0xBB, 0xBF }
+            .Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString()))
+            .ToArray();
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("downloadFile", fileName, base64, "text/csv;charset=utf-8");
+    }
+
+    private async Task Run(string fileName, Func<System.Text.StringBuilder, Task> build)
+    {
+        _busy = true; _message = "";
+        try
+        {
+            var sb = new System.Text.StringBuilder();
+            await build(sb);
+            await DownloadCsv(fileName, sb);
+            _message = $"{fileName} wurde erstellt.";
+        }
+        catch (Exception ex) { _message = "Fehler: " + ex.Message; }
+        _busy = false;
+    }
+
+    private Task ExportCustomers() => Run("kunden.csv", async sb =>
+    {
+        sb.AppendLine(Line("Firma", "Vorname", "Nachname", "E-Mail", "Telefon", "PLZ", "Ort"));
+        foreach (var c in await Db.GetCustomersAsync())
+            sb.AppendLine(Line(c.CompanyName, c.FirstName, c.LastName, c.Email, c.Phone, c.ZipCode, c.City));
+    });
+
+    private Task ExportProjects() => Run("projekte.csv", async sb =>
+    {
+        sb.AppendLine(Line("Name", "Kunde", "Status", "Start", "Ende", "Budget", "Fortschritt %"));
+        foreach (var p in await Db.GetProjectsAsync())
+            sb.AppendLine(Line(p.Name, p.ClientName, p.Status,
+                p.StartDate.ToString("yyyy-MM-dd"),
+                p.EndDate?.ToString("yyyy-MM-dd") ?? "",
+                p.Budget.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                p.ProgressPercent));
+    });
+
+    private Task ExportTasks() => Run("aufgaben.csv", async sb =>
+    {
+        sb.AppendLine(Line("Titel", "Projekt", "Status", "Priorität", "Fällig"));
+        foreach (var t in await Db.GetTasksAsync())
+            sb.AppendLine(Line(t.Title, t.ProjectName, t.Status, t.Priority,
+                t.DueDate?.ToString("yyyy-MM-dd") ?? ""));
+    });
+
+    private Task ExportTimeEntries() => Run("zeiterfassung.csv", async sb =>
+    {
+        sb.AppendLine(Line("Projekt", "Beschreibung", "Datum", "Stunden", "Mitarbeiter"));
+        foreach (var e in await Db.GetTimeEntriesAsync())
+            sb.AppendLine(Line(e.ProjectName, e.Description,
+                e.Date.ToString("yyyy-MM-dd"),
+                e.Duration.TotalHours.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
+                e.EmployeeName));
+    });
+
+    private Task ExportEmployees() => Run("mitarbeiter.csv", async sb =>
+    {
+        sb.AppendLine(Line("Vorname", "Nachname", "E-Mail", "Telefon", "Position", "Abteilung", "Stundensatz"));
+        foreach (var m in await Db.GetEmployeesAsync())
+            sb.AppendLine(Line(m.FirstName, m.LastName, m.Email, m.Phone, m.Position, m.Department,
+                m.HourlyRate.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    });
+
+    private async Task DownloadPdf(string fileName, byte[] bytes)
+    {
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("downloadFile", fileName, base64, "application/pdf");
+    }
+
+    private async Task ExportTicketsPdf()
+    {
+        _busy = true; _message = "";
+        try
+        {
+            var tickets = await Db.GetTicketsAsync();
+            var bytes = Pdf.GenerateTicketReport(tickets);
+            var fileName = $"tickets_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await DownloadPdf(fileName, bytes);
+            _message = $"{fileName} wurde erstellt.";
+        }
+        catch (Exception ex) { _message = "Fehler: " + ex.Message; }
+        _busy = false;
+    }
+
+    private async Task ExportStatisticsPdf()
+    {
+        _busy = true; _message = "";
+        try
+        {
+            var stats = await Db.GetAnalyticsAsync();
+            var bytes = Pdf.GenerateStatisticsReport(stats);
+            var fileName = $"auswertung_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await DownloadPdf(fileName, bytes);
+            _message = $"{fileName} wurde erstellt.";
+        }
+        catch (Exception ex) { _message = "Fehler: " + ex.Message; }
+        _busy = false;
+    }
+}

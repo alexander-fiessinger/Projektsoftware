@@ -1,0 +1,49 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    @if (_notifications.Any())
+    {
+        @foreach (var n in _notifications)
+        {
+            <div class="list-card">
+                <div class="row">
+                    <h3>@SeverityIcon(n.Severity) @n.Title</h3>
+                    <span class="sub">@n.Timestamp.ToString("dd.MM. HH:mm")</span>
+                </div>
+                <div class="sub mt-4">@n.Message</div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="empty-state">🎉 Keine offenen Benachrichtigungen.</div>
+    }
+
+    <button class="add-btn" @onclick="Reload" title="Aktualisieren">↻</button>
+}
+
+@code {
+    private List<NotificationDto> _notifications = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try { _notifications = await Db.GetNotificationsAsync(); } catch { }
+        _loading = false;
+    }
+
+    private static string SeverityIcon(string s) => s switch
+    {
+        "Error" => "🔴",
+        "Warning" => "🟡",
+        _ => "🔵"
+    };
+}

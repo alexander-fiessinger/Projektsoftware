@@ -1,0 +1,102 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else if (_data is null)
+{
+    <div class="empty-state">Keine Auswertungsdaten verfügbar.</div>
+}
+else
+{
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-icon">🎫</div>
+            <div class="kpi-value">@_data.TicketsOpen</div>
+            <div class="kpi-label">Offene Tickets</div>
+            <div class="kpi-sub">@_data.TicketResolveRate % gelöst</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon">💼</div>
+            <div class="kpi-value">@_data.LeadConversionRate %</div>
+            <div class="kpi-label">Lead-Conversion</div>
+            <div class="kpi-sub">@_data.LeadsWon gewonnen / @_data.LeadsLost verloren</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon">📋</div>
+            <div class="kpi-value">@_data.TasksOpen</div>
+            <div class="kpi-label">Offene Aufgaben</div>
+            <div class="kpi-sub">@_data.TasksOverdue überfällig</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon">📁</div>
+            <div class="kpi-value">@_data.ProjectsByStatus.Sum(p => p.Count)</div>
+            <div class="kpi-label">Projekte gesamt</div>
+            <div class="kpi-sub">@_data.ProjectsByStatus.Count Status</div>
+        </div>
+    </div>
+
+    <div class="sub-tab-header">🎫 Tickets</div>
+    @Bar("Offen", _data.TicketsOpen, _data.TicketsTotal, "#E8833A")
+    @Bar("Gelöst", _data.TicketsResolved, _data.TicketsTotal, "#3FB67E")
+
+    <div class="sub-tab-header">💼 Vertrieb / Leads</div>
+    @Bar("Neu", _data.LeadsNew, _data.LeadsTotal, "#4A90D9")
+    @Bar("In Bearbeitung", _data.LeadsInProgress, _data.LeadsTotal, "#E8833A")
+    @Bar("Qualifiziert", _data.LeadsWon, _data.LeadsTotal, "#3FB67E")
+    @Bar("Abgelehnt", _data.LeadsLost, _data.LeadsTotal, "#D9534F")
+
+    <div class="sub-tab-header">📁 Projekte nach Status</div>
+    @foreach (var b in _data.ProjectsByStatus)
+    {
+        @Bar(b.Label, b.Count, _data.ProjectsByStatus.Sum(x => x.Count), "#C8A251")
+    }
+
+    <div class="sub-tab-header">📋 Aufgaben</div>
+    @Bar("Offen", _data.TasksOpen, _data.TasksTotal, "#E8833A")
+    @Bar("Erledigt", _data.TasksDone, _data.TasksTotal, "#3FB67E")
+    @Bar("Überfällig", _data.TasksOverdue, _data.TasksTotal, "#D9534F")
+
+    <button class="add-btn" @onclick="Reload" title="Aktualisieren">↻</button>
+}
+
+@code {
+    private AnalyticsDto? _data;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try { _data = await Db.GetAnalyticsAsync(); } catch { _data = null; }
+        _loading = false;
+    }
+
+    private RenderFragment Bar(string label, int value, int total, string color) => builder =>
+    {
+        var pct = total > 0 ? Math.Round(100.0 * value / total, 1) : 0;
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "stat-bar-row");
+
+        builder.OpenElement(2, "div");
+        builder.AddAttribute(3, "class", "stat-bar-label");
+        builder.AddContent(4, $"{label}");
+        builder.OpenElement(5, "span");
+        builder.AddAttribute(6, "class", "stat-bar-value");
+        builder.AddContent(7, $"{value} ({pct} %)");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(8, "div");
+        builder.AddAttribute(9, "class", "stat-bar-track");
+        builder.OpenElement(10, "div");
+        builder.AddAttribute(11, "class", "stat-bar-fill");
+        builder.AddAttribute(12, "style", $"width:{pct}%;background:{color};");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.CloseElement();
+    };
+}

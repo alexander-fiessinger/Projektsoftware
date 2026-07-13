@@ -102,6 +102,25 @@
                          Margin="0,0,0,15"
                          VerticalContentAlignment="Center"/>
 
+                <!-- Discount (Kundenportal) -->
+                <TextBlock Text="Kundenrabatt fürs Portal (%):" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBox x:Name="DiscountPercentTextBox" 
+                         Text="0"
+                         Height="35"
+                         Margin="0,0,0,15"
+                         VerticalContentAlignment="Center"/>
+
+                <!-- Bonität: Rechnungskauf im Webshop -->
+                <CheckBox x:Name="InvoiceAllowedCheckBox"
+                          Content="✓ Rechnungskauf im Webshop erlauben (Bonität freigegeben)"
+                          FontWeight="Bold"
+                          Margin="0,0,0,4"/>
+                <TextBlock Text="Hinweis: 'Auf Rechnung' wird dem Kunden erst nach den ersten 2 Bestellungen angeboten."
+                           FontSize="11"
+                           Foreground="#888"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,15"/>
+
                 <!-- Note -->
                 <TextBlock Text="Notizen:" FontWeight="Bold" Margin="0,0,0,5"/>
                 <TextBox x:Name="NoteTextBox" 
@@ -123,6 +142,135 @@
                            Foreground="Gray"
                            FontStyle="Italic"
                            Margin="0,5,0,0"/>
+
+                <!-- Kundenportal-Konten (nur im Bearbeiten-Modus) -->
+                <Border x:Name="PortalSection"
+                        Visibility="Collapsed"
+                        Margin="0,20,0,0"
+                        Padding="12"
+                        Background="#F5F5F5"
+                        CornerRadius="6">
+                    <StackPanel>
+                        <TextBlock Text="🔐 Kundenportal-Konten"
+                                   FontWeight="Bold"
+                                   FontSize="16"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock Text="Bereits diesem Kunden zugeordnete Portal-Konten."
+                                   Foreground="Gray"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10"/>
+
+                        <ItemsControl x:Name="PortalUsersItems">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="#E0E0E0"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="10"
+                                            Margin="0,0,0,8"
+                                            Background="White">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Email}" FontWeight="Bold"/>
+                                            <TextBlock Text="{Binding ContactName}" Foreground="Gray" FontSize="12"/>
+                                            <TextBlock Text="{Binding StatusText}" FontSize="12" Margin="0,2,0,6"/>
+                                            <WrapPanel>
+                                                <Button Content="Freischalten"
+                                                        Click="ApprovePortal_Click"
+                                                        Padding="8,4" Margin="0,0,6,0"
+                                                        Background="#43A047" Foreground="White"
+                                                        BorderThickness="0" Cursor="Hand"/>
+                                                <Button Content="Sperren"
+                                                        Click="LockPortal_Click"
+                                                        Padding="8,4" Margin="0,0,6,0"
+                                                        Background="#FB8C00" Foreground="White"
+                                                        BorderThickness="0" Cursor="Hand"/>
+                                                <Button Content="Entsperren"
+                                                        Click="UnlockPortal_Click"
+                                                        Padding="8,4" Margin="0,0,6,0"
+                                                        Background="#1E88E5" Foreground="White"
+                                                        BorderThickness="0" Cursor="Hand"/>
+                                                <Button Content="Passwort zurücksetzen"
+                                                        Click="ResetPortalPw_Click"
+                                                        Padding="8,4" Margin="0,0,6,0"
+                                                        Background="#6D4C41" Foreground="White"
+                                                        BorderThickness="0" Cursor="Hand"/>
+                                                <Button Content="Löschen"
+                                                        Click="DeletePortal_Click"
+                                                        Padding="8,4"
+                                                        Background="#E53935" Foreground="White"
+                                                        BorderThickness="0" Cursor="Hand"/>
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock x:Name="NoPortalUsersText"
+                                   Text="Keine Portal-Konten vorhanden."
+                                   Foreground="Gray"
+                                   FontStyle="Italic"
+                                   Visibility="Collapsed"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Offene Registrierungen (noch keinem Kunden zugeordnet) -->
+                <Border x:Name="OpenRegistrationsSection"
+                        Visibility="Collapsed"
+                        Margin="0,16,0,0"
+                        Padding="12"
+                        Background="#FFF8E1"
+                        CornerRadius="6">
+                    <StackPanel>
+                        <TextBlock Text="🆕 Offene Registrierungen"
+                                   FontWeight="Bold"
+                                   FontSize="16"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock Text="Neu über das Portal registrierte Konten, die noch keinem Kunden zugeordnet sind. Ordnen Sie ein Konto diesem Kunden zu und schalten Sie es frei."
+                                   Foreground="#795548"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10"/>
+
+                        <ItemsControl x:Name="OpenRegistrationsItems">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="#FFE082"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="10"
+                                            Margin="0,0,0,8"
+                                            Background="White">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Email}" FontWeight="Bold"/>
+                                            <TextBlock Text="{Binding ContactName}" Foreground="Gray" FontSize="12"/>
+                                            <TextBlock Text="{Binding StatusText}" FontSize="12" Margin="0,2,0,6"/>
+                                            <WrapPanel>
+                                                <Button Content="Diesem Kunden zuordnen &amp; freischalten"
+                                                        Click="AssignAndApprovePortal_Click"
+                                                        Padding="8,4" Margin="0,0,6,0"
+                                                        Background="#43A047" Foreground="White"
+                                                        BorderThickness="0" Cursor="Hand"/>
+                                                <Button Content="Löschen"
+                                                        Click="DeletePortal_Click"
+                                                        Padding="8,4"
+                                                        Background="#E53935" Foreground="White"
+                                                        BorderThickness="0" Cursor="Hand"/>
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock x:Name="NoOpenRegistrationsText"
+                                   Text="Keine offenen Registrierungen vorhanden."
+                                   Foreground="Gray"
+                                   FontStyle="Italic"
+                                   Visibility="Collapsed"/>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
 

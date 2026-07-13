@@ -1,0 +1,104 @@
+@page "/portal/bestellungen"
+@inject ApiDatabaseService Db
+@inject PortalSessionService Portal
+@inject NavigationManager Nav
+
+<PageTitle>Kundenportal · Bestellungen</PageTitle>
+
+<div class="app-container">
+    <header class="app-header">
+        <div class="app-header-left">
+            <div>
+                <h1>Meine Bestellungen</h1>
+                <div class="app-header-subtitle">
+                    @(string.IsNullOrWhiteSpace(Portal.ContactName) ? Portal.Email : Portal.ContactName)
+                </div>
+            </div>
+        </div>
+        <div class="app-header-actions">
+            <button @onclick="GoToShop" title="Zum Shop">Zum Shop</button>
+        </div>
+    </header>
+
+    <div class="app-content">
+        @if (_loading)
+        {
+            <div class="loading">Bestellungen werden geladen…</div>
+        }
+        else if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="error-msg">@_error</div>
+        }
+        else if (_orders.Count == 0)
+        {
+            <div class="empty-state">
+                Sie haben noch keine Bestellungen aufgegeben.
+                <div style="margin-top:16px;">
+                    <button class="btn btn-primary" @onclick="GoToShop">Jetzt einkaufen</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            @foreach (var order in _orders)
+            {
+                <div class="list-card">
+                    <div class="row">
+                        <div>
+                            <h3>@order.OrderNumber</h3>
+                            <div class="sub">@order.CreatedAt.ToString("dd.MM.yyyy HH:mm") Uhr · @order.PaymentMethodText</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div class="order-status-badge">@order.StatusText</div>
+                            <div style="font-size:17px;font-weight:800;margin-top:6px;">@order.TotalGross.ToString("N2") €</div>
+                            <div class="sub">brutto</div>
+                        </div>
+                    </div>
+                    <div class="mt-8">
+                        @foreach (var item in order.Items)
+                        {
+                            <div class="row" style="font-size:13px;color:var(--text-secondary);">
+                                <span>@item.Quantity × @item.Name</span>
+                                <span>@item.LineNet.ToString("N2") €</span>
+                            </div>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(order.Note))
+                    {
+                        <div class="detail-text mt-8">Anmerkung: @order.Note</div>
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private List<PortalOrderDto> _orders = new();
+    private string _error = "";
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Portal.IsAuthenticated)
+        {
+            Nav.NavigateTo("/portal");
+            return;
+        }
+
+        try
+        {
+            _orders = await Db.GetPortalOrdersAsync(Portal.CustomerId);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Bestellungen konnten nicht geladen werden: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void GoToShop() => Nav.NavigateTo("/portal/preise");
+}

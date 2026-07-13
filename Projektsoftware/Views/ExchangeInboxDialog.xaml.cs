@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace Projektsoftware.Views
 {
@@ -140,6 +141,59 @@ namespace Projektsoftware.Views
         private void Close_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private async void AiSummarize_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedEmail = EmailsDataGrid.SelectedItem as InboxEmail;
+            if (selectedEmail == null)
+            {
+                MessageBox.Show("Bitte wählen Sie zuerst eine E-Mail aus.", 
+                    "Keine E-Mail ausgewählt", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var aiService = new LogicCAiService();
+            if (!aiService.IsConfigured)
+            {
+                MessageBox.Show("LogicC AI ist nicht konfiguriert.\n\nBitte konfigurieren Sie die API im Menü:\nEinstellungen → 🤖 KI-Integration → Konfiguration",
+                    "KI nicht konfiguriert", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            AiSummarizeButton.IsEnabled = false;
+            AiSummaryBorder.Visibility = Visibility.Visible;
+            AiSummaryText.Text = "⏳ KI erstellt Zusammenfassung...";
+            Mouse.OverrideCursor = Cursors.Wait;
+
+            try
+            {
+                var summary = await aiService.SummarizeEmailAsync(selectedEmail.Subject, selectedEmail.Body);
+
+                if (summary != null)
+                {
+                    AiSummaryText.Text = $"🤖 KI-Zusammenfassung:\n\n" +
+                        $"📝 {summary.Summary}\n\n" +
+                        $"📋 Kategorie: {summary.Category}\n" +
+                        $"⚡ Priorität: {summary.Priority}\n\n" +
+                        $"✅ Aktionspunkte:\n{string.Join("\n", summary.ActionItems.ConvertAll(item => $"  • {item}"))}";
+                }
+                else
+                {
+                    AiSummaryText.Text = "❌ Keine Zusammenfassung erhalten.";
+                }
+            }
+            catch (Exception ex)
+            {
+                AiSummaryText.Text = $"❌ Fehler: {ex.Message}";
+                MessageBox.Show($"Fehler bei der KI-Zusammenfassung:\n\n{ex.Message}", 
+                    "Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                AiSummarizeButton.IsEnabled = true;
+                Mouse.OverrideCursor = null;
+            }
         }
     }
 }

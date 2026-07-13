@@ -1,0 +1,126 @@
+@inject ApiDatabaseService Db
+@inject PdfLetterService Pdf
+@inject IJSRuntime JS
+
+<div class="section-title">✉️ Briefgenerator (DIN 5008)</div>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <div class="list-card" style="border-left:4px solid var(--accent);">@_message</div>
+}
+
+<div class="list-card">
+    <div class="row"><h3>👤 Empfänger</h3></div>
+
+    <label class="form-label mt-8">Kunde übernehmen (optional)</label>
+    <select class="status-select" @onchange="OnCustomerSelected">
+        <option value="">– Kunde wählen –</option>
+        @foreach (var c in _customers)
+        {
+            <option value="@c.Id">@c.DisplayName</option>
+        }
+    </select>
+
+    <label class="form-label mt-8">Firma</label>
+    <input class="form-input" @bind="_req.RecipientCompany" />
+
+    <label class="form-label mt-8">Name</label>
+    <input class="form-input" @bind="_req.RecipientName" />
+
+    <label class="form-label mt-8">Straße</label>
+    <input class="form-input" @bind="_req.RecipientStreet" />
+
+    <label class="form-label mt-8">PLZ / Ort</label>
+    <input class="form-input" @bind="_req.RecipientZipCity" />
+</div>
+
+<div class="list-card">
+    <div class="row"><h3>📝 Inhalt</h3></div>
+
+    <label class="form-label mt-8">Betreff</label>
+    <input class="form-input" @bind="_req.Subject" />
+
+    <label class="form-label mt-8">Zeichen (optional)</label>
+    <input class="form-input" @bind="_req.Reference" />
+
+    <label class="form-label mt-8">Anrede</label>
+    <input class="form-input" @bind="_req.Salutation" />
+
+    <label class="form-label mt-8">Brieftext</label>
+    <textarea class="form-input" rows="8" @bind="_req.Body"></textarea>
+
+    <label class="form-label mt-8">Grußformel</label>
+    <input class="form-input" @bind="_req.Closing" />
+
+    <label class="form-label mt-8">Unterschrift</label>
+    <input class="form-input" @bind="_req.SignatureName" />
+</div>
+
+<div class="list-card">
+    <div class="row"><h3>🏢 Absender</h3></div>
+
+    <label class="form-label mt-8">Firma</label>
+    <input class="form-input" @bind="_req.SenderCompany" />
+
+    <label class="form-label mt-8">Ansprechpartner</label>
+    <input class="form-input" @bind="_req.SenderName" />
+
+    <label class="form-label mt-8">Straße</label>
+    <input class="form-input" @bind="_req.SenderStreet" />
+
+    <label class="form-label mt-8">PLZ / Ort</label>
+    <input class="form-input" @bind="_req.SenderZipCity" />
+
+    <label class="form-label mt-8">Telefon</label>
+    <input class="form-input" @bind="_req.SenderPhone" />
+
+    <label class="form-label mt-8">E-Mail</label>
+    <input class="form-input" @bind="_req.SenderEmail" />
+</div>
+
+<button class="btn-action block mt-8" disabled="@_busy" @onclick="GeneratePdf">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    Brief als PDF erstellen
+</button>
+
+@code {
+    private readonly LetterRequest _req = new();
+    private List<CustomerDto> _customers = new();
+    private bool _busy;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _customers = await Db.GetCustomersAsync(); }
+        catch (Exception ex) { _message = "Kunden konnten nicht geladen werden: " + ex.Message; }
+    }
+
+    private void OnCustomerSelected(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var id)) return;
+        var c = _customers.FirstOrDefault(x => x.Id == id);
+        if (c is null) return;
+
+        _req.RecipientCompany = c.CompanyName;
+        _req.RecipientName = $"{c.FirstName} {c.LastName}".Trim();
+        _req.RecipientStreet = c.Street;
+        _req.RecipientZipCity = $"{c.ZipCode} {c.City}".Trim();
+    }
+
+    private async Task GeneratePdf()
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            _req.Date = DateTime.Today;
+            var bytes = Pdf.Generate(_req);
+            var base64 = Convert.ToBase64String(bytes);
+            var fileName = $"Brief_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JS.InvokeVoidAsync("downloadFile", fileName, base64, "application/pdf");
+            _message = $"{fileName} wurde erstellt.";
+        }
+        catch (Exception ex) { _message = "Fehler: " + ex.Message; }
+        finally { _busy = false; }
+    }
+}

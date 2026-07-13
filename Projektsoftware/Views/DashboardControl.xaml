@@ -9,11 +9,6 @@
         <Style x:Key="KpiCard" TargetType="Border">
             <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="Padding" Value="22,18"/>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.12" Color="#000000"/>
-                </Setter.Value>
-            </Setter>
         </Style>
 
         <Style x:Key="KpiValue" TargetType="TextBlock">
@@ -46,11 +41,6 @@
         <Style x:Key="FinTile" TargetType="Border">
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="16,14"/>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect BlurRadius="6" ShadowDepth="1" Opacity="0.11" Color="#000000"/>
-                </Setter.Value>
-            </Setter>
         </Style>
 
         <Style x:Key="FinValue" TargetType="TextBlock">
@@ -74,15 +64,11 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="Padding" Value="20"/>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.07" Color="#000000"/>
-                </Setter.Value>
-            </Setter>
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                  CanContentScroll="False" PanningMode="VerticalOnly">
         <StackPanel Margin="28,24,28,36">
 
             <!-- ═══ PAGE HEADER ══════════════════════════════════════════ -->
@@ -369,6 +355,50 @@
                     </DockPanel>
                 </Border>
             </Grid>
+
+            <!-- Kompakte Rechnungsübersicht (offen/bezahlt) -->
+            <Border Style="{StaticResource ModernCard}" Margin="0,0,0,28">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,12">
+                        <Button x:Name="InvoiceOverviewDetailsBtn" DockPanel.Dock="Right"
+                                Content="Details anzeigen" Style="{StaticResource ActionButton}"
+                                Padding="14,7" Margin="8,0,0,0" Click="InvoiceOverviewDetails_Click"/>
+                        <TextBlock Text="Rechnungsübersicht" FontSize="15" FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </DockPanel>
+
+                    <TextBlock x:Name="InvoiceOverviewHintText"
+                               Text="⏳ Lade Rechnungsdaten…"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="12" Margin="0,0,0,6"/>
+
+                    <DataGrid x:Name="InvoiceOverviewGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              RowHeight="30"
+                              MaxHeight="230"
+                              Background="Transparent"
+                              BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Rechnung" Binding="{Binding NumberDisplay}" Width="110"/>
+                            <DataGridTextColumn Header="Kunde" Binding="{Binding CustomerDisplay}" Width="*"/>
+                            <DataGridTextColumn Header="Fällig" Binding="{Binding DueDateDisplay}" Width="100"/>
+                            <DataGridTextColumn Header="Offen" Binding="{Binding OpenAmountDisplay}" Width="110">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="HorizontalAlignment" Value="Right"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Status" Binding="{Binding StatusDisplay}" Width="150"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
             </StackPanel>
 
             <!-- ═══ DOKUMENTENSUCHE ════════════════════════════════════ -->

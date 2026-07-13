@@ -1,7 +1,10 @@
 using Projektsoftware.Models;
 using Projektsoftware.Services;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -12,11 +15,14 @@ namespace Projektsoftware.Views
     {
         public EasybillDocumentItem? Item { get; private set; }
         private readonly VatResult? vatResult;
+        private List<EasybillProduct> availableProducts = new();
+        private bool suppressProductChange;
 
         public AddDocumentItemDialog()
         {
             InitializeComponent();
             UpdatePreview();
+            Loaded += async (_, _) => await LoadProductsAsync();
         }
 
         /// <summary>
@@ -28,6 +34,99 @@ namespace Projektsoftware.Views
             if (vatInfo != null)
             {
                 ApplyVatResult(vatInfo);
+            }
+        }
+
+        private async Task LoadProductsAsync()
+        {
+            try
+            {
+                var service = new EasybillService();
+                if (!service.IsConfigured)
+                {
+                    ProductStatusTextBlock.Text = "Easybill nicht konfiguriert – nur Freiposten möglich.";
+                    ProductComboBox.IsEnabled = false;
+                    return;
+                }
+
+                ProductStatusTextBlock.Text = "Lade Artikel...";
+                ProductComboBox.IsEnabled = false;
+
+                var products = await service.GetAllProductsAsync();
+                availableProducts = products
+                    .Where(p => !p.IsArchived)
+                    .OrderBy(p => p.Number)
+                    .ToList();
+
+                ProductComboBox.ItemsSource = availableProducts;
+                ProductComboBox.DisplayMemberPath = "DisplayInfo";
+                ProductComboBox.IsEnabled = true;
+
+                ProductStatusTextBlock.Text = availableProducts.Count == 0
+                    ? "Keine Artikel in Easybill vorhanden – Sie können einen Freiposten erfassen."
+                    : $"{availableProducts.Count} Artikel verfügbar. Auswahl füllt die Felder unten automatisch aus.";
+            }
+            catch (Exception ex)
+            {
+                ProductStatusTextBlock.Text = $"Artikel konnten nicht geladen werden: {ex.Message}";
+                ProductComboBox.IsEnabled = false;
+            }
+        }
+
+        private void ProductComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (suppressProductChange) return;
+            if (ProductComboBox.SelectedItem is not EasybillProduct product) return;
+
+            DescriptionTextBox.Text = string.IsNullOrWhiteSpace(product.Number)
+                ? product.Description
+                : $"{product.Number} – {product.Description}";
+
+            SinglePriceNetTextBox.Text = product.SalePrice.ToString("F2", CultureInfo.GetCultureInfo("de-DE"));
+
+            if (!string.IsNullOrWhiteSpace(product.Unit))
+            {
+                UnitComboBox.Text = product.Unit;
+            }
+
+            // Typ vorbelegen
+            if (string.Equals(product.Type, "SERVICE", StringComparison.OrdinalIgnoreCase))
+                SelectComboBoxTag(TypeComboBox, "POSITION");
+            else
+                SelectComboBoxTag(TypeComboBox, "POSITION");
+
+            // MwSt nur überschreiben, wenn der Kunde keinen abweichenden Steuerkontext erzwingt
+            if (vatResult == null || vatResult.Scenario == VatScenario.Inland)
+            {
+                SelectComboBoxTag(VatPercentComboBox, product.VatPercent.ToString(CultureInfo.InvariantCulture));
+            }
+
+            UpdatePreview();
+        }
+
+        private void ClearProduct_Click(object sender, RoutedEventArgs e)
+        {
+            suppressProductChange = true;
+            try
+            {
+                ProductComboBox.SelectedItem = null;
+                ProductComboBox.Text = string.Empty;
+            }
+            finally
+            {
+                suppressProductChange = false;
+            }
+        }
+
+        private static void SelectComboBoxTag(ComboBox box, string tag)
+        {
+            foreach (ComboBoxItem item in box.Items)
+            {
+                if (string.Equals(item.Tag?.ToString(), tag, StringComparison.Ordinal))
+                {
+                    box.SelectedItem = item;
+                    return;
+                }
             }
         }
 
@@ -164,6 +263,13 @@ namespace Projektsoftware.Views
                     TotalPriceNet = netTotal,
                     TotalPriceGross = grossTotal
                 };
+
+                // Verknüpfung mit Easybill-Artikel übernehmen, falls ausgewählt
+                if (ProductComboBox.SelectedItem is EasybillProduct selectedProduct)
+                {
+                    Item.Number = selectedProduct.Number;
+                    Item.PositionId = selectedProduct.Id;
+                }
 
                 DialogResult = true;
                 Close();

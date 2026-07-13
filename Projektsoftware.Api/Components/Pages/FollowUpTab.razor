@@ -1,0 +1,139 @@
+@inject ApiDatabaseService Db
+@using Projektsoftware.Api.Models
+
+<div class="section-title">🔔 Wiedervorlagen</div>
+
+<div class="list-card">
+    <div class="row"><h3>➕ Neue Wiedervorlage</h3></div>
+    <label class="form-label mt-8">Titel / Bezug</label>
+    <input class="form-input" @bind="_new.LeadTitle" placeholder="z. B. Angebot Firma Müller" />
+    <label class="form-label mt-8">Ansprechpartner</label>
+    <input class="form-input" @bind="_new.ContactName" />
+    <label class="form-label mt-8">Fällig am</label>
+    <input class="form-input" type="date" @bind="_new.DueDate" />
+    <label class="form-label mt-8">Notiz</label>
+    <textarea class="form-input" rows="2" @bind="_new.Note"></textarea>
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="mt-8" style="color:var(--accent);">@_message</div>
+    }
+    <button class="btn-action block mt-8" disabled="@_saving" @onclick="AddReminder">Speichern</button>
+</div>
+
+<div class="row" style="justify-content:flex-end;">
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;">
+        <input type="checkbox" @bind="_showCompleted" @bind:after="Load" />
+        Erledigte anzeigen
+    </label>
+</div>
+
+@if (_loading)
+{
+    <div class="spinner"></div>
+}
+else if (_items.Count == 0)
+{
+    <div class="empty-state">Keine Wiedervorlagen vorhanden.</div>
+}
+else
+{
+    @foreach (var r in _items)
+    {
+        <div class="list-card" style="border-left:4px solid @r.StatusColor;@(r.Completed ? "opacity:0.6;" : "")">
+            <div class="row" style="justify-content:space-between;">
+                <strong style="@(r.Completed ? "text-decoration:line-through;" : "")">@(string.IsNullOrWhiteSpace(r.LeadTitle) ? "(ohne Titel)" : r.LeadTitle)</strong>
+                <span style="color:@r.StatusColor;font-weight:600;font-size:0.85rem;">
+                    @(r.Completed ? "Erledigt" : r.IsOverdue ? "Überfällig" : r.IsDueToday ? "Heute fällig" : r.DueDate.ToString("dd.MM.yyyy"))
+                </span>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(r.ContactName))
+            {
+                <div class="mt-8" style="font-size:0.85rem;color:var(--text-muted);">👤 @r.ContactName</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(r.Note))
+            {
+                <div class="mt-8" style="font-size:0.9rem;">@r.Note</div>
+            }
+            <div class="row mt-8" style="gap:8px;">
+                <button class="btn-action @(r.Completed ? "neutral" : "success")" style="flex:1;" @onclick="() => Toggle(r)">
+                    @if (r.Completed)
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                        <span>Reaktivieren</span>
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Erledigt</span>
+                    }
+                </button>
+                <button class="btn-action danger" style="flex:1;" @onclick="() => Delete(r.Id)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+                    <span>Löschen</span>
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private List<FollowUpReminderDto> _items = new();
+    private FollowUpReminderDto _new = new() { DueDate = DateTime.Today };
+    private bool _loading;
+    private bool _saving;
+    private bool _showCompleted = true;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            _items = await Db.GetFollowUpsAsync(_showCompleted);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task AddReminder()
+    {
+        if (string.IsNullOrWhiteSpace(_new.LeadTitle) && string.IsNullOrWhiteSpace(_new.Note))
+        {
+            _message = "Bitte Titel oder Notiz angeben.";
+            return;
+        }
+        _saving = true;
+        _message = null;
+        try
+        {
+            await Db.AddFollowUpAsync(_new);
+            _new = new FollowUpReminderDto { DueDate = DateTime.Today };
+            _message = "Wiedervorlage gespeichert.";
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _message = "Fehler: " + ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task Toggle(FollowUpReminderDto r)
+    {
+        await Db.ToggleFollowUpAsync(r.Id, !r.Completed);
+        await Load();
+    }
+
+    private async Task Delete(int id)
+    {
+        await Db.DeleteFollowUpAsync(id);
+        await Load();
+    }
+}

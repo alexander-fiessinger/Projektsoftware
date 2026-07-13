@@ -1,0 +1,112 @@
+@inject ApiDatabaseService Db
+@using Projektsoftware.Api.Models
+
+<div class="section-title">🛡️ SLA-Monitoring</div>
+
+<div class="list-card">
+    <div class="row" style="justify-content:space-between;align-items:center;gap:10px;">
+        <span>Offene Tickets auf SLA-Verletzungen prüfen und eskalieren.</span>
+        <button class="btn-action neutral" disabled="@_busy" @onclick="RunMonitor">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Jetzt prüfen
+        </button>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    @if (_summary is not null)
+    {
+        <div class="kpi-grid">
+            <div class="list-card">
+                <div class="kpi-label">Offen</div>
+                <div class="kpi-value">@_summary.TotalTickets</div>
+            </div>
+            <div class="list-card">
+                <div class="kpi-label">OK</div>
+                <div class="kpi-value" style="color:#16a34a;">@_summary.HealthyTickets</div>
+            </div>
+            <div class="list-card">
+                <div class="kpi-label">Warnung</div>
+                <div class="kpi-value" style="color:#ea580c;">@_summary.WarningTickets</div>
+            </div>
+            <div class="list-card">
+                <div class="kpi-label">Verletzt</div>
+                <div class="kpi-value" style="color:#dc2626;">@_summary.BreachedTickets</div>
+            </div>
+        </div>
+        <div class="list-card">
+            <div class="kpi-label">Verletzungsquote</div>
+            <div class="kpi-value">@_summary.BreachPercentage.ToString("N1") %</div>
+        </div>
+    }
+
+    <div class="sub-tab-header">Überwachte Tickets</div>
+    @if (_tickets.Count == 0)
+    {
+        <div class="empty-state">Keine überwachten Tickets. Klicke auf „Jetzt prüfen", um SLA-Status zu erzeugen.</div>
+    }
+    else
+    {
+        @foreach (var s in _tickets)
+        {
+            <div class="list-card" style="border-left:4px solid @s.HealthColor;">
+                <div class="row" style="justify-content:space-between;">
+                    <strong>#@s.TicketId – @s.TicketSubject</strong>
+                    <span style="color:@s.HealthColor;font-weight:600;">
+                        @(s.Health == "Breached" ? "Verletzt" : s.Health == "Warning" ? "Warnung" : "OK")
+                    </span>
+                </div>
+                <div class="row mt-8" style="justify-content:space-between;color:var(--text-muted);font-size:0.85rem;">
+                    <span>@s.CustomerName · Priorität: @s.PriorityText</span>
+                    <span>@s.TimeRemaining</span>
+                </div>
+                @if (s.EscalationLevel > 0)
+                {
+                    <div class="mt-8" style="color:#dc2626;font-size:0.85rem;">⬆️ Eskalationsstufe @s.EscalationLevel</div>
+                }
+            </div>
+        }
+    }
+}
+
+@code {
+    private SlaSummaryDto? _summary;
+    private List<SlaStatusDto> _tickets = new();
+    private bool _loading;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            _summary = await Db.GetSlaSummaryAsync();
+            _tickets = await Db.GetMonitoredTicketsAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task RunMonitor()
+    {
+        _busy = true;
+        try
+        {
+            _summary = await Db.MonitorAllTicketsAsync();
+            _tickets = await Db.GetMonitoredTicketsAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

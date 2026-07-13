@@ -1,4 +1,6 @@
 @inject ApiDatabaseService Db
+@inject PdfLetterService Pdf
+@inject IJSRuntime JS
 
 @if (_loading)
 {
@@ -99,6 +101,7 @@ else
                             <option value="Storniert">🔴 Storniert</option>
                         </select>
                     </div>
+                    <button class="status-select mt-8" disabled="@_pdfBusy" @onclick="() => ExportOrderPdf(o)">📄 Beleg als PDF</button>
                 </div>
             }
         }
@@ -185,5 +188,22 @@ else
         var status = e.Value?.ToString() ?? "Offen";
         order.Status = status;
         await Db.UpdatePurchaseOrderStatusAsync(order.Id, status);
+    }
+
+    private bool _pdfBusy;
+
+    private async Task ExportOrderPdf(PurchaseOrderDto order)
+    {
+        _pdfBusy = true;
+        try
+        {
+            var bytes = Pdf.GeneratePurchaseOrderReport(order);
+            var nr = string.IsNullOrWhiteSpace(order.OrderNumber) ? order.Id.ToString() : order.OrderNumber;
+            var fileName = $"bestellung_{nr}.pdf";
+            var base64 = Convert.ToBase64String(bytes);
+            await JS.InvokeVoidAsync("downloadFile", fileName, base64, "application/pdf");
+        }
+        catch { }
+        _pdfBusy = false;
     }
 }

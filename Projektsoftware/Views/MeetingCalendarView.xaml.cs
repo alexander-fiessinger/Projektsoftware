@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -20,6 +21,8 @@ namespace Projektsoftware.Views
         private List<Project> projects = new();
 
         private readonly DatabaseService dbService;
+        private Timer? _rsvpPollTimer;
+        private readonly Dictionary<string, List<WebexInvitee>> _rsvpCache = new();
 
         private static readonly string[] MonthNames =
         {
@@ -42,6 +45,49 @@ namespace Projektsoftware.Views
         {
             await LoadProjectsAsync();
             await RefreshCalendarAsync();
+            StartRsvpPolling();
+        }
+
+        private void StartRsvpPolling()
+        {
+            var webex = new WebexService();
+            if (!webex.IsConfigured) return;
+
+            // Alle 5 Minuten RSVP-Status für bevorstehende Webex-Meetings abrufen
+            _rsvpPollTimer = new Timer(async _ =>
+            {
+                await PollRsvpStatusAsync();
+            }, null, TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(5));
+        }
+
+        private async System.Threading.Tasks.Task PollRsvpStatusAsync()
+        {
+            try
+            {
+                var webex = new WebexService();
+                if (!webex.IsConfigured) return;
+
+                // Nur Meetings der nächsten 7 Tage und vergangenen 1 Tag prüfen
+                var relevantMeetings = monthMeetings
+                    .Where(m => m.IsWebexMeeting && !string.IsNullOrEmpty(m.WebexMeetingId)
+                             && m.StartTime >= DateTime.Now.AddDays(-1)
+                             && m.StartTime <= DateTime.Now.AddDays(7))
+                    .ToList();
+
+                foreach (var meeting in relevantMeetings)
+                {
+                    try
+                    {
+                        var invitees = await webex.GetMeetingInviteesAsync(meeting.WebexMeetingId!);
+                        _rsvpCache[meeting.WebexMeetingId!] = invitees;
+                    }
+                    catch { /* Einzelnes Meeting nicht blockieren */ }
+                }
+
+                // UI-Update im Dispatcher
+                Dispatcher.Invoke(() => RefreshDayPanel());
+            }
+            catch { }
         }
 
         public async System.Threading.Tasks.Task SetProjectsAsync(List<Project> proj)
@@ -286,6 +332,8 @@ namespace Projektsoftware.Views
             }
         }
 
+        private void RefreshDayPanel() => ShowDayDetail(selectedDate);
+
         private UIElement BuildMeetingCard(Meeting meeting)
         {
             var card = new Border
@@ -361,6 +409,28 @@ namespace Projektsoftware.Views
                 });
             }
 
+            // RSVP-Status anzeigen falls gecacht
+            if (meeting.IsWebexMeeting && !string.IsNullOrEmpty(meeting.WebexMeetingId)
+                && _rsvpCache.TryGetValue(meeting.WebexMeetingId!, out var cachedInvitees) && cachedInvitees.Count > 0)
+            {
+                var accepts = cachedInvitees.Count(i => i.RsvpStatus == "accept");
+                var declines = cachedInvitees.Count(i => i.RsvpStatus == "decline");
+                var pending = cachedInvitees.Count(i => i.RsvpStatus != "accept" && i.RsvpStatus != "decline" && i.RsvpStatus != "tentative");
+                var tentative = cachedInvitees.Count(i => i.RsvpStatus == "tentative");
+
+                var rsvpText = new TextBlock
+                {
+                    Text = $"👥 ✅{accepts}  ❌{declines}  ❓{tentative}  ⏳{pending}",
+                    FontSize = 11,
+                    Foreground = new SolidColorBrush(Color.FromRgb(60, 60, 60)),
+                    Margin = new Thickness(0, 2, 0, 2),
+                    Cursor = Cursors.Hand,
+                    ToolTip = "Klicken für Details"
+                };
+                rsvpText.MouseLeftButtonDown += (s, e) => ShowRsvpDetails(meeting, cachedInvitees);
+                panel.Children.Add(rsvpText);
+            }
+
             // Webex join link
             if (meeting.IsWebexMeeting && !string.IsNullOrEmpty(meeting.WebexJoinLink))
             {
@@ -389,6 +459,25 @@ namespace Projektsoftware.Views
                 HorizontalAlignment = HorizontalAlignment.Right,
                 Margin = new Thickness(0, 8, 0, 0)
             };
+
+            // RSVP-Status Button (nur für Webex-Meetings)
+            if (meeting.IsWebexMeeting && !string.IsNullOrEmpty(meeting.WebexMeetingId))
+            {
+                var rsvpBtn = new Button
+                {
+                    Content = "👥 Status",
+                    Padding = new Thickness(8, 4, 8, 4),
+                    Margin = new Thickness(0, 0, 6, 0),
+                    Background = new SolidColorBrush(Color.FromRgb(103, 58, 183)),
+                    Foreground = Brushes.White,
+                    BorderThickness = new Thickness(0),
+                    Cursor = Cursors.Hand,
+                    FontSize = 11,
+                    ToolTip = "Teilnahme-Status der eingeladenen Personen abrufen"
+                };
+                rsvpBtn.Click += async (s, e) => await ShowRsvpStatusAsync(meeting);
+                buttonRow.Children.Add(rsvpBtn);
+            }
 
             var editBtn = new Button
             {
@@ -496,6 +585,78 @@ namespace Projektsoftware.Views
             {
                 if (owner != null) owner.IsEnabled = true;
             }
+        }
+
+        private async System.Threading.Tasks.Task ShowRsvpStatusAsync(Meeting meeting)
+        {
+            try
+            {
+                var webex = new WebexService();
+                if (!webex.IsConfigured)
+                {
+                    MessageBox.Show("Webex ist nicht konfiguriert.", "Webex",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var (invitees, _) = await webex.GetMeetingInviteesWithDebugAsync(meeting.WebexMeetingId!);
+
+                _rsvpCache[meeting.WebexMeetingId!] = invitees;
+                RefreshDayPanel();
+                ShowRsvpDetails(meeting, invitees);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"RSVP-Status konnte nicht abgerufen werden:\n{ex.Message}",
+                    "Fehler", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private static void ShowRsvpDetails(Meeting meeting, List<WebexInvitee> invitees)
+        {
+            if (invitees.Count == 0)
+            {
+                MessageBox.Show("Keine Teilnehmer für dieses Meeting gefunden.",
+                    $"Teilnahme-Status: {meeting.Title}", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var accepts  = invitees.Where(i => i.RsvpStatus == "accept").ToList();
+            var declines = invitees.Where(i => i.RsvpStatus == "decline").ToList();
+            var tentative = invitees.Where(i => i.RsvpStatus == "tentative").ToList();
+            var pending  = invitees.Where(i => i.RsvpStatus != "accept" && i.RsvpStatus != "decline" && i.RsvpStatus != "tentative").ToList();
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"📅 {meeting.Title}  ({meeting.StartTime:dd.MM.yyyy HH:mm})");
+            sb.AppendLine(new string('─', 50));
+
+            if (accepts.Count > 0)
+            {
+                sb.AppendLine($"\n✅ Angenommen ({accepts.Count}):");
+                foreach (var i in accepts)
+                    sb.AppendLine($"   • {i.Email ?? i.DisplayName}");
+            }
+            if (declines.Count > 0)
+            {
+                sb.AppendLine($"\n❌ Abgesagt ({declines.Count}):");
+                foreach (var i in declines)
+                    sb.AppendLine($"   • {i.Email ?? i.DisplayName}");
+            }
+            if (tentative.Count > 0)
+            {
+                sb.AppendLine($"\n❓ Vielleicht ({tentative.Count}):");
+                foreach (var i in tentative)
+                    sb.AppendLine($"   • {i.Email ?? i.DisplayName}");
+            }
+            if (pending.Count > 0)
+            {
+                sb.AppendLine($"\n⏳ Ausstehend ({pending.Count}):");
+                foreach (var i in pending)
+                    sb.AppendLine($"   • {i.Email ?? i.DisplayName}");
+            }
+
+            MessageBox.Show(sb.ToString(), $"Teilnahme-Status: {meeting.Title}",
+                MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private async void DeleteMeeting_Click(Meeting meeting)

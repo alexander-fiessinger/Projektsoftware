@@ -1,0 +1,87 @@
+@inject VatCalculatorService Vat
+@inject ApiDatabaseService Db
+@using Projektsoftware.Api.Models
+
+<div class="section-title">🧾 MwSt-Rechner</div>
+
+<div class="list-card">
+    <div class="row"><h3>Steuerermittlung</h3></div>
+
+    <label class="form-label mt-8">Kunde (optional)</label>
+    <select class="form-input" @bind="_selectedCustomerId" @bind:after="ApplyCustomer">
+        <option value="0">— manuell eingeben —</option>
+        @foreach (var c in _customers)
+        {
+            <option value="@c.Id">@c.DisplayName @(string.IsNullOrWhiteSpace(c.Country) ? "" : $"({c.Country})")</option>
+        }
+    </select>
+
+    <label class="form-label mt-8">Land (Code oder Name)</label>
+    <input class="form-input" @bind="_country" placeholder="z. B. DE, AT, Frankreich" list="vat-countries" />
+    <datalist id="vat-countries">
+        @foreach (var kv in _countries)
+        {
+            <option value="@kv.Key">@kv.Value</option>
+        }
+    </datalist>
+
+    <label class="form-label mt-8">USt-IdNr. (optional)</label>
+    <input class="form-input" @bind="_vatId" placeholder="z. B. ATU12345678" />
+
+    <button class="btn-action block mt-8" @onclick="Calculate">Berechnen</button>
+</div>
+
+@if (_result is not null)
+{
+    <div class="list-card" style="border-left:4px solid @_result.InfoColor;">
+        <div class="row" style="justify-content:space-between;align-items:center;">
+            <strong>@_result.DisplayText</strong>
+            <span style="background:@_result.InfoColor;color:#fff;padding:2px 10px;border-radius:12px;font-weight:700;">
+                @_result.VatPercent %
+            </span>
+        </div>
+        <div class="mt-8" style="font-size:0.9rem;white-space:pre-line;color:var(--text-muted);">@_result.LegalNotice</div>
+        @if (!string.IsNullOrWhiteSpace(_result.DocumentSuffix))
+        {
+            <div class="mt-8">
+                <label class="form-label">Dokument-Schlusstext</label>
+                <textarea class="form-input" rows="4" readonly>@_result.DocumentSuffix</textarea>
+            </div>
+        }
+        @if (_result.IsTaxFree)
+        {
+            <div class="mt-8" style="color:#dc2626;font-weight:600;">⚠️ Steuerfrei (0% MwSt) – bitte Nachweispflichten beachten.</div>
+        }
+    </div>
+}
+
+@code {
+    private List<CustomerDto> _customers = new();
+    private List<KeyValuePair<string, string>> _countries = new();
+    private int _selectedCustomerId;
+    private string _country = "";
+    private string _vatId = "";
+    private VatResultDto? _result;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _countries = Vat.GetSelectableCountries().ToList();
+        try { _customers = await Db.GetCustomersAsync(); }
+        catch { _customers = new(); }
+    }
+
+    private void ApplyCustomer()
+    {
+        var c = _customers.FirstOrDefault(x => x.Id == _selectedCustomerId);
+        if (c is not null)
+        {
+            _country = c.Country ?? "";
+            Calculate();
+        }
+    }
+
+    private void Calculate()
+    {
+        _result = Vat.DetermineVat(_country, _vatId);
+    }
+}

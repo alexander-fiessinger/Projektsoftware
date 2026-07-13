@@ -134,6 +134,12 @@
                         Background="{StaticResource SuccessBrush}" Foreground="White"
                         Padding="12,6" Margin="0,0,6,0"
                         Click="NewTicket_Click"/>
+                <Button Content="🤖 KI-Batch" 
+                        Style="{StaticResource ActionButton}"
+                        Background="#9C27B0" Foreground="White"
+                        Padding="10,6" Margin="0,0,6,0"
+                        Click="AiBatchCategorize_Click"
+                        ToolTip="Mehrere Tickets automatisch kategorisieren"/>
                 <Button x:Name="EditButton" Content="✏️ Bearbeiten"
                         Style="{StaticResource ActionButton}"
                         Foreground="{StaticResource PrimaryBrush}"

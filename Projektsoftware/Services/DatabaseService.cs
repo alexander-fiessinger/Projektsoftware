@@ -201,6 +201,7 @@ namespace Projektsoftware.Services
                     created_at DATETIME,
                     updated_at DATETIME,
                     is_active BOOLEAN DEFAULT TRUE,
+                    discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
                     INDEX idx_easybill_customer_id (easybill_customer_id)
                 )";
 
@@ -612,6 +613,66 @@ using var cmdUP = new MySqlCommand(createUserPermissionsTable, connection);
 await cmdUP.ExecuteNonQueryAsync();
 System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/geprüft");
 
+// Sales-Termine Tabelle
+await EnsureSalesAppointmentsTableAsync(connection);
+System.Diagnostics.Debug.WriteLine("✅ Tabelle 'sales_appointments' erstellt/geprüft");
+
+// App-weite Einstellungen (systemweit, nicht pro User)
+string createAppSettingsTable = @"
+    CREATE TABLE IF NOT EXISTS app_settings (
+        setting_key   VARCHAR(100) NOT NULL PRIMARY KEY,
+        setting_value TEXT,
+        updated_at    DATETIME NOT NULL
+    )";
+using var cmdAS = new MySqlCommand(createAppSettingsTable, connection);
+await cmdAS.ExecuteNonQueryAsync();
+System.Diagnostics.Debug.WriteLine("✅ Tabelle 'app_settings' erstellt/geprüft");
+
+// Lokaler Artikelkatalog (unabhängig von Easybill) – Preisquelle für das Kundenportal
+string createProductsTable = @"
+    CREATE TABLE IF NOT EXISTS products (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        number VARCHAR(100) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        unit VARCHAR(50) DEFAULT 'Stück',
+        net_price DECIMAL(12,2) NOT NULL DEFAULT 0,
+        vat_percent INT NOT NULL DEFAULT 19,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME,
+        UNIQUE KEY uk_product_number (number),
+        INDEX idx_products_is_active (is_active)
+    )";
+using var cmdProd = new MySqlCommand(createProductsTable, connection);
+await cmdProd.ExecuteNonQueryAsync();
+System.Diagnostics.Debug.WriteLine("✅ Tabelle 'products' erstellt/geprüft");
+
+// Portal-Benutzerkonten (getrennt von Mitarbeiter-Benutzern), verknüpft mit customers
+string createCustomerPortalUsersTable = @"
+    CREATE TABLE IF NOT EXISTS customer_portal_users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        customer_id INT NULL,
+        email VARCHAR(255) NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        contact_name VARCHAR(150),
+        is_approved BOOLEAN DEFAULT FALSE,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at DATETIME NOT NULL,
+        approved_at DATETIME,
+        last_login DATETIME,
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+        UNIQUE KEY uk_portal_email (email),
+        INDEX idx_portal_customer_id (customer_id)
+    )";
+using var cmdPortal = new MySqlCommand(createCustomerPortalUsersTable, connection);
+await cmdPortal.ExecuteNonQueryAsync();
+System.Diagnostics.Debug.WriteLine("✅ Tabelle 'customer_portal_users' erstellt/geprüft");
+
+// Webshop-Bestelltabellen + Bonitäts-Spalte (invoice_allowed)
+await EnsurePortalOrderSchemaAsync(connection);
+System.Diagnostics.Debug.WriteLine("✅ Tabellen 'portal_orders'/'portal_order_items' erstellt/geprüft");
+
             // Überprüfe ob users Tabelle tatsächlich erstellt wurde
             string checkUsersTable = @"
                 SELECT COUNT(*) 
@@ -920,6 +981,23 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
                     await alterProjDoc.ExecuteNonQueryAsync();
                 }
 
+                // Migration: file_data LONGBLOB in purchase_documents
+                string checkPurchaseDocFileData = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'purchase_documents' 
+                    AND COLUMN_NAME = 'file_data'";
+
+                using var checkPurchaseFileData = new MySqlCommand(checkPurchaseDocFileData, connection);
+                if (Convert.ToInt32(await checkPurchaseFileData.ExecuteScalarAsync()) == 0)
+                {
+                    using var alterPurchaseDoc = new MySqlCommand(
+                        "ALTER TABLE purchase_documents ADD COLUMN file_data LONGBLOB NULL",
+                        connection);
+                    await alterPurchaseDoc.ExecuteNonQueryAsync();
+                }
+
                 // Migration: must_change_password in users
                 string checkMustChangePw = @"
                     SELECT COUNT(*) 
@@ -935,6 +1013,23 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
                         "ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT FALSE",
                         connection);
                     await alterMcp.ExecuteNonQueryAsync();
+                }
+
+                // Migration: discount_percent in customers (genereller Kundenrabatt fürs Portal)
+                string checkDiscountCol = @"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'customers' 
+                    AND COLUMN_NAME = 'discount_percent'";
+
+                using var checkDiscount = new MySqlCommand(checkDiscountCol, connection);
+                if (Convert.ToInt32(await checkDiscount.ExecuteScalarAsync()) == 0)
+                {
+                    using var alterDiscount = new MySqlCommand(
+                        "ALTER TABLE customers ADD COLUMN discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0",
+                        connection);
+                    await alterDiscount.ExecuteNonQueryAsync();
                 }
 
                 // Migration: vacation_days_total, vacation_days_used in employees
@@ -1801,7 +1896,7 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
             string query = @"
                 SELECT id, company_name, first_name, last_name, email, phone,
                        street, zip_code, city, country, vat_id, note,
-                       easybill_customer_id, last_synced_at, created_at, updated_at, is_active
+                       easybill_customer_id, last_synced_at, created_at, updated_at, is_active, discount_percent, invoice_allowed
                 FROM customers
                 WHERE is_active = TRUE
                 ORDER BY company_name, last_name, first_name";
@@ -1829,7 +1924,9 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
                     LastSyncedAt = reader.IsDBNull(reader.GetOrdinal("last_synced_at")) ? null : reader.GetDateTime(reader.GetOrdinal("last_synced_at")),
                     CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
                     UpdatedAt = reader.IsDBNull(reader.GetOrdinal("updated_at")) ? null : reader.GetDateTime(reader.GetOrdinal("updated_at")),
-                    IsActive = reader.GetBoolean(reader.GetOrdinal("is_active"))
+                    IsActive = reader.GetBoolean(reader.GetOrdinal("is_active")),
+                    DiscountPercent = reader.IsDBNull(reader.GetOrdinal("discount_percent")) ? 0 : reader.GetDecimal(reader.GetOrdinal("discount_percent")),
+                    InvoiceAllowed = !reader.IsDBNull(reader.GetOrdinal("invoice_allowed")) && reader.GetBoolean(reader.GetOrdinal("invoice_allowed"))
                 });
             }
 
@@ -1847,10 +1944,10 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
             string query = @"
                 INSERT INTO customers 
                 (company_name, first_name, last_name, email, phone, street, zip_code, city, country, 
-                 vat_id, note, easybill_customer_id, last_synced_at, created_at, is_active)
+                 vat_id, note, easybill_customer_id, last_synced_at, created_at, is_active, discount_percent, invoice_allowed)
                 VALUES 
                 (@company_name, @first_name, @last_name, @email, @phone, @street, @zip_code, @city, @country,
-                 @vat_id, @note, @easybill_customer_id, @last_synced_at, @created_at, @is_active);
+                 @vat_id, @note, @easybill_customer_id, @last_synced_at, @created_at, @is_active, @discount_percent, @invoice_allowed);
                 SELECT LAST_INSERT_ID();";
 
             using var cmd = new MySqlCommand(query, connection);
@@ -1869,6 +1966,8 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
             cmd.Parameters.AddWithValue("@last_synced_at", customer.LastSyncedAt ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@created_at", customer.CreatedAt);
             cmd.Parameters.AddWithValue("@is_active", customer.IsActive);
+            cmd.Parameters.AddWithValue("@discount_percent", customer.DiscountPercent);
+            cmd.Parameters.AddWithValue("@invoice_allowed", customer.InvoiceAllowed);
 
             customer.Id = Convert.ToInt32(await cmd.ExecuteScalarAsync());
             _ = new AuditLogService(connectionString).LogAsync("Kunde", customer.Id.ToString(), "Erstellt", customer.CompanyName ?? customer.LastName ?? "");
@@ -1899,7 +1998,9 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
                     easybill_customer_id = @easybill_customer_id,
                     last_synced_at = @last_synced_at,
                     updated_at = @updated_at,
-                    is_active = @is_active
+                    is_active = @is_active,
+                    discount_percent = @discount_percent,
+                    invoice_allowed = @invoice_allowed
                 WHERE id = @id";
 
             using var cmd = new MySqlCommand(query, connection);
@@ -1919,6 +2020,8 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
             cmd.Parameters.AddWithValue("@last_synced_at", customer.LastSyncedAt ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@updated_at", DateTime.Now);
             cmd.Parameters.AddWithValue("@is_active", customer.IsActive);
+            cmd.Parameters.AddWithValue("@discount_percent", customer.DiscountPercent);
+            cmd.Parameters.AddWithValue("@invoice_allowed", customer.InvoiceAllowed);
 
             await cmd.ExecuteNonQueryAsync();
             _ = new AuditLogService(connectionString).LogAsync("Kunde", customer.Id.ToString(), "Aktualisiert", customer.CompanyName ?? customer.LastName ?? "");
@@ -1987,6 +2090,503 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
             }
 
             return null;
+        }
+
+        #endregion
+
+        #region Product Catalog Methods
+
+        /// <summary>
+        /// Holt alle lokalen Artikel (Preisquelle für das Kundenportal, unabhängig von Easybill)
+        /// </summary>
+        public async Task<List<Product>> GetAllProductsAsync(bool includeInactive = false)
+        {
+            var products = new List<Product>();
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = @"SELECT id, number, name, description, unit, net_price, vat_percent,
+                                    is_active, created_at, updated_at
+                             FROM products" + (includeInactive ? "" : " WHERE is_active = TRUE") + @"
+                             ORDER BY number";
+            using var cmd = new MySqlCommand(query, connection);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                products.Add(new Product
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("id")),
+                    Number = reader.IsDBNull(reader.GetOrdinal("number")) ? "" : reader.GetString(reader.GetOrdinal("number")),
+                    Name = reader.IsDBNull(reader.GetOrdinal("name")) ? "" : reader.GetString(reader.GetOrdinal("name")),
+                    Description = reader.IsDBNull(reader.GetOrdinal("description")) ? "" : reader.GetString(reader.GetOrdinal("description")),
+                    Unit = reader.IsDBNull(reader.GetOrdinal("unit")) ? "" : reader.GetString(reader.GetOrdinal("unit")),
+                    NetPrice = reader.IsDBNull(reader.GetOrdinal("net_price")) ? 0 : reader.GetDecimal(reader.GetOrdinal("net_price")),
+                    VatPercent = reader.IsDBNull(reader.GetOrdinal("vat_percent")) ? 19 : reader.GetInt32(reader.GetOrdinal("vat_percent")),
+                    IsActive = reader.GetBoolean(reader.GetOrdinal("is_active")),
+                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
+                    UpdatedAt = reader.IsDBNull(reader.GetOrdinal("updated_at")) ? null : reader.GetDateTime(reader.GetOrdinal("updated_at"))
+                });
+            }
+            return products;
+        }
+
+        /// <summary>
+        /// Fügt einen neuen Artikel hinzu
+        /// </summary>
+        public async Task<int> AddProductAsync(Product product)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = @"INSERT INTO products
+                (number, name, description, unit, net_price, vat_percent, is_active, created_at)
+                VALUES (@number, @name, @description, @unit, @net_price, @vat_percent, @is_active, @created_at);
+                SELECT LAST_INSERT_ID();";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@number", product.Number ?? "");
+            cmd.Parameters.AddWithValue("@name", product.Name ?? "");
+            cmd.Parameters.AddWithValue("@description", product.Description ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@unit", string.IsNullOrWhiteSpace(product.Unit) ? "Stück" : product.Unit);
+            cmd.Parameters.AddWithValue("@net_price", product.NetPrice);
+            cmd.Parameters.AddWithValue("@vat_percent", product.VatPercent);
+            cmd.Parameters.AddWithValue("@is_active", product.IsActive);
+            cmd.Parameters.AddWithValue("@created_at", DateTime.Now);
+
+            product.Id = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            _ = new AuditLogService(connectionString).LogAsync("Artikel", product.Id.ToString(), "Erstellt", product.Name ?? product.Number ?? "");
+            return product.Id;
+        }
+
+        /// <summary>
+        /// Aktualisiert einen Artikel
+        /// </summary>
+        public async Task UpdateProductAsync(Product product)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = @"UPDATE products SET
+                    number = @number,
+                    name = @name,
+                    description = @description,
+                    unit = @unit,
+                    net_price = @net_price,
+                    vat_percent = @vat_percent,
+                    is_active = @is_active,
+                    updated_at = @updated_at
+                WHERE id = @id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@id", product.Id);
+            cmd.Parameters.AddWithValue("@number", product.Number ?? "");
+            cmd.Parameters.AddWithValue("@name", product.Name ?? "");
+            cmd.Parameters.AddWithValue("@description", product.Description ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@unit", string.IsNullOrWhiteSpace(product.Unit) ? "Stück" : product.Unit);
+            cmd.Parameters.AddWithValue("@net_price", product.NetPrice);
+            cmd.Parameters.AddWithValue("@vat_percent", product.VatPercent);
+            cmd.Parameters.AddWithValue("@is_active", product.IsActive);
+            cmd.Parameters.AddWithValue("@updated_at", DateTime.Now);
+
+            await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Artikel", product.Id.ToString(), "Aktualisiert", product.Name ?? product.Number ?? "");
+        }
+
+        /// <summary>
+        /// Löscht einen Artikel (soft delete)
+        /// </summary>
+        public async Task DeleteProductAsync(int productId)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            string query = "UPDATE products SET is_active = FALSE WHERE id = @id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@id", productId);
+            await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Artikel", productId.ToString(), "Gelöscht", "");
+        }
+
+        /// <summary>
+        /// Synchronisiert Artikel aus Easybill in den lokalen Portal-Katalog (einseitig, Easybill ist Master).
+        /// Der Abgleich erfolgt über die Artikelnummer (UNIQUE). Lokale Artikel ohne passende
+        /// Easybill-Nummer bleiben unangetastet.
+        /// </summary>
+        public async Task<(int Created, int Updated, int Skipped)> SyncProductsFromEasybillAsync(List<EasybillProduct> easybillProducts)
+        {
+            int created = 0, updated = 0, skipped = 0;
+            if (easybillProducts == null || easybillProducts.Count == 0)
+                return (0, 0, 0);
+
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            const string existsQuery = "SELECT COUNT(*) FROM products WHERE number = @number";
+            const string upsertQuery = @"INSERT INTO products
+                    (number, name, description, unit, net_price, vat_percent, is_active, created_at)
+                VALUES
+                    (@number, @name, @description, @unit, @net_price, @vat_percent, @is_active, @created_at)
+                ON DUPLICATE KEY UPDATE
+                    name = VALUES(name),
+                    description = VALUES(description),
+                    unit = VALUES(unit),
+                    net_price = VALUES(net_price),
+                    vat_percent = VALUES(vat_percent),
+                    is_active = VALUES(is_active),
+                    updated_at = @updated_at";
+
+            foreach (var ep in easybillProducts)
+            {
+                // Ohne Artikelnummer kein Abgleich möglich -> überspringen
+                if (string.IsNullOrWhiteSpace(ep.Number))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var number = ep.Number.Trim();
+
+                var name = ep.Description ?? "";
+                if (name.Length > 255)
+                    name = name.Substring(0, 255);
+
+                bool exists;
+                using (var checkCmd = new MySqlCommand(existsQuery, connection))
+                {
+                    checkCmd.Parameters.AddWithValue("@number", number);
+                    exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+                }
+
+                using var cmd = new MySqlCommand(upsertQuery, connection);
+                cmd.Parameters.AddWithValue("@number", number);
+                cmd.Parameters.AddWithValue("@name", string.IsNullOrWhiteSpace(name) ? number : name);
+                cmd.Parameters.AddWithValue("@description", string.IsNullOrWhiteSpace(ep.Note) ? (object)DBNull.Value : ep.Note);
+                cmd.Parameters.AddWithValue("@unit", string.IsNullOrWhiteSpace(ep.Unit) ? "Stück" : ep.Unit);
+                cmd.Parameters.AddWithValue("@net_price", ep.SalePrice);
+                cmd.Parameters.AddWithValue("@vat_percent", ep.VatPercent);
+                cmd.Parameters.AddWithValue("@is_active", !ep.IsArchived);
+                cmd.Parameters.AddWithValue("@created_at", DateTime.Now);
+                cmd.Parameters.AddWithValue("@updated_at", DateTime.Now);
+                await cmd.ExecuteNonQueryAsync();
+
+                if (exists)
+                    updated++;
+                else
+                    created++;
+            }
+
+            _ = new AuditLogService(connectionString).LogAsync("Artikel", "Sync",
+                "Easybill-Synchronisation", $"Neu: {created}, Aktualisiert: {updated}, Übersprungen: {skipped}");
+            return (created, updated, skipped);
+        }
+
+        #endregion
+
+        #region Customer Portal Account Methods
+
+        /// <summary>
+        /// Holt alle Portal-Konten (optional gefiltert nach Kunde)
+        /// </summary>
+        public async Task<List<CustomerPortalUser>> GetPortalUsersAsync(int? customerId = null)
+        {
+            var list = new List<CustomerPortalUser>();
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            string query = @"SELECT p.id, p.customer_id, p.email, p.contact_name, p.is_approved,
+                                    p.is_active, p.created_at, p.approved_at, p.last_login,
+                                    c.company_name, c.first_name, c.last_name
+                             FROM customer_portal_users p
+                             LEFT JOIN customers c ON p.customer_id = c.id";
+            if (customerId.HasValue)
+                query += " WHERE p.customer_id = @cid";
+            query += " ORDER BY p.created_at DESC";
+
+            using var cmd = new MySqlCommand(query, connection);
+            if (customerId.HasValue)
+                cmd.Parameters.AddWithValue("@cid", customerId.Value);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var company = reader.IsDBNull(reader.GetOrdinal("company_name")) ? null : reader.GetString(reader.GetOrdinal("company_name"));
+                var first = reader.IsDBNull(reader.GetOrdinal("first_name")) ? null : reader.GetString(reader.GetOrdinal("first_name"));
+                var last = reader.IsDBNull(reader.GetOrdinal("last_name")) ? null : reader.GetString(reader.GetOrdinal("last_name"));
+                var customerName = !string.IsNullOrEmpty(company) ? company : $"{first} {last}".Trim();
+
+                list.Add(new CustomerPortalUser
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("id")),
+                    CustomerId = reader.IsDBNull(reader.GetOrdinal("customer_id")) ? null : reader.GetInt32(reader.GetOrdinal("customer_id")),
+                    Email = reader.GetString(reader.GetOrdinal("email")),
+                    ContactName = reader.IsDBNull(reader.GetOrdinal("contact_name")) ? "" : reader.GetString(reader.GetOrdinal("contact_name")),
+                    IsApproved = reader.GetBoolean(reader.GetOrdinal("is_approved")),
+                    IsActive = reader.GetBoolean(reader.GetOrdinal("is_active")),
+                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
+                    ApprovedAt = reader.IsDBNull(reader.GetOrdinal("approved_at")) ? null : reader.GetDateTime(reader.GetOrdinal("approved_at")),
+                    LastLogin = reader.IsDBNull(reader.GetOrdinal("last_login")) ? null : reader.GetDateTime(reader.GetOrdinal("last_login")),
+                    CustomerName = customerName
+                });
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// Schaltet ein Portal-Konto frei und verknüpft es optional mit einem Kunden
+        /// </summary>
+        public async Task ApprovePortalUserAsync(int portalUserId, int? customerId)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            string query = @"UPDATE customer_portal_users
+                             SET is_approved = TRUE, is_active = TRUE, approved_at = @now,
+                                 customer_id = @cid
+                             WHERE id = @id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@now", DateTime.Now);
+            cmd.Parameters.AddWithValue("@cid", customerId.HasValue ? customerId.Value : (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@id", portalUserId);
+            await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Portalkonto", portalUserId.ToString(), "Freigeschaltet", "");
+        }
+
+        /// <summary>
+        /// Sperrt oder reaktiviert ein Portal-Konto
+        /// </summary>
+        public async Task SetPortalUserActiveAsync(int portalUserId, bool isActive)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            string query = "UPDATE customer_portal_users SET is_active = @active WHERE id = @id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@active", isActive);
+            cmd.Parameters.AddWithValue("@id", portalUserId);
+            await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Portalkonto", portalUserId.ToString(), isActive ? "Aktiviert" : "Gesperrt", "");
+        }
+
+        /// <summary>
+        /// Setzt das Passwort eines Portal-Kontos zurück
+        /// </summary>
+        public async Task ResetPortalUserPasswordAsync(int portalUserId, string newPassword)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            string query = "UPDATE customer_portal_users SET password_hash = @hash WHERE id = @id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@hash", AuthenticationService.HashPassword(newPassword));
+            cmd.Parameters.AddWithValue("@id", portalUserId);
+            await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Portalkonto", portalUserId.ToString(), "Passwort zurückgesetzt", "");
+        }
+
+        /// <summary>
+        /// Löscht ein Portal-Konto endgültig
+        /// </summary>
+        public async Task DeletePortalUserAsync(int portalUserId)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            string query = "DELETE FROM customer_portal_users WHERE id = @id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@id", portalUserId);
+            await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Portalkonto", portalUserId.ToString(), "Gelöscht", "");
+        }
+
+        /// <summary>
+        /// Aktualisiert nur den generellen Rabatt eines Kunden
+        /// </summary>
+        public async Task UpdateCustomerDiscountAsync(int customerId, decimal discountPercent)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            string query = "UPDATE customers SET discount_percent = @discount, updated_at = @now WHERE id = @id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@discount", discountPercent);
+            cmd.Parameters.AddWithValue("@now", DateTime.Now);
+            cmd.Parameters.AddWithValue("@id", customerId);
+            await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Kunde", customerId.ToString(), "Rabatt geändert", $"{discountPercent}%");
+        }
+
+        #endregion
+
+        #region Portal-Bestellungen (Webshop)
+
+        /// <summary>
+        /// Stellt sicher, dass die Webshop-Bestelltabellen und die Bonitäts-Spalte vorhanden sind.
+        /// Beide Apps (WPF + Portal-API) legen das Schema unabhängig an; hier wird es abgesichert.
+        /// </summary>
+        private async Task EnsurePortalOrderSchemaAsync(MySqlConnection connection)
+        {
+            string createOrders = @"
+                CREATE TABLE IF NOT EXISTS portal_orders (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    order_number VARCHAR(40) NOT NULL,
+                    portal_user_id INT NULL,
+                    customer_id INT NULL,
+                    total_net DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    total_gross DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    payment_method INT NOT NULL DEFAULT 0,
+                    status INT NOT NULL DEFAULT 0,
+                    note TEXT,
+                    created_at DATETIME NOT NULL,
+                    processed_at DATETIME,
+                    UNIQUE KEY uk_portal_order_number (order_number),
+                    INDEX idx_portal_orders_status (status),
+                    INDEX idx_portal_orders_customer (customer_id)
+                )";
+            using (var cmd = new MySqlCommand(createOrders, connection))
+                await cmd.ExecuteNonQueryAsync();
+
+            string createItems = @"
+                CREATE TABLE IF NOT EXISTS portal_order_items (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    order_id INT NOT NULL,
+                    product_id INT NULL,
+                    number VARCHAR(100),
+                    name VARCHAR(255) NOT NULL,
+                    unit VARCHAR(50) DEFAULT 'Stück',
+                    net_price DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    vat_percent INT NOT NULL DEFAULT 19,
+                    quantity INT NOT NULL DEFAULT 1,
+                    FOREIGN KEY (order_id) REFERENCES portal_orders(id) ON DELETE CASCADE,
+                    INDEX idx_portal_order_items_order (order_id)
+                )";
+            using (var cmd = new MySqlCommand(createItems, connection))
+                await cmd.ExecuteNonQueryAsync();
+
+            string checkInvoiceAllowed = @"SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers' AND COLUMN_NAME = 'invoice_allowed'";
+            using (var checkCmd = new MySqlCommand(checkInvoiceAllowed, connection))
+            {
+                var hasColumn = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+                if (!hasColumn)
+                {
+                    using var alterCmd = new MySqlCommand(
+                        "ALTER TABLE customers ADD COLUMN invoice_allowed BOOLEAN NOT NULL DEFAULT FALSE", connection);
+                    await alterCmd.ExecuteNonQueryAsync();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Lädt Portal-Bestellungen (Webshop) inklusive Positionen. Optional nur ein bestimmter Status.
+        /// </summary>
+        public async Task<List<PortalOrder>> GetPortalOrdersAsync(int? status = null)
+        {
+            var orders = new List<PortalOrder>();
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await EnsurePortalOrderSchemaAsync(connection);
+
+            string query = @"SELECT o.id, o.order_number, o.portal_user_id, o.customer_id, o.total_net,
+                                    o.total_gross, o.payment_method, o.status, o.note, o.created_at, o.processed_at,
+                                    COALESCE(NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                                             c.company_name, '') AS customer_name
+                             FROM portal_orders o
+                             LEFT JOIN customers c ON o.customer_id = c.id";
+            if (status.HasValue)
+                query += " WHERE o.status = @status";
+            query += " ORDER BY o.created_at DESC";
+
+            using (var cmd = new MySqlCommand(query, connection))
+            {
+                if (status.HasValue)
+                    cmd.Parameters.AddWithValue("@status", status.Value);
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    orders.Add(new PortalOrder
+                    {
+                        Id = reader.GetInt32(reader.GetOrdinal("id")),
+                        OrderNumber = reader.GetString(reader.GetOrdinal("order_number")),
+                        PortalUserId = reader.IsDBNull(reader.GetOrdinal("portal_user_id")) ? null : reader.GetInt32(reader.GetOrdinal("portal_user_id")),
+                        CustomerId = reader.IsDBNull(reader.GetOrdinal("customer_id")) ? null : reader.GetInt32(reader.GetOrdinal("customer_id")),
+                        TotalNet = reader.GetDecimal(reader.GetOrdinal("total_net")),
+                        TotalGross = reader.GetDecimal(reader.GetOrdinal("total_gross")),
+                        PaymentMethod = (PortalPaymentMethod)reader.GetInt32(reader.GetOrdinal("payment_method")),
+                        Status = reader.GetInt32(reader.GetOrdinal("status")),
+                        Note = reader.IsDBNull(reader.GetOrdinal("note")) ? "" : reader.GetString(reader.GetOrdinal("note")),
+                        CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
+                        ProcessedAt = reader.IsDBNull(reader.GetOrdinal("processed_at")) ? null : reader.GetDateTime(reader.GetOrdinal("processed_at")),
+                        CustomerName = reader.IsDBNull(reader.GetOrdinal("customer_name")) ? "" : reader.GetString(reader.GetOrdinal("customer_name"))
+                    });
+                }
+            }
+
+            if (orders.Count > 0)
+            {
+                const string itemQuery = @"SELECT id, order_id, product_id, number, name, unit, net_price, vat_percent, quantity
+                                           FROM portal_order_items WHERE order_id = @oid";
+                foreach (var order in orders)
+                {
+                    using var itemCmd = new MySqlCommand(itemQuery, connection);
+                    itemCmd.Parameters.AddWithValue("@oid", order.Id);
+                    using var itemReader = await itemCmd.ExecuteReaderAsync();
+                    while (await itemReader.ReadAsync())
+                    {
+                        order.Items.Add(new PortalOrderItem
+                        {
+                            Id = itemReader.GetInt32(itemReader.GetOrdinal("id")),
+                            OrderId = itemReader.GetInt32(itemReader.GetOrdinal("order_id")),
+                            ProductId = itemReader.IsDBNull(itemReader.GetOrdinal("product_id")) ? null : itemReader.GetInt32(itemReader.GetOrdinal("product_id")),
+                            Number = itemReader.IsDBNull(itemReader.GetOrdinal("number")) ? "" : itemReader.GetString(itemReader.GetOrdinal("number")),
+                            Name = itemReader.GetString(itemReader.GetOrdinal("name")),
+                            Unit = itemReader.IsDBNull(itemReader.GetOrdinal("unit")) ? "Stück" : itemReader.GetString(itemReader.GetOrdinal("unit")),
+                            NetPrice = itemReader.GetDecimal(itemReader.GetOrdinal("net_price")),
+                            VatPercent = itemReader.GetInt32(itemReader.GetOrdinal("vat_percent")),
+                            Quantity = itemReader.GetInt32(itemReader.GetOrdinal("quantity"))
+                        });
+                    }
+                }
+            }
+
+            return orders;
+        }
+
+        /// <summary>
+        /// Zählt offene (neue) Portal-Bestellungen – für die Benachrichtigung in WPF.
+        /// </summary>
+        public async Task<int> GetNewPortalOrderCountAsync()
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await EnsurePortalOrderSchemaAsync(connection);
+            using var cmd = new MySqlCommand("SELECT COUNT(*) FROM portal_orders WHERE status = 0", connection);
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        /// <summary>
+        /// Setzt den Status einer Portal-Bestellung (0=Neu, 1=In Bearbeitung, 2=Erledigt, 3=Storniert).
+        /// </summary>
+        public async Task UpdatePortalOrderStatusAsync(int orderId, int status)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            string query = status == 0
+                ? "UPDATE portal_orders SET status = @status, processed_at = NULL WHERE id = @id"
+                : "UPDATE portal_orders SET status = @status, processed_at = @now WHERE id = @id";
+            using var cmd = new MySqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@status", status);
+            if (status != 0)
+                cmd.Parameters.AddWithValue("@now", DateTime.Now);
+            cmd.Parameters.AddWithValue("@id", orderId);
+            await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Bestellung", orderId.ToString(), "Status geändert", status.ToString());
+        }
+
+        /// <summary>
+        /// Schaltet den Rechnungskauf (Bonität) für einen Kunden frei oder sperrt ihn.
+        /// </summary>
+        public async Task SetCustomerInvoiceAllowedAsync(int customerId, bool allowed)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await EnsurePortalOrderSchemaAsync(connection);
+            using var cmd = new MySqlCommand("UPDATE customers SET invoice_allowed = @allowed WHERE id = @id", connection);
+            cmd.Parameters.AddWithValue("@allowed", allowed);
+            cmd.Parameters.AddWithValue("@id", customerId);
+            await cmd.ExecuteNonQueryAsync();
+            _ = new AuditLogService(connectionString).LogAsync("Kunde", customerId.ToString(), allowed ? "Rechnungskauf freigegeben" : "Rechnungskauf gesperrt", "");
         }
 
         #endregion
@@ -2505,6 +3105,35 @@ System.Diagnostics.Debug.WriteLine("✅ Tabelle 'user_permissions' erstellt/gepr
                 System.Diagnostics.Debug.WriteLine($"[TasksDueSoon] Error: {ex.Message}");
             }
             return tasks;
+        }
+
+        #endregion
+
+        #region App-Settings
+
+        public async Task<string?> GetAppSettingAsync(string key)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            using var cmd = new MySqlCommand(
+                "SELECT setting_value FROM app_settings WHERE setting_key=@k", connection);
+            cmd.Parameters.AddWithValue("@k", key);
+            var result = await cmd.ExecuteScalarAsync();
+            return result == DBNull.Value || result == null ? null : result.ToString();
+        }
+
+        public async Task SetAppSettingAsync(string key, string? value)
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            using var cmd = new MySqlCommand(@"
+                INSERT INTO app_settings (setting_key, setting_value, updated_at)
+                VALUES (@k, @v, @t)
+                ON DUPLICATE KEY UPDATE setting_value=@v, updated_at=@t", connection);
+            cmd.Parameters.AddWithValue("@k", key);
+            cmd.Parameters.AddWithValue("@v", (object?)value ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@t", DateTime.Now);
+            await cmd.ExecuteNonQueryAsync();
         }
 
         #endregion

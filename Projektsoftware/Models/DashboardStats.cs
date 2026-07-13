@@ -53,6 +53,7 @@ namespace Projektsoftware.Models
         public decimal BudgetUsagePercent { get; set; }
     }
 
+    /// <summary>Activity Feed Item - moved from separate namespace to avoid duplication</summary>
     public class ActivityFeedItem
     {
         public DateTime Timestamp { get; set; }

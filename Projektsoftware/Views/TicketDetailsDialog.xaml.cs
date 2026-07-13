@@ -14,13 +14,14 @@ namespace Projektsoftware.Views
     {
         private readonly DatabaseService db;
         private readonly Ticket ticket;
-        private int currentEmployeeId = 1; // TODO: Aktuellen Benutzer ermitteln
+        private int currentEmployeeId;
 
         public TicketDetailsDialog(Ticket ticket)
         {
             InitializeComponent();
             this.ticket = ticket;
             db = new DatabaseService();
+            currentEmployeeId = AuthenticationService.CurrentUser?.EmployeeId ?? 0;
             
             // Converter registrieren
             Resources.Add("BoolToColorConverter", new BoolToBackgroundConverter());
@@ -200,6 +201,42 @@ namespace Projektsoftware.Views
         {
             var dialog = new TicketEmailDialog(ticket);
             dialog.ShowDialog();
+        }
+
+        private void AiAssistant_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var comments = CommentsListBox.ItemsSource as List<TicketComment>;
+                var aiDialog = new TicketAiAssistantDialog(ticket, comments) { Owner = this };
+
+                // Event für Kategorisierungs-Vorschläge
+                aiDialog.CategorySuggested += async (s, result) =>
+                {
+                    // Hier könnten Sie die Kategorisierung automatisch übernehmen
+                    MessageBox.Show(
+                        $"KI-Vorschlag:\n\n" +
+                        $"Kategorie: {result.Category}\n" +
+                        $"Priorität: {result.Priority}\n" +
+                        $"Konfidenz: {result.Confidence:P0}\n\n" +
+                        $"Hinweis: Automatische Übernahme noch nicht implementiert.",
+                        "Kategorisierung",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information
+                    );
+                };
+
+                aiDialog.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Fehler beim Öffnen des KI-Assistenten:\n\n{ex.Message}",
+                    "Fehler",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error
+                );
+            }
         }
 
         private async void ExportPdf_Click(object sender, RoutedEventArgs e)

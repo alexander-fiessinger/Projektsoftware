@@ -45,8 +45,8 @@
                     <ComboBoxItem Content="📄 Rechnung" Tag="INVOICE" IsSelected="True"/>
                     <ComboBoxItem Content="🧾 Proforma-Rechnung" Tag="PROFORMA_INVOICE"/>
                     <ComboBoxItem Content="📋 Angebot" Tag="OFFER"/>
-                    <ComboBoxItem Content="✓ Auftragsbestätigung" Tag="ORDER_CONFIRMATION"/>
-                    <ComboBoxItem Content="📦 Lieferschein" Tag="DELIVERY_NOTE"/>
+                    <ComboBoxItem Content="✓ Auftragsbestätigung" Tag="CHARGE_CONFIRM"/>
+                    <ComboBoxItem Content="📦 Lieferschein" Tag="DELIVERY"/>
                     <ComboBoxItem Content="💳 Gutschrift" Tag="CREDIT"/>
                 </ComboBox>
 

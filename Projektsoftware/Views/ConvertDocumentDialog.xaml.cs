@@ -11,27 +11,28 @@ namespace Projektsoftware.Views
         {
             ["OFFER"] =
             [
-                ("ORDER_CONFIRMATION", "✓ Auftragsbestätigung"),
+                ("CHARGE_CONFIRM", "✓ Auftragsbestätigung"),
                 ("INVOICE", "📄 Rechnung"),
                 ("PROFORMA_INVOICE", "🧾 Proforma-Rechnung"),
-                ("DELIVERY_NOTE", "📦 Lieferschein"),
+                ("DELIVERY", "📦 Lieferschein"),
             ],
-            ["ORDER_CONFIRMATION"] =
+            ["CHARGE_CONFIRM"] =
             [
                 ("INVOICE", "📄 Rechnung"),
                 ("PROFORMA_INVOICE", "🧾 Proforma-Rechnung"),
-                ("DELIVERY_NOTE", "📦 Lieferschein"),
+                ("DELIVERY", "📦 Lieferschein"),
             ],
             ["PROFORMA_INVOICE"] =
             [
                 ("INVOICE", "📄 Rechnung"),
             ],
-            ["DELIVERY_NOTE"] =
+            ["DELIVERY"] =
             [
                 ("INVOICE", "📄 Rechnung"),
             ],
             ["INVOICE"] =
             [
+                ("DELIVERY", "📦 Lieferschein"),
                 ("CREDIT", "💳 Gutschrift"),
             ],
         };

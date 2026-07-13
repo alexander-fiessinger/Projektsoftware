@@ -1,0 +1,194 @@
+@inject ApiDatabaseService Db
+@inject SessionService Session
+@using Projektsoftware.Api.Models
+
+<div class="section-title">🧾 Easybill: Produkte & Zeit-Export</div>
+
+@if (!_configured)
+{
+    <div class="empty-state">
+        Easybill ist nicht konfiguriert. Bitte zuerst im Bereich „Dokumente → Einstellungen“ E-Mail und API-Key hinterlegen.
+    </div>
+}
+else
+{
+    <div class="sub-tabs">
+        <button class="sub-tab @(_view == "products" ? "active" : "")" @onclick='() => _view = "products"'>📦 Produkte</button>
+        <button class="sub-tab @(_view == "export" ? "active" : "")" @onclick='() => _view = "export"'>⏱️ Zeit-Export</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="list-card" style="color:var(--accent);">@_message</div>
+    }
+
+    @if (_view == "products")
+    {
+        <div class="row" style="justify-content:flex-end;">
+            <button class="btn-action neutral" @onclick="LoadProducts" disabled="@_busy">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Laden
+            </button>
+        </div>
+        @if (_busy)
+        {
+            <div class="spinner"></div>
+        }
+        else if (_products.Count == 0)
+        {
+            <div class="empty-state">Keine Produkte geladen.</div>
+        }
+        else
+        {
+            @foreach (var p in _products)
+            {
+                <div class="list-card">
+                    <div class="row" style="justify-content:space-between;">
+                        <strong>@p.DisplayName</strong>
+                        <span style="font-weight:600;">@p.SalePriceEuro.ToString("N2") €</span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted);">
+                        @(string.IsNullOrWhiteSpace(p.Unit) ? "" : $"Einheit: {p.Unit} · ")MwSt: @(p.VatPercent?.ToString("N0") ?? "19") %
+                    </div>
+                </div>
+            }
+        }
+    }
+    else
+    {
+        <div class="list-card">
+            <div class="row"><h3>Zeiteinträge als Easybill-Positionen exportieren</h3></div>
+
+            <label class="form-label mt-8">Easybill-Kunde</label>
+            <select class="form-input" @bind="_selectedCustomerId">
+                <option value="0">— auswählen —</option>
+                @foreach (var c in _ebCustomers)
+                {
+                    <option value="@c.Id">@c.DisplayName</option>
+                }
+            </select>
+
+            <label class="form-label mt-8">Projekt (Zeiteinträge)</label>
+            <select class="form-input" @bind="_selectedProjectId" @bind:after="LoadTimeEntries">
+                <option value="0">— alle —</option>
+                @foreach (var pr in _projects)
+                {
+                    <option value="@pr.Id">@pr.Name</option>
+                }
+            </select>
+
+            <label class="form-label mt-8">Stundensatz (€)</label>
+            <input class="form-input" type="number" step="0.01" @bind="_hourlyRate" />
+
+            <div class="mt-8" style="font-size:0.85rem;color:var(--text-muted);">
+                @_timeEntries.Count Zeiteintrag(e) · @_totalHours.ToString("N1") h gesamt
+            </div>
+
+            <button class="btn-action block mt-8" disabled="@(_busy || _selectedCustomerId == 0 || _timeEntries.Count == 0)" @onclick="ExportTime">
+                Als Positionen exportieren
+            </button>
+        </div>
+
+        @if (_busy) { <div class="spinner"></div> }
+
+        @foreach (var t in _timeEntries)
+        {
+            <div class="list-card">
+                <div class="row" style="justify-content:space-between;">
+                    <strong>@(string.IsNullOrWhiteSpace(t.Activity) ? t.Description : t.Activity)</strong>
+                    <span>@t.Duration.TotalHours.ToString("N1") h</span>
+                </div>
+                <div style="font-size:0.8rem;color:var(--text-muted);">@t.ProjectName · @t.Date.ToString("dd.MM.yyyy")</div>
+            </div>
+        }
+    }
+}
+
+@code {
+    private bool _configured;
+    private string _setEmail = "";
+    private string _setApiKey = "";
+    private string _view = "products";
+    private bool _busy;
+    private string _message = "";
+
+    private List<EbProduct> _products = new();
+    private List<EbCustomer> _ebCustomers = new();
+    private List<ProjectDto> _projects = new();
+    private List<TimeEntryDto> _timeEntries = new();
+
+    private long _selectedCustomerId;
+    private int _selectedProjectId;
+    private decimal _hourlyRate = 90m;
+
+    private double _totalHours => _timeEntries.Sum(t => t.Duration.TotalHours);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var settings = await Db.GetEasybillSettingsAsync(Session.UserId);
+        if (settings is { IsConfigured: true })
+        {
+            _configured = true;
+            _setEmail = settings.Email;
+            _setApiKey = settings.ApiKey;
+            _projects = await Db.GetProjectsAsync();
+            await LoadCustomers();
+        }
+    }
+
+    private async Task LoadCustomers()
+    {
+        try
+        {
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            _ebCustomers = await svc.GetCustomersAsync();
+        }
+        catch (Exception ex) { _message = $"Fehler beim Laden der Kunden: {ex.Message}"; }
+    }
+
+    private async Task LoadProducts()
+    {
+        _busy = true;
+        _message = "";
+        try
+        {
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            _products = await svc.GetProductsAsync();
+        }
+        catch (Exception ex) { _message = $"Fehler: {ex.Message}"; }
+        _busy = false;
+    }
+
+    private async Task LoadTimeEntries()
+    {
+        _busy = true;
+        try
+        {
+            _timeEntries = await Db.GetTimeEntriesAsync(_selectedProjectId == 0 ? null : _selectedProjectId);
+        }
+        catch { _timeEntries = new(); }
+        _busy = false;
+    }
+
+    private async Task ExportTime()
+    {
+        if (_selectedCustomerId == 0 || _timeEntries.Count == 0) return;
+        _busy = true;
+        _message = "";
+        try
+        {
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            int count = 0;
+            foreach (var t in _timeEntries)
+            {
+                var desc = string.IsNullOrWhiteSpace(t.Activity) ? t.Description : t.Activity;
+                if (string.IsNullOrWhiteSpace(desc)) desc = $"Leistung {t.Date:dd.MM.yyyy}";
+                await svc.CreatePositionAsync(_selectedCustomerId, desc, (decimal)t.Duration.TotalHours, _hourlyRate);
+                count++;
+            }
+            _message = $"{count} Position(en) erfolgreich nach Easybill exportiert.";
+        }
+        catch (Exception ex) { _message = $"Fehler beim Export: {ex.Message}"; }
+        _busy = false;
+    }
+}

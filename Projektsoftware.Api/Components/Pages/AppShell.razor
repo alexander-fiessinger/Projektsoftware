@@ -1,4 +1,5 @@
 @inject SessionService Session
+@inject IJSRuntime JS
 
 <div class="app-container">
     <div class="app-header">
@@ -20,7 +21,10 @@
                 <div class="app-header-subtitle">@_tabLabels.GetValueOrDefault(_activeTab, "Dashboard")</div>
             </div>
         </div>
-        <button @onclick="Logout">Abmelden</button>
+        <div class="app-header-actions">
+            <button class="theme-toggle" title="Design wechseln" @onclick="ToggleTheme">@(_isDark ? "☀️" : "🌙")</button>
+            <button @onclick="Logout">Abmelden</button>
+        </div>
     </div>
 
     <div class="app-content">
@@ -61,6 +65,72 @@
                 break;
             case "protocols":
                 <ProtocolsTab/>
+                break;
+            case "suppliers":
+                <SuppliersTab/>
+                break;
+            case "sales":
+                <SalesTab/>
+                break;
+            case "search":
+                <SearchTab/>
+                break;
+            case "notifications":
+                <NotificationsTab/>
+                break;
+            case "audit":
+                <AuditLogTab/>
+                break;
+            case "analytics":
+                <AnalyticsTab/>
+                break;
+            case "users":
+                <UserManagementTab/>
+                break;
+            case "settings":
+                <SettingsTab/>
+                break;
+            case "timeline":
+                <TimelineTab/>
+                break;
+            case "export":
+                <ExportTab/>
+                break;
+            case "letter":
+                <LetterTab/>
+                break;
+            case "contract":
+                <ContractTab/>
+                break;
+            case "budget":
+                <BudgetTab/>
+                break;
+            case "sla":
+                <SlaTab/>
+                break;
+            case "followup":
+                <FollowUpTab/>
+                break;
+            case "vat":
+                <VatTab/>
+                break;
+            case "templates":
+                <TemplateTab/>
+                break;
+            case "kpi":
+                <KpiTab/>
+                break;
+            case "salescal":
+                <SalesCalendarTab/>
+                break;
+            case "supplierrating":
+                <SupplierRatingTab/>
+                break;
+            case "expenses":
+                <ExpenseAnalysisTab/>
+                break;
+            case "easybillexport":
+                <EasybillExportTab/>
                 break;
             case "documents":
                 <DocumentsTab/>
@@ -121,6 +191,35 @@
 @code {
     private string _activeTab = "dashboard";
     private bool _showMore;
+    private bool _isDark;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var theme = await JS.InvokeAsync<string>("appTheme.get");
+                var dark = theme == "dark";
+                if (dark != _isDark)
+                {
+                    _isDark = dark;
+                    StateHasChanged();
+                }
+            }
+            catch { }
+        }
+    }
+
+    private async Task ToggleTheme()
+    {
+        try
+        {
+            var theme = await JS.InvokeAsync<string>("appTheme.toggle");
+            _isDark = theme == "dark";
+        }
+        catch { }
+    }
 
     private record MoreItem(string Key, string Icon, string Label, string? Permission);
 
@@ -138,6 +237,28 @@
         { "meetings", "Meetings" },
         { "purchase", "Einkauf" },
         { "protocols", "Protokolle" },
+        { "suppliers", "Lieferanten" },
+        { "sales", "Vertrieb" },
+        { "search", "Globale Suche" },
+        { "notifications", "Benachrichtigungen" },
+        { "audit", "Audit-Log" },
+        { "analytics", "Auswertungen" },
+        { "users", "Benutzerverwaltung" },
+        { "settings", "Einstellungen" },
+        { "timeline", "Projekt-Zeitstrahl" },
+        { "export", "Datenexport" },
+        { "letter", "Briefgenerator" },
+        { "contract", "Vertragsgenerator" },
+        { "budget", "Budget-Tracking" },
+        { "sla", "SLA-Monitoring" },
+        { "followup", "Wiedervorlagen" },
+        { "vat", "MwSt-Rechner" },
+        { "templates", "Projektvorlagen" },
+        { "kpi", "KPI-Dashboard" },
+        { "salescal", "Sales-Kalender" },
+        { "supplierrating", "Lieferanten-Bewertung" },
+        { "expenses", "Ausgaben-Analyse" },
+        { "easybillexport", "Easybill Export" },
         { "documents", "Dokumente" }
     };
 
@@ -154,6 +275,28 @@
         new("meetings", "📅", "Meetings", "kalender"),
         new("purchase", "🛒", "Einkauf", "einkauf"),
         new("protocols", "📝", "Protokolle", "protokolle"),
+        new("suppliers", "🚚", "Lieferanten", "einkauf"),
+        new("sales", "💼", "Vertrieb", "sales"),
+        new("search", "🔍", "Suche", null),
+        new("notifications", "🔔", "Hinweise", null),
+        new("audit", "🛡️", "Audit-Log", "admin"),
+        new("analytics", "📈", "Auswertungen", null),
+        new("users", "👥", "Benutzer", "admin"),
+        new("settings", "⚙️", "Einstellungen", null),
+        new("timeline", "📅", "Zeitstrahl", "projekte"),
+        new("export", "📤", "Export", "export"),
+        new("letter", "✉️", "Brief", null),
+        new("contract", "📜", "Vertrag", null),
+        new("budget", "💰", "Budget", null),
+        new("sla", "🛡️", "SLA", null),
+        new("followup", "🔔", "Wiedervorlage", null),
+        new("vat", "🧾", "MwSt", null),
+        new("templates", "📋", "Vorlagen", "projekte"),
+        new("kpi", "📊", "KPIs", null),
+        new("salescal", "📅", "Sales-Termine", "sales"),
+        new("supplierrating", "⭐", "Lieferanten-Bew.", "einkauf"),
+        new("expenses", "💸", "Ausgaben", "einkauf"),
+        new("easybillexport", "🧾", "Easybill Export", null),
     ];
 
     private bool _moreTabActive => !_primaryTabs.Contains(_activeTab);

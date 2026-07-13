@@ -1,9 +1,11 @@
 using Projektsoftware.Models;
+using Projektsoftware.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace Projektsoftware.Views
 {
@@ -107,5 +109,87 @@ namespace Projektsoftware.Views
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+
+        private async void AiScore_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(TitleBox.Text))
+            {
+                MessageBox.Show("Bitte geben Sie mindestens einen Titel ein, bevor Sie das KI-Scoring verwenden.", 
+                    "Titel erforderlich", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var aiService = new LogicCAiService();
+            if (!aiService.IsConfigured)
+            {
+                MessageBox.Show("LogicC AI ist nicht konfiguriert.\n\nBitte konfigurieren Sie die API im Menü:\nEinstellungen → 🤖 KI-Integration → Konfiguration",
+                    "KI nicht konfiguriert", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            AiScoreButton.IsEnabled = false;
+            AiScoreResultText.Visibility = Visibility.Visible;
+            AiScoreResultText.Text = "⏳ KI analysiert Lead...";
+            Mouse.OverrideCursor = Cursors.Wait;
+
+            try
+            {
+                var title = TitleBox.Text.Trim();
+                var description = NotesBox.Text.Trim();
+                decimal.TryParse(ValueBox.Text.Replace(",", "."), System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out decimal value);
+
+                var customerInfo = "";
+                var selectedCustomer = CustomerCombo.SelectedItem as Customer;
+                if (selectedCustomer != null && selectedCustomer.Id > 0)
+                {
+                    customerInfo = $"Kunde: {selectedCustomer.CompanyName}";
+                }
+
+                var result = await aiService.ScoreLeadAsync(title, description, value, customerInfo);
+
+                if (result != null)
+                {
+                    // Ergebnis anzeigen
+                    AiScoreResultText.Text = $"✅ KI-Scoring:\n\n" +
+                        $"📊 Score: {result.Score}/100\n" +
+                        $"🎯 Erfolgswahrscheinlichkeit: {result.SuccessProbability:F0}%\n" +
+                        $"💡 Begründung: {result.Reasoning}\n\n" +
+                        $"📋 Empfohlene Maßnahmen:\n{string.Join("\n", result.RecommendedActions.Select(a => $"  • {a}"))}\n\n" +
+                        $"⚠️ Risikofaktoren:\n{string.Join("\n", result.RiskFactors.Select(r => $"  • {r}"))}";
+
+                    // Wahrscheinlichkeit übernehmen (optional)
+                    if (result.SuccessProbability > 0)
+                    {
+                        var applyResult = MessageBox.Show(
+                            $"Die KI empfiehlt eine Erfolgswahrscheinlichkeit von {result.SuccessProbability:F0}%.\n\n" +
+                            $"Möchten Sie diesen Wert übernehmen?",
+                            "Wahrscheinlichkeit übernehmen?",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Question);
+
+                        if (applyResult == MessageBoxResult.Yes)
+                        {
+                            ProbabilityBox.Text = result.SuccessProbability.ToString("F0");
+                        }
+                    }
+                }
+                else
+                {
+                    AiScoreResultText.Text = "❌ Keine Antwort von der KI erhalten.";
+                }
+            }
+            catch (Exception ex)
+            {
+                AiScoreResultText.Text = $"❌ Fehler beim KI-Scoring:\n{ex.Message}";
+                MessageBox.Show($"Fehler beim KI-Scoring:\n\n{ex.Message}", 
+                    "Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                AiScoreButton.IsEnabled = true;
+                Mouse.OverrideCursor = null;
+            }
+        }
     }
 }

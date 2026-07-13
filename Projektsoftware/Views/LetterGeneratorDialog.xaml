@@ -184,7 +184,15 @@
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto"
-                         Margin="0,0,0,15"/>
+                         Margin="0,0,0,10"/>
+
+                <!-- KI Text-Verbesserung -->
+                <Button x:Name="AiImproveButton" Content="🤖 Text mit KI verbessern" 
+                        Height="35" 
+                        Background="#9C27B0" Foreground="White"
+                        Click="AiImprove_Click"
+                        ToolTip="KI verbessert Grammatik, Stil und Professionalität"
+                        Margin="0,0,0,15"/>
 
             </StackPanel>
         </ScrollViewer>

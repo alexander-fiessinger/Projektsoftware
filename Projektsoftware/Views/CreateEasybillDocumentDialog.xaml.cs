@@ -17,20 +17,33 @@ namespace Projektsoftware.Views
         private List<EasybillProject>? projects;
         private ObservableCollection<EasybillDocumentItem> items;
         private VatResult? currentVatResult;
+        private EasybillDocument? editDocument; // != null im Edit-Modus
 
         public EasybillDocument CreatedDocument { get; private set; } = null!;
 
+        // Neu erstellen
         public CreateEasybillDocumentDialog(string documentType = "INVOICE")
         {
             InitializeComponent();
             easybillService = new EasybillService();
             items = new ObservableCollection<EasybillDocumentItem>();
             ItemsDataGrid.ItemsSource = items;
-
             items.CollectionChanged += (s, e) => UpdateTotals();
-
             SetDocumentType(documentType);
+            Loaded += async (s, e) => await LoadDataAsync();
+        }
 
+        // Bearbeiten
+        public CreateEasybillDocumentDialog(EasybillDocument document)
+        {
+            InitializeComponent();
+            easybillService = new EasybillService();
+            editDocument = document;
+            items = new ObservableCollection<EasybillDocumentItem>();
+            ItemsDataGrid.ItemsSource = items;
+            items.CollectionChanged += (s, e) => UpdateTotals();
+            CreateButton.Content = "💾 Speichern";
+            Title = "📄 Dokument bearbeiten";
             Loaded += async (s, e) => await LoadDataAsync();
         }
 
@@ -72,12 +85,72 @@ namespace Projektsoftware.Views
                 // Lade Projekte
                 projects = await easybillService.GetAllProjectsAsync();
 
-                // Füge "kein Projekt" Option hinzu
                 var projectItems = new List<object> { new { Id = (long?)null, Name = "(kein Projekt)" } };
                 projectItems.AddRange(projects.Select(p => new { Id = (long?)p.Id, Name = p.Name }));
 
                 ProjectComboBox.ItemsSource = projectItems;
                 ProjectComboBox.SelectedIndex = 0;
+
+                // Edit-Modus: Felder mit vorhandenen Werten befüllen
+                if (editDocument != null)
+                {
+                    SetDocumentType(editDocument.Type ?? "INVOICE");
+                    TypeComboBox.IsEnabled = false; // Typ nicht änderbar
+
+                    var customer = customers.FirstOrDefault(c => c.Id == editDocument.CustomerId);
+                    if (customer != null)
+                        CustomerComboBox.SelectedItem = customer;
+
+                    if (editDocument.ProjectId.HasValue)
+                    {
+                        foreach (var p in projectItems)
+                        {
+                            var val = p.GetType().GetProperty("Id")?.GetValue(p);
+                            if (val is long lid && lid == editDocument.ProjectId.Value)
+                            {
+                                ProjectComboBox.SelectedItem = p;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (DateTime.TryParse(editDocument.DocumentDate, out var docDate))
+                        DocumentDatePicker.SelectedDate = docDate;
+
+                    TitleTextBox.Text       = editDocument.Title ?? "";
+                    SubjectTextBox.Text     = editDocument.Subject ?? "";
+                    TextTextBox.Text        = editDocument.TextPrefix ?? "";
+                    TextSuffixTextBox.Text  = editDocument.Text ?? "";
+                    DueInDaysTextBox.Text   = (editDocument.DueInDays ?? 14).ToString();
+                    IsDraftCheckBox.IsChecked = editDocument.IsDraft;
+
+                    if (!string.IsNullOrEmpty(editDocument.Currency))
+                    {
+                        foreach (ComboBoxItem ci in CurrencyComboBox.Items)
+                            if (ci.Tag?.ToString() == editDocument.Currency) { CurrencyComboBox.SelectedItem = ci; break; }
+                    }
+
+                    if (editDocument.Items != null)
+                        foreach (var item in editDocument.Items)
+                            items.Add(new EasybillDocumentItem
+                            {
+                                Id              = item.Id,
+                                Number          = item.Number,
+                                Description     = item.Description,
+                                Quantity        = item.Quantity,
+                                Unit            = item.Unit,
+                                Type            = item.Type,
+                                Position        = item.Position,
+                                SinglePriceNet  = item.SinglePriceNet,
+                                SinglePriceGross= item.SinglePriceGross,
+                                VatPercent      = item.VatPercent,
+                                Discount        = item.Discount,
+                                DiscountType    = item.DiscountType,
+                                PositionId      = item.PositionId,
+                            });
+
+                    UpdateTotals();
+                }
 
                 CreateButton.IsEnabled = true;
             }
@@ -284,7 +357,6 @@ namespace Projektsoftware.Views
 
                 CreateButton.IsEnabled = false;
 
-                // Dokument erstellen
                 var selectedCustomer = CustomerComboBox.SelectedItem as EasybillCustomer;
                 var selectedProjectItem = ProjectComboBox.SelectedItem;
                 var projectId = selectedProjectItem?.GetType().GetProperty("Id")?.GetValue(selectedProjectItem) as long?;
@@ -293,37 +365,67 @@ namespace Projektsoftware.Views
 
                 var document = new EasybillDocument
                 {
-                    Type = selectedType,
+                    Type       = selectedType,
                     CustomerId = selectedCustomer!.Id,
-                    ProjectId = projectId,
-                    DocumentDate = DocumentDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd"),
-                    Title = string.IsNullOrWhiteSpace(TitleTextBox.Text) ? null : TitleTextBox.Text,
-                    Subject = string.IsNullOrWhiteSpace(SubjectTextBox.Text) ? null : SubjectTextBox.Text,
-                    Text = string.IsNullOrWhiteSpace(TextTextBox.Text) ? null : TextTextBox.Text,
-                    TextSuffix = string.IsNullOrWhiteSpace(TextSuffixTextBox.Text) ? null : TextSuffixTextBox.Text,
-                    Currency = selectedCurrency,
-                    DueInDays = dueInDays,
-                    IsDraft = IsDraftCheckBox.IsChecked == true,
-                    Items = items.ToArray()
+                    ProjectId  = projectId,
+                    DocumentDate  = DocumentDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd"),
+                    Title      = string.IsNullOrWhiteSpace(TitleTextBox.Text) ? null : TitleTextBox.Text,
+                    Subject    = string.IsNullOrWhiteSpace(SubjectTextBox.Text) ? null : SubjectTextBox.Text,
+                    TextPrefix = string.IsNullOrWhiteSpace(TextTextBox.Text) ? null : TextTextBox.Text,
+                    Text       = string.IsNullOrWhiteSpace(TextSuffixTextBox.Text) ? null : TextSuffixTextBox.Text,
+                    Currency   = selectedCurrency,
+                    DueInDays  = dueInDays,
+                    IsDraft    = IsDraftCheckBox.IsChecked == true,
+                    Items      = items.ToArray()
                 };
-
-                // Dokument in Easybill erstellen
-                CreatedDocument = await easybillService.CreateDocumentAsync(document);
 
                 var typeName = (TypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString()
                     ?.Replace("📄", "").Replace("📋", "").Replace("✓", "")
                     .Replace("📦", "").Replace("💳", "").Trim() ?? "Dokument";
 
-                MessageBox.Show(
-                    $"{typeName} erfolgreich erstellt!\n\n" +
-                    $"Nummer: {CreatedDocument.Number ?? "(wird beim Abschließen vergeben)"}\n" +
-                    $"Status: {CreatedDocument.DisplayStatus}\n" +
-                    $"Kunde: {selectedCustomer.DisplayName}\n" +
-                    $"Positionen: {items.Count}\n" +
-                    $"Gesamtbetrag: {CreatedDocument.TotalGross:N2} {selectedCurrency}",
-                    "Erfolg",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                if (editDocument != null)
+                {
+                    // Bearbeiten: PUT /documents/{id}
+                    CreatedDocument = await easybillService.UpdateDocumentAsync(editDocument.Id!.Value, document);
+
+                    // Wenn nicht als Entwurf gewünscht und das Dokument noch ein Entwurf ist,
+                    // abschließen, damit Easybill eine Nummer vergibt.
+                    if (!document.IsDraft && CreatedDocument.IsDraft && CreatedDocument.Id.HasValue)
+                    {
+                        CreatedDocument = await easybillService.FinalizeDocumentAsync(CreatedDocument.Id.Value);
+                    }
+
+                    MessageBox.Show(
+                        $"{typeName} erfolgreich gespeichert!\n\n" +
+                        $"Nummer: {CreatedDocument.Number ?? "(Entwurf)"}\n" +
+                        $"Status: {CreatedDocument.DisplayStatus}\n" +
+                        $"Kunde: {selectedCustomer.DisplayName}",
+                        "Gespeichert",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                else
+                {
+                    // Neu erstellen: POST /documents (Easybill legt immer einen Entwurf an)
+                    CreatedDocument = await easybillService.CreateDocumentAsync(document);
+
+                    // Wenn nicht als Entwurf gewünscht, Dokument abschließen → Easybill vergibt die Nummer.
+                    if (!document.IsDraft && CreatedDocument.IsDraft && CreatedDocument.Id.HasValue)
+                    {
+                        CreatedDocument = await easybillService.FinalizeDocumentAsync(CreatedDocument.Id.Value);
+                    }
+
+                    MessageBox.Show(
+                        $"{typeName} erfolgreich erstellt!\n\n" +
+                        $"Nummer: {CreatedDocument.Number ?? "(Entwurf)"}\n" +
+                        $"Status: {CreatedDocument.DisplayStatus}\n" +
+                        $"Kunde: {selectedCustomer.DisplayName}\n" +
+                        $"Positionen: {items.Count}\n" +
+                        $"Gesamtbetrag: {CreatedDocument.TotalGross:N2} {selectedCurrency}",
+                        "Erfolg",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
 
                 DialogResult = true;
                 Close();
@@ -331,7 +433,7 @@ namespace Projektsoftware.Views
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Fehler beim Erstellen des Dokuments:\n\n{ex.Message}",
+                    $"Fehler beim Speichern des Dokuments:\n\n{ex.Message}",
                     "Fehler",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);

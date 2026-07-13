@@ -78,7 +78,20 @@
 
                 <TextBlock Text="Notizen" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
                 <TextBox x:Name="NotesBox" Height="80" TextWrapping="Wrap"
-                         AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,4"/>
+                         AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,12"/>
+
+                <!-- KI Lead-Scoring -->
+                <Button x:Name="AiScoreButton" Content="🤖 KI Lead-Scoring" 
+                        Height="40" Margin="0,0,0,12"
+                        Background="#9C27B0" Foreground="White"
+                        Click="AiScore_Click"
+                        ToolTip="KI analysiert und bewertet diesen Lead"/>
+
+                <TextBlock x:Name="AiScoreResultText" 
+                           TextWrapping="Wrap"
+                           Foreground="#4EC9B0"
+                           Margin="0,0,0,4"
+                           Visibility="Collapsed"/>
             </StackPanel>
         </ScrollViewer>
 

@@ -16,6 +16,7 @@ namespace Projektsoftware.Views
         private readonly Meeting? existingMeeting;
         private WebexService webexService;
         private bool webexMeetingCreated = false;
+        private string? currentWebexMeetingId;
 
         public MeetingDialog(List<Project> projects, Meeting? meetingToEdit = null)
         {
@@ -86,8 +87,11 @@ namespace Projektsoftware.Views
             {
                 WebexCheckBox.IsChecked = true;
                 webexMeetingCreated = true;
+                currentWebexMeetingId = m.WebexMeetingId;
                 ShowWebexInfo(m.WebexJoinLink, m.WebexPassword, m.WebexHostKey);
                 WebexStatusTextBlock.Text = "✅ Webex-Meeting bereits erstellt.";
+                InviteesPanel.Visibility = Visibility.Visible;
+                _ = LoadInviteesAsync(m.WebexMeetingId);
             }
 
             UpdateDurationPreview();
@@ -264,8 +268,19 @@ namespace Projektsoftware.Views
                         meeting.WebexHostKey = response.HostKey;
                         meeting.WebexPassword = response.Password;
                         meeting.WebexSipAddress = response.SipAddress;
+                        currentWebexMeetingId = response.Id;
                         ShowWebexInfo(meeting.WebexJoinLink, meeting.WebexPassword, meeting.WebexHostKey);
                         WebexStatusTextBlock.Text = "✅ Webex-Meeting erfolgreich erstellt!";
+                        InviteesPanel.Visibility = Visibility.Visible;
+
+                        if (response.InviteeErrors.Count > 0)
+                            MessageBox.Show(
+                                "Folgende Teilnehmer konnten nicht eingeladen werden:\n\n" +
+                                string.Join("\n", response.InviteeErrors),
+                                "Webex Einladung – Fehler", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                        // RSVP-Einträge werden nach dem Speichern initialisiert (meeting.Id noch 0 hier)
+                        // wird in MeetingCreatedAsync nach dem DB-Save aufgerufen
                     }
                     else
                     {
@@ -321,6 +336,34 @@ namespace Projektsoftware.Views
             Meeting = meeting;
             DialogResult = true;
             Close();
+        }
+
+        private async System.Threading.Tasks.Task LoadInviteesAsync(string? meetingId)
+        {
+            if (string.IsNullOrEmpty(meetingId)) return;
+
+            InviteesStatusTextBlock.Text = "Lade Teilnehmerstatus...";
+            InviteesItemsControl.ItemsSource = null;
+
+            try
+            {
+                var invitees = await webexService.GetMeetingInviteesAsync(meetingId);
+                InviteesItemsControl.ItemsSource = invitees;
+                InviteesStatusTextBlock.Text = invitees.Count == 0
+                    ? "Keine Eingeladenen gefunden."
+                    : $"{invitees.Count} Eingeladene";
+            }
+            catch (Exception ex)
+            {
+                InviteesStatusTextBlock.Text = $"Fehler: {ex.Message}";
+            }
+        }
+
+        private async void RefreshInvitees_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshInviteesButton.IsEnabled = false;
+            await LoadInviteesAsync(currentWebexMeetingId);
+            RefreshInviteesButton.IsEnabled = true;
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e)

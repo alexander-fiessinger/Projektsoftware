@@ -122,6 +122,35 @@
 
                             <TextBlock x:Name="WebexStatusTextBlock"
                                        FontSize="12" Foreground="#666" TextWrapping="Wrap"/>
+
+                            <!-- Teilnehmer-Status -->
+                            <StackPanel x:Name="InviteesPanel" Visibility="Collapsed" Margin="0,10,0,0">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Teilnehmerstatus" FontWeight="SemiBold" FontSize="13"
+                                               VerticalAlignment="Center"/>
+                                    <Button x:Name="RefreshInviteesButton" Grid.Column="1"
+                                            Content="🔄 Aktualisieren" Height="26" Padding="8,0"
+                                            Background="#1565C0" Foreground="White" BorderThickness="0"
+                                            Cursor="Hand" FontSize="11"
+                                            Click="RefreshInvitees_Click"/>
+                                </Grid>
+                                <ItemsControl x:Name="InviteesItemsControl">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DisplayLabel}"
+                                                       FontSize="12" Margin="0,2,0,2"
+                                                       FontFamily="Segoe UI"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock x:Name="InviteesStatusTextBlock"
+                                           FontSize="11" Foreground="#888"
+                                           Margin="0,4,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
                         </StackPanel>
                     </StackPanel>
                 </Border>

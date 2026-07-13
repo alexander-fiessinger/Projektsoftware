@@ -1,0 +1,84 @@
+@inject ApiDatabaseService Db
+
+<div class="search-bar">
+    <input type="text" placeholder="🔍 Alles durchsuchen (Projekte, Tickets, Aufgaben, Kontakte)..."
+           value="@_term" @oninput="OnInput" />
+</div>
+
+@if (_searching)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else if (_term.Length >= 2)
+{
+    @if (_results.Any())
+    {
+        <div class="sub mb-8">@_results.Count Treffer</div>
+        @foreach (var grp in _results.GroupBy(r => r.Type))
+        {
+            <div class="sub-tab-header">@grp.Key (@grp.Count())</div>
+            @foreach (var r in grp)
+            {
+                <div class="list-card">
+                    <div class="row">
+                        <h3>@r.Icon @r.Title</h3>
+                        <span class="badge">@r.Type</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(r.Description))
+                    {
+                        <div class="sub mt-4">@r.Description</div>
+                    }
+                </div>
+            }
+        }
+    }
+    else
+    {
+        <div class="empty-state">Keine Treffer für „@_term".</div>
+    }
+}
+else
+{
+    <div class="empty-state">Mindestens 2 Zeichen eingeben, um zu suchen.</div>
+}
+
+@code {
+    private string _term = "";
+    private bool _searching;
+    private List<SearchResultDto> _results = [];
+    private CancellationTokenSource? _cts;
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        _term = e.Value?.ToString() ?? "";
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+        if (_term.Length < 2)
+        {
+            _results = [];
+            _searching = false;
+            return;
+        }
+
+        _searching = true;
+        try
+        {
+            await Task.Delay(300, token);
+            if (token.IsCancellationRequested) return;
+            var res = await Db.GlobalSearchAsync(_term);
+            if (token.IsCancellationRequested) return;
+            _results = res;
+        }
+        catch (TaskCanceledException) { }
+        catch { _results = []; }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+            {
+                _searching = false;
+                StateHasChanged();
+            }
+        }
+    }
+}

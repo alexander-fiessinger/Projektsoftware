@@ -1,0 +1,98 @@
+@inject KpiAnalyticsService Kpi
+@using Projektsoftware.Api.Models
+
+<div class="section-title">💸 Ausgaben-Analyse</div>
+
+<div class="list-card">
+    <div class="row" style="gap:8px;">
+        <div style="flex:1;">
+            <label class="form-label">Von</label>
+            <input class="form-input" type="date" @bind="_from" />
+        </div>
+        <div style="flex:1;">
+            <label class="form-label">Bis</label>
+            <input class="form-input" type="date" @bind="_to" />
+        </div>
+    </div>
+    <button class="btn-action block mt-8" @onclick="Load">Auswerten</button>
+</div>
+
+@if (_loading)
+{
+    <div class="spinner"></div>
+}
+else if (_data is not null)
+{
+    <div class="kpi-grid">
+        <div class="list-card" style="text-align:center;">
+            <div style="font-size:1.6rem;font-weight:700;color:var(--primary);">@_data.TotalExpenses.ToString("N2") €</div>
+            <div style="font-size:0.85rem;color:var(--text-muted);">Gesamtausgaben</div>
+        </div>
+        <div class="list-card" style="text-align:center;">
+            <div style="font-size:1.6rem;font-weight:700;">@_data.TotalOrders</div>
+            <div style="font-size:0.85rem;color:var(--text-muted);">Bestellungen</div>
+        </div>
+        <div class="list-card" style="text-align:center;">
+            <div style="font-size:1.6rem;font-weight:700;">@_data.AverageOrderValue.ToString("N2") €</div>
+            <div style="font-size:0.85rem;color:var(--text-muted);">Ø Bestellwert</div>
+        </div>
+    </div>
+
+    <div class="row mt-8"><h3>🏢 Nach Lieferant</h3></div>
+    @if (_data.BySupplier.Count == 0)
+    {
+        <div class="empty-state">Keine Daten im Zeitraum.</div>
+    }
+    else
+    {
+        @foreach (var s in _data.BySupplier)
+        {
+            <div class="list-card">
+                <div class="row" style="justify-content:space-between;">
+                    <strong>@s.SupplierName</strong>
+                    <span style="font-weight:600;">@s.TotalAmount.ToString("N2") €</span>
+                </div>
+                <div class="stat-bar-track mt-8">
+                    <div class="stat-bar-fill" style="width:@(((double)s.Percentage).ToString(System.Globalization.CultureInfo.InvariantCulture))%;background:var(--primary);"></div>
+                </div>
+                <div style="font-size:0.8rem;color:var(--text-muted);">@s.OrderCount Bestellung(en) · @s.Percentage.ToString("N1") %</div>
+            </div>
+        }
+    }
+
+    <div class="row mt-8"><h3>📆 Nach Monat</h3></div>
+    @if (_data.ByMonth.Count == 0)
+    {
+        <div class="empty-state">Keine Daten im Zeitraum.</div>
+    }
+    else
+    {
+        @foreach (var m in _data.ByMonth)
+        {
+            <div class="list-card">
+                <div class="row" style="justify-content:space-between;">
+                    <strong>@m.MonthName</strong>
+                    <span style="font-weight:600;">@m.TotalAmount.ToString("N2") €</span>
+                </div>
+                <div style="font-size:0.8rem;color:var(--text-muted);">@m.OrderCount Bestellung(en)</div>
+            </div>
+        }
+    }
+}
+
+@code {
+    private ExpenseAnalysisDto? _data;
+    private DateTime _from = new DateTime(DateTime.Today.Year, 1, 1);
+    private DateTime _to = DateTime.Today;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try { _data = await Kpi.GetExpenseAnalysisAsync(_from, _to.AddDays(1).AddSeconds(-1)); }
+        catch { _data = null; }
+        _loading = false;
+    }
+}

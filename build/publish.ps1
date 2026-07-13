@@ -37,6 +37,34 @@ if ($cfg.GitHubToken -eq "HIER_TOKEN_EINTRAGEN" -or -not $cfg.GitHubToken) {
 $gitHubToken = $cfg.GitHubToken
 $gitHubRepo  = $cfg.GitHubRepo
 
+# ── Token FRUEH validieren (vor Build & Push), damit ein ungueltiges Token
+#    nicht erst nach dem kompletten Build/Push in Schritt 6 auffaellt ─────────────
+Write-Host "[0/6] Pruefe GitHub-Token ..." -ForegroundColor Yellow
+try {
+    $tokenCheck = Invoke-WebRequest -Uri "https://api.github.com/repos/$gitHubRepo" `
+        -Headers @{
+            Authorization          = "Bearer $gitHubToken"
+            Accept                 = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
+            "User-Agent"           = "Projektsoftware-Publish"
+        } -UseBasicParsing
+    $scopes = $tokenCheck.Headers['X-OAuth-Scopes']
+    Write-Host "    OK  (Token gueltig, Scopes: $scopes)" -ForegroundColor Green
+} catch {
+    $code = $null
+    if ($_.Exception.Response) { $code = [int]$_.Exception.Response.StatusCode }
+    throw @"
+GitHub-Token ungueltig oder ohne Berechtigung (HTTP $code).
+Das Token in build\publish.config.json wird von GitHub abgelehnt (abgelaufen, widerrufen oder falsche Scopes).
+
+So behebst du es:
+  1. Neues Token erstellen: https://github.com/settings/tokens/new
+     - Klassisches PAT: Scope 'repo' anhaken.
+     - Fine-grained Token: Repository '$gitHubRepo', Permission 'Contents: Read and write'.
+  2. Token in build\publish.config.json im Feld 'GitHubToken' eintragen.
+"@
+}
+
 # ── Version automatisch ermitteln ─────────────────────────────────────────────
 $csproj = "$root\Projektsoftware\Projektsoftware.csproj"
 $currentVersion = (Select-String -Path $csproj -Pattern '<Version>(.*?)</Version>').Matches[0].Groups[1].Value
@@ -76,11 +104,45 @@ Write-Host "[2/6] dotnet publish ..." -ForegroundColor Yellow
 $publishDir = "$root\publish"
 if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
 
+dotnet restore "$root\Projektsoftware\Projektsoftware.csproj" -r win-x64
+if ($LASTEXITCODE -ne 0) { throw "dotnet restore fehlgeschlagen (Exit: $LASTEXITCODE)" }
+
 dotnet publish "$root\Projektsoftware\Projektsoftware.csproj" `
     -c Release -r win-x64 --self-contained true -o $publishDir
 
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish fehlgeschlagen (Exit: $LASTEXITCODE)" }
 Write-Host "    OK" -ForegroundColor Green
+
+# ── 2b. Code-Signing der publizierten EXE ─────────────────────────────────────
+$thumbprint = $cfg.SigningCertThumbprint
+$signtool   = Get-Command "signtool.exe" -ErrorAction SilentlyContinue
+if (-not $signtool) {
+    # Windows SDK signtool suchen
+    $signtool = Get-Item "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" `
+        -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
+    if ($signtool) { $signtool = $signtool.FullName }
+}
+
+if ($thumbprint -and $signtool) {
+    Write-Host "[2b] Code-Signing Projektsoftware.exe ..." -ForegroundColor Yellow
+    $exeToSign = "$publishDir\Projektsoftware.exe"
+    & $signtool sign `
+        /sha1 $thumbprint `
+        /fd sha256 `
+        /td sha256 `
+        /tr $cfg.SigningTimestampUrl `
+        /d  $cfg.SigningDescription `
+        /du $cfg.SigningDescriptionUrl `
+        $exeToSign
+    if ($LASTEXITCODE -ne 0) { throw "Code-Signing fehlgeschlagen (Exit: $LASTEXITCODE)" }
+    Write-Host "    OK – EXE signiert" -ForegroundColor Green
+} elseif ($thumbprint -and -not $signtool) {
+    Write-Host "    WARNUNG: signtool.exe nicht gefunden – Code-Signing übersprungen." -ForegroundColor DarkYellow
+    Write-Host "    Installiere das Windows SDK: https://developer.microsoft.com/windows/downloads/windows-sdk/" -ForegroundColor DarkYellow
+} else {
+    Write-Host "[2b] Kein Zertifikat konfiguriert – Code-Signing übersprungen." -ForegroundColor DarkGray
+    Write-Host "     Trage SigningCertThumbprint in publish.config.json ein, um SmartScreen-Warnungen zu vermeiden." -ForegroundColor DarkGray
+}
 
 # ── 3. Inno Setup ─────────────────────────────────────────────────────────────
 Write-Host "[3/6] Inno Setup ..." -ForegroundColor Yellow
@@ -103,11 +165,30 @@ if (-not $iscc) {
 }
 Write-Host "    ISCC: $iscc" -ForegroundColor DarkGray
 
-& $iscc "/DMyAppVersion=$Version" "$PSScriptRoot\Setup.iss"
+# Wenn Signing konfiguriert und signtool vorhanden: Inno den SignTool-Pfad übergeben
+$innoArgs = @("/DMyAppVersion=$Version", "$PSScriptRoot\Setup.iss")
+
+& $iscc @innoArgs
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup fehlgeschlagen (Exit: $LASTEXITCODE)" }
 
 $setupExe = "$PSScriptRoot\Output\setup-$Version.exe"
 if (-not (Test-Path $setupExe)) { throw "Setup-Datei nicht gefunden: $setupExe" }
+
+# Installer ebenfalls signieren
+if ($thumbprint -and $signtool) {
+    Write-Host "    Code-Signing Setup-Installer ..." -ForegroundColor DarkGray
+    & $signtool sign `
+        /sha1 $thumbprint `
+        /fd sha256 `
+        /td sha256 `
+        /tr $cfg.SigningTimestampUrl `
+        /d  $cfg.SigningDescription `
+        /du $cfg.SigningDescriptionUrl `
+        $setupExe
+    if ($LASTEXITCODE -ne 0) { throw "Code-Signing des Installers fehlgeschlagen (Exit: $LASTEXITCODE)" }
+    Write-Host "    OK – Installer signiert" -ForegroundColor Green
+}
+
 Write-Host "    OK  ($setupExe)" -ForegroundColor Green
 
 # ── 4. manifest.json erstellen ────────────────────────────────────────────────
@@ -137,13 +218,10 @@ $staged = git -C $root diff --cached --name-only
 if ($staged) {
     git -C $root commit -m "Release v$Version"
     if ($LASTEXITCODE -ne 0) { throw "git commit fehlgeschlagen (Exit: $LASTEXITCODE)" }
-    # Rebase: nach git add -A gibt es keine untracked files mehr -> kein Konflikt
-    git -C $root rebase -X theirs origin/main
-    if ($LASTEXITCODE -ne 0) { throw "git rebase origin/main fehlgeschlagen (Exit: $LASTEXITCODE)" }
 
     # Push mit vollstaendiger Fehlerausgabe
     Write-Host "    Pushe zu origin main ..." -ForegroundColor DarkGray
-    $pushOutput = git -C $root push origin main 2>&1
+    $pushOutput = git -C $root push --force-with-lease origin main 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Host "`n    Git Push Fehler:" -ForegroundColor Red
         Write-Host $pushOutput -ForegroundColor Red
@@ -160,6 +238,7 @@ $ghHeaders = @{
     Authorization          = "Bearer $gitHubToken"
     Accept                 = "application/vnd.github+json"
     "X-GitHub-Api-Version" = "2022-11-28"
+    "User-Agent"           = "Projektsoftware-Publish"
 }
 $releaseBody = @{
     tag_name   = "v$Version"

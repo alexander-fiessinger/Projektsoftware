@@ -91,6 +91,37 @@ namespace Projektsoftware.Views
             }
         }
 
+        private async void EditDocument_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            var document = button?.DataContext as EasybillDocument;
+            if (document?.Id == null) return;
+
+            try
+            {
+                // Vollständiges Dokument laden (inkl. aller Positionen und Texte),
+                // da die Listenansicht ein unvollständiges Dokument liefern kann und
+                // beim Speichern (PUT) sonst Daten verloren gehen würden.
+                var fullDocument = await easybillService.GetDocumentAsync(document.Id.Value);
+
+                var dialog = new CreateEasybillDocumentDialog(fullDocument ?? document);
+                if (dialog.ShowDialog() == true)
+                {
+                    var selectedItem = TypeFilterComboBox.SelectedItem as ComboBoxItem;
+                    var type = selectedItem?.Tag?.ToString();
+                    await LoadDocumentsAsync(string.IsNullOrEmpty(type) ? null : type);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Fehler beim Bearbeiten des Dokuments:\n\n{ex.Message}",
+                    "Fehler",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
         private async void CreateDocumentType_Click(object sender, RoutedEventArgs e)
         {
             var menuItem = sender as MenuItem;

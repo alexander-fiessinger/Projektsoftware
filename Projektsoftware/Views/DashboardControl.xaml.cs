@@ -34,12 +34,16 @@ namespace Projektsoftware.Views
         public event RoutedEventHandler? ViewPurchasesClicked;
 public event RoutedEventHandler? OpenInboxClicked;
 public event RoutedEventHandler? InboxRefreshClicked;
+
+        /// <summary>Wird ausgelöst, wenn der Nutzer die vollständige Rechnungsübersicht öffnen möchte.</summary>
+        public event EventHandler<List<InvoiceOverviewItem>>? ShowInvoiceOverviewClicked;
+
+        private List<InvoiceOverviewItem> _invoiceOverviewItems = [];
+
         public DashboardControl()
         {
             InitializeComponent();
         }
-
-        /// <summary>
         /// Aktualisiert die personalisierte Begrüßung basierend auf Tageszeit und Benutzername
         /// </summary>
         public void UpdateGreeting(string username)
@@ -226,6 +230,44 @@ public event RoutedEventHandler? InboxRefreshClicked;
         {
             FinancialLoadingText.Text = $"⚠️ Easybill-Fehler: {errorMessage}";
             FinancialLoadingText.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>
+        /// Aktualisiert die kompakte Rechnungsübersicht im Dashboard. Zeigt bevorzugt die
+        /// dringendsten offenen/überfälligen Rechnungen an; die vollständige Liste ist über
+        /// "Details anzeigen" erreichbar.
+        /// </summary>
+        public void UpdateInvoiceOverview(List<InvoiceOverviewItem> items)
+        {
+            _invoiceOverviewItems = items ?? [];
+
+            if (_invoiceOverviewItems.Count == 0)
+            {
+                InvoiceOverviewGrid.ItemsSource = null;
+                InvoiceOverviewHintText.Text = "Keine Rechnungen vorhanden.";
+                return;
+            }
+
+            // Kompakt: offene/überfällige zuerst (nach Fälligkeit), maximal die dringendsten anzeigen.
+            var top = _invoiceOverviewItems
+                .OrderByDescending(i => i.IsOpenOrOverdue)
+                .ThenBy(i => i.DueDate ?? DateTime.MaxValue)
+                .ThenByDescending(i => i.DocumentDate ?? DateTime.MinValue)
+                .Take(6)
+                .ToList();
+
+            InvoiceOverviewGrid.ItemsSource = top;
+
+            int open = _invoiceOverviewItems.Count(i => i.Status is InvoiceOverviewStatus.Open or InvoiceOverviewStatus.PartiallyPaid);
+            int overdue = _invoiceOverviewItems.Count(i => i.Status == InvoiceOverviewStatus.Overdue);
+            int paid = _invoiceOverviewItems.Count(i => i.Status == InvoiceOverviewStatus.Paid);
+            InvoiceOverviewHintText.Text =
+                $"{open} offen · {overdue} überfällig · {paid} bezahlt (Top 6 angezeigt – „Details anzeigen“ für alle).";
+        }
+
+        private void InvoiceOverviewDetails_Click(object sender, RoutedEventArgs e)
+        {
+            ShowInvoiceOverviewClicked?.Invoke(this, _invoiceOverviewItems);
         }
 
 public void UpdateInboxPreview(List<InboxEmail> emails, string statusText)

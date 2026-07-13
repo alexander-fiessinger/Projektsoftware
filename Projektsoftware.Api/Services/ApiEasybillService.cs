@@ -163,5 +163,83 @@ public class ApiEasybillService : IDisposable
         return all;
     }
 
+    // ── Products ────────────────────────────────────────────────────
+
+    public async Task<List<EbProduct>> GetProductsAsync()
+    {
+        var all = new List<EbProduct>();
+        int page = 1, totalPages = 1;
+
+        while (page <= totalPages)
+        {
+            var resp = await _http.GetAsync($"products?page={page}&limit=100");
+            resp.EnsureSuccessStatusCode();
+
+            var json = await resp.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<EbProductList>(json, _json);
+
+            if (result?.Items != null)
+            {
+                all.AddRange(result.Items);
+                totalPages = result.Pages;
+            }
+            page++;
+        }
+        return all;
+    }
+
+    // ── Positions (Zeit-/Leistungs-Export) ──────────────────────────
+
+    public async Task<List<EbPosition>> GetCustomerPositionsAsync(long customerId)
+    {
+        var all = new List<EbPosition>();
+        int page = 1, totalPages = 1;
+
+        while (page <= totalPages)
+        {
+            var resp = await _http.GetAsync($"positions?customer_id={customerId}&page={page}&limit=100");
+            resp.EnsureSuccessStatusCode();
+
+            var json = await resp.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<EbPositionList>(json, _json);
+
+            if (result?.Items != null)
+            {
+                all.AddRange(result.Items);
+                totalPages = result.Pages;
+            }
+            page++;
+        }
+        return all;
+    }
+
+    /// <summary>
+    /// Erstellt eine Easybill-Position (Leistung) für einen Kunden, z. B. aus einem Zeiteintrag.
+    /// </summary>
+    public async Task<EbPosition> CreatePositionAsync(long customerId, string description, decimal quantity, decimal hourlyRate, decimal vatPercent = 19m)
+    {
+        var position = new EbPosition
+        {
+            CustomerId = customerId,
+            Number = $"ZE-{DateTime.Now:yyyyMMddHHmmss}",
+            Description = description,
+            Quantity = quantity,
+            SinglePriceNet = (long)Math.Round(hourlyRate * 100m),
+            VatPercent = vatPercent
+        };
+
+        var content = new StringContent(JsonSerializer.Serialize(position, _json), Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync("positions", content);
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            var error = await resp.Content.ReadAsStringAsync();
+            throw new Exception($"Fehler beim Erstellen der Position: {resp.StatusCode} – {error}");
+        }
+
+        var resultJson = await resp.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<EbPosition>(resultJson, _json)!;
+    }
+
     public void Dispose() => _http.Dispose();
 }

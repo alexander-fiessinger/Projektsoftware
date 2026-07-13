@@ -1,0 +1,71 @@
+@inject KpiAnalyticsService Kpi
+@using Projektsoftware.Api.Models
+
+<div class="section-title">📊 KPI-Dashboard</div>
+
+@if (_loading)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    <div class="kpi-grid">
+        @foreach (var k in _kpis)
+        {
+            <div class="list-card" style="border-left:4px solid @k.ColorHex;text-align:center;">
+                <div style="font-size:1.8rem;">@k.Icon</div>
+                <div style="font-size:1.6rem;font-weight:700;color:@k.ColorHex;">@k.ValueText</div>
+                <div style="font-size:0.85rem;color:var(--text-muted);">@k.Title</div>
+            </div>
+        }
+    </div>
+
+    <div class="row mt-8" style="justify-content:space-between;align-items:center;">
+        <h3>⏰ Fälligkeits-Warnungen</h3>
+        <button class="btn-action neutral icon-only" title="Aktualisieren" @onclick="Load">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+    </div>
+
+    @if (_warnings.Count == 0)
+    {
+        <div class="empty-state">Keine anstehenden Fälligkeiten. 🎉</div>
+    }
+    else
+    {
+        @foreach (var w in _warnings)
+        {
+            <div class="list-card" style="border-left:4px solid @w.WarningColor;">
+                <div class="row" style="justify-content:space-between;">
+                    <strong>@w.EntityIcon @w.EntityTitle</strong>
+                    <span style="color:@w.WarningColor;font-weight:600;font-size:0.85rem;">@w.WarningText</span>
+                </div>
+                <div class="mt-8" style="font-size:0.85rem;color:var(--text-muted);">
+                    📅 @w.DueDate.ToString("dd.MM.yyyy")
+                    @if (!string.IsNullOrWhiteSpace(w.AssignedTo)) { <span> · 👤 @w.AssignedTo</span> }
+                    @if (!string.IsNullOrWhiteSpace(w.Priority)) { <span> · @w.Priority</span> }
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    private List<DashboardKpiDto> _kpis = new();
+    private List<DueDateWarningDto> _warnings = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            _kpis = await Kpi.GetKpisAsync();
+            _warnings = await Kpi.GetDueDateWarningsAsync();
+        }
+        catch { _kpis = new(); _warnings = new(); }
+        _loading = false;
+    }
+}

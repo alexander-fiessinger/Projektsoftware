@@ -1,0 +1,150 @@
+@inject ApiDatabaseService Db
+@inject SessionService Session
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="list-card" style="border-left:4px solid var(--accent);">@_message</div>
+    }
+
+    @* ── Easybill ── *@
+    <div class="section-title">📦 Easybill-Anbindung</div>
+    <div class="list-card">
+        <div class="row">
+            <h3>Easybill</h3>
+            <span class="badge" style="background:@(_easyConfigured ? "var(--success-light)" : "var(--gray-light)");color:@(_easyConfigured ? "var(--success)" : "var(--text-secondary)");">
+                @(_easyConfigured ? "Verbunden" : "Nicht konfiguriert")
+            </span>
+        </div>
+        <div class="add-form mt-8">
+            <input type="email" placeholder="Easybill-E-Mail" @bind="_easyEmail" />
+            <input type="password" placeholder="API-Schlüssel" @bind="_easyApiKey" />
+            <div class="row" style="gap:8px;flex-wrap:wrap;">
+                <button class="btn-save" disabled="@(_saving || string.IsNullOrWhiteSpace(_easyEmail) || string.IsNullOrWhiteSpace(_easyApiKey))" @onclick="SaveEasybill">Speichern</button>
+                @if (_easyConfigured)
+                {
+                    <button class="btn-cancel" disabled="@_saving" @onclick="DeleteEasybill">Entfernen</button>
+                }
+            </div>
+        </div>
+    </div>
+
+    @* ── Webex ── *@
+    <div class="section-title">📹 Webex-Anbindung</div>
+    <div class="list-card">
+        <div class="row">
+            <h3>Webex</h3>
+            <span class="badge" style="background:@(_webexConfigured ? "var(--success-light)" : "var(--gray-light)");color:@(_webexConfigured ? "var(--success)" : "var(--text-secondary)");">
+                @(_webexConfigured ? "Verbunden" : "Nicht konfiguriert")
+            </span>
+        </div>
+        <div class="add-form mt-8">
+            <input type="password" placeholder="Access Token" @bind="_webexToken" />
+            <input type="text" placeholder="Client ID (optional)" @bind="_webexClientId" />
+            <input type="password" placeholder="Client Secret (optional)" @bind="_webexClientSecret" />
+            <input type="password" placeholder="Refresh Token (optional)" @bind="_webexRefreshToken" />
+            <div class="row" style="gap:8px;flex-wrap:wrap;">
+                <button class="btn-save" disabled="@(_saving || string.IsNullOrWhiteSpace(_webexToken))" @onclick="SaveWebex">Speichern</button>
+                @if (_webexConfigured)
+                {
+                    <button class="btn-cancel" disabled="@_saving" @onclick="DeleteWebex">Entfernen</button>
+                }
+            </div>
+        </div>
+    </div>
+
+    @* ── Konto ── *@
+    <div class="section-title">👤 Konto</div>
+    <div class="list-card">
+        <div class="sub">Angemeldet als <strong>@Session.Username</strong> (@Session.Role)</div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _saving;
+    private string _message = "";
+
+    private string _easyEmail = "";
+    private string _easyApiKey = "";
+    private bool _easyConfigured;
+
+    private string _webexToken = "";
+    private string _webexClientId = "";
+    private string _webexClientSecret = "";
+    private string _webexRefreshToken = "";
+    private bool _webexConfigured;
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try
+        {
+            var easy = await Db.GetEasybillSettingsAsync(Session.UserId);
+            if (easy is not null)
+            {
+                _easyEmail = easy.Email;
+                _easyApiKey = easy.ApiKey;
+                _easyConfigured = easy.IsConfigured;
+            }
+
+            var webex = await Db.GetWebexSettingsAsync(Session.UserId);
+            if (webex is not null)
+            {
+                _webexToken = webex.AccessToken;
+                _webexClientId = webex.ClientId;
+                _webexClientSecret = webex.ClientSecret;
+                _webexRefreshToken = webex.RefreshToken;
+                _webexConfigured = webex.IsConfigured;
+            }
+        }
+        catch (Exception ex) { _message = "Fehler beim Laden: " + ex.Message; }
+        _loading = false;
+    }
+
+    private async Task SaveEasybill()
+    {
+        _saving = true; _message = "";
+        try { await Db.SaveEasybillSettingsAsync(Session.UserId, _easyEmail.Trim(), _easyApiKey.Trim()); _easyConfigured = true; _message = "Easybill-Einstellungen gespeichert."; }
+        catch (Exception ex) { _message = "Fehler: " + ex.Message; }
+        _saving = false;
+    }
+
+    private async Task DeleteEasybill()
+    {
+        _saving = true; _message = "";
+        try { await Db.DeleteEasybillSettingsAsync(Session.UserId); _easyEmail = ""; _easyApiKey = ""; _easyConfigured = false; _message = "Easybill-Anbindung entfernt."; }
+        catch (Exception ex) { _message = "Fehler: " + ex.Message; }
+        _saving = false;
+    }
+
+    private async Task SaveWebex()
+    {
+        _saving = true; _message = "";
+        try
+        {
+            await Db.SaveWebexSettingsAsync(Session.UserId, _webexToken.Trim(),
+                string.IsNullOrWhiteSpace(_webexClientId) ? null : _webexClientId.Trim(),
+                string.IsNullOrWhiteSpace(_webexClientSecret) ? null : _webexClientSecret.Trim(),
+                string.IsNullOrWhiteSpace(_webexRefreshToken) ? null : _webexRefreshToken.Trim());
+            _webexConfigured = true; _message = "Webex-Einstellungen gespeichert.";
+        }
+        catch (Exception ex) { _message = "Fehler: " + ex.Message; }
+        _saving = false;
+    }
+
+    private async Task DeleteWebex()
+    {
+        _saving = true; _message = "";
+        try { await Db.DeleteWebexSettingsAsync(Session.UserId); _webexToken = ""; _webexClientId = ""; _webexClientSecret = ""; _webexRefreshToken = ""; _webexConfigured = false; _message = "Webex-Anbindung entfernt."; }
+        catch (Exception ex) { _message = "Fehler: " + ex.Message; }
+        _saving = false;
+    }
+}

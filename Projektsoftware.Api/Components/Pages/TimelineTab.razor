@@ -1,0 +1,91 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else if (!_projects.Any())
+{
+    <div class="empty-state">Keine Projekte mit Zeitraum vorhanden.</div>
+}
+else
+{
+    <div class="sub mb-8">@_rangeStart.ToString("dd.MM.yyyy") – @_rangeEnd.ToString("dd.MM.yyyy")</div>
+
+    <div class="gantt">
+        @foreach (var p in _projects)
+        {
+            var (offsetPct, widthPct) = BarMetrics(p);
+            <div class="gantt-row">
+                <div class="gantt-label" title="@p.Name">@p.Name</div>
+                <div class="gantt-track">
+                    <div class="gantt-bar" style="left:@offsetPct.ToString(Ci)%;width:@widthPct.ToString(Ci)%;background:@StatusColor(p.Status);">
+                        <div class="gantt-progress" style="width:@p.ProgressPercent%;"></div>
+                        <span class="gantt-bar-text">@p.ProgressPercent%</span>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <button class="add-btn" @onclick="Reload" title="Aktualisieren">↻</button>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo Ci = System.Globalization.CultureInfo.InvariantCulture;
+
+    private List<ProjectDto> _projects = [];
+    private bool _loading = true;
+    private DateTime _rangeStart;
+    private DateTime _rangeEnd;
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try
+        {
+            var all = await Db.GetProjectsAsync();
+            _projects = all
+                .Where(p => p.StartDate != DateTime.MinValue)
+                .Select(p =>
+                {
+                    if (p.EndDate is null || p.EndDate <= p.StartDate)
+                        p.EndDate = p.StartDate.AddDays(14);
+                    return p;
+                })
+                .OrderBy(p => p.StartDate)
+                .ToList();
+
+            if (_projects.Any())
+            {
+                _rangeStart = _projects.Min(p => p.StartDate).Date;
+                _rangeEnd = _projects.Max(p => p.EndDate!.Value).Date;
+                if (_rangeEnd <= _rangeStart) _rangeEnd = _rangeStart.AddDays(30);
+            }
+        }
+        catch { }
+        _loading = false;
+    }
+
+    private (double offset, double width) BarMetrics(ProjectDto p)
+    {
+        var total = (_rangeEnd - _rangeStart).TotalDays;
+        if (total <= 0) return (0, 100);
+        var offset = (p.StartDate - _rangeStart).TotalDays / total * 100.0;
+        var width = (p.EndDate!.Value - p.StartDate).TotalDays / total * 100.0;
+        offset = Math.Clamp(offset, 0, 100);
+        width = Math.Clamp(width, 1, 100 - offset);
+        return (Math.Round(offset, 2), Math.Round(width, 2));
+    }
+
+    private static string StatusColor(string status) => status switch
+    {
+        "Aktiv" => "#4A90D9",
+        "Abgeschlossen" => "#3FB67E",
+        "Pausiert" => "#E8833A",
+        "Abgebrochen" => "#D9534F",
+        _ => "#C8A251"
+    };
+}

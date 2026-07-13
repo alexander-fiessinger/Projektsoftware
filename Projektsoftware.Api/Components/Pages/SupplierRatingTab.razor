@@ -1,0 +1,166 @@
+@inject ApiDatabaseService Db
+@using Projektsoftware.Api.Models
+
+<div class="section-title">⭐ Lieferanten-Bewertung</div>
+
+<div class="list-card">
+    <div class="row"><h3>➕ Neue Bewertung</h3></div>
+    <label class="form-label mt-8">Lieferant</label>
+    <select class="form-input" @bind="_new.SupplierId">
+        <option value="0">— auswählen —</option>
+        @foreach (var s in _suppliers)
+        {
+            <option value="@s.Id">@s.Name</option>
+        }
+    </select>
+
+    <div class="mt-8">@RatingRow("Qualität", _new.QualityRating, v => _new.QualityRating = v)</div>
+    <div class="mt-8">@RatingRow("Lieferung", _new.DeliveryRating, v => _new.DeliveryRating = v)</div>
+    <div class="mt-8">@RatingRow("Preis", _new.PriceRating, v => _new.PriceRating = v)</div>
+    <div class="mt-8">@RatingRow("Service", _new.ServiceRating, v => _new.ServiceRating = v)</div>
+    <div class="mt-8">@RatingRow("Kommunikation", _new.CommunicationRating, v => _new.CommunicationRating = v)</div>
+
+    <label class="form-label mt-8">Bewertungstext</label>
+    <textarea class="form-input" rows="2" @bind="_new.ReviewText"></textarea>
+    <label class="form-label mt-8">Pro</label>
+    <input class="form-input" @bind="_new.Pros" />
+    <label class="form-label mt-8">Contra</label>
+    <input class="form-input" @bind="_new.Cons" />
+
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;margin-top:8px;">
+        <input type="checkbox" @bind="_new.WouldRecommend" />
+        Würde weiterempfehlen
+    </label>
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="mt-8" style="color:var(--accent);">@_message</div>
+    }
+    <button class="btn-action block mt-8" disabled="@_saving" @onclick="Save">Bewertung speichern</button>
+</div>
+
+<div class="row" style="justify-content:flex-end;">
+    <select class="form-input" style="width:auto;" @bind="_filterSupplierId" @bind:after="Load">
+        <option value="0">Alle Lieferanten</option>
+        @foreach (var s in _suppliers)
+        {
+            <option value="@s.Id">@s.Name</option>
+        }
+    </select>
+</div>
+
+@if (_loading)
+{
+    <div class="spinner"></div>
+}
+else if (_items.Count == 0)
+{
+    <div class="empty-state">Keine Bewertungen vorhanden.</div>
+}
+else
+{
+    @foreach (var r in _items)
+    {
+        <div class="list-card" style="border-left:4px solid @r.RatingColor;">
+            <div class="row" style="justify-content:space-between;">
+                <strong>@r.SupplierName</strong>
+                <span style="color:@r.RatingColor;font-weight:700;">@r.StarsDisplay @r.OverallRating.ToString("0.0")</span>
+            </div>
+            <div class="mt-8" style="font-size:0.8rem;color:var(--text-muted);">
+                Q @r.QualityRating · L @r.DeliveryRating · P @r.PriceRating · S @r.ServiceRating · K @r.CommunicationRating
+            </div>
+            @if (!string.IsNullOrWhiteSpace(r.ReviewText))
+            {
+                <div class="mt-8" style="font-size:0.9rem;">@r.ReviewText</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(r.Pros))
+            {
+                <div style="font-size:0.85rem;color:#16a34a;">➕ @r.Pros</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(r.Cons))
+            {
+                <div style="font-size:0.85rem;color:#dc2626;">➖ @r.Cons</div>
+            }
+            <div class="row mt-8" style="justify-content:space-between;align-items:center;">
+                <span style="font-size:0.8rem;color:var(--text-muted);">
+                    @(r.WouldRecommend ? "👍 Empfohlen" : "👎 Nicht empfohlen") · @r.RatingDate.ToString("dd.MM.yyyy")
+                </span>
+                <button class="btn-action danger icon-only" title="Löschen" @onclick="() => Delete(r.Id)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private List<SupplierDto> _suppliers = new();
+    private List<SupplierRatingDto> _items = new();
+    private SupplierRatingDto _new = new();
+    private int _filterSupplierId;
+    private bool _loading;
+    private bool _saving;
+    private string _message = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _suppliers = await Db.GetSuppliersAsync(); }
+        catch { _suppliers = new(); }
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        try { _items = await Db.GetSupplierRatingsAsync(_filterSupplierId == 0 ? null : _filterSupplierId); }
+        catch { _items = new(); }
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        if (_new.SupplierId == 0) { _message = "Bitte einen Lieferanten auswählen."; return; }
+        _saving = true;
+        _message = "";
+        try
+        {
+            await Db.AddSupplierRatingAsync(_new);
+            _new = new();
+            await Load();
+        }
+        catch (Exception ex) { _message = $"Fehler: {ex.Message}"; }
+        _saving = false;
+    }
+
+    private async Task Delete(int id)
+    {
+        await Db.DeleteSupplierRatingAsync(id);
+        await Load();
+    }
+
+    private RenderFragment RatingRow(string label, int value, Action<int> set) => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "row");
+        builder.AddAttribute(2, "style", "justify-content:space-between;align-items:center;");
+
+        builder.OpenElement(3, "span");
+        builder.AddAttribute(4, "style", "font-size:0.9rem;");
+        builder.AddContent(5, label);
+        builder.CloseElement();
+
+        builder.OpenElement(6, "span");
+        for (int i = 1; i <= 5; i++)
+        {
+            int star = i;
+            builder.OpenElement(10 + i, "span");
+            builder.AddAttribute(20 + i, "style", $"cursor:pointer;font-size:1.2rem;opacity:{(star <= value ? "1" : "0.3")};");
+            builder.AddAttribute(30 + i, "onclick", EventCallback.Factory.Create(this, () => set(star)));
+            builder.AddContent(40 + i, "⭐");
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+
+        builder.CloseElement();
+    };
+}

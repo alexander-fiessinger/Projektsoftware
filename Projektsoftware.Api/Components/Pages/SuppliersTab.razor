@@ -1,0 +1,112 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Lieferanten suchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    @if (Filtered.Any())
+    {
+        @foreach (var s in Filtered)
+        {
+            <div class="list-card">
+                <div class="row">
+                    <h3>@s.Name</h3>
+                    @if (!string.IsNullOrEmpty(s.City))
+                    {
+                        <span class="badge" style="background:var(--primary-light);color:var(--primary)">@s.City</span>
+                    }
+                </div>
+                @if (!string.IsNullOrEmpty(s.ContactPerson))
+                {
+                    <div class="sub mt-4">👤 @s.ContactPerson</div>
+                }
+                @if (!string.IsNullOrEmpty(s.Email))
+                {
+                    <div class="sub mt-4">✉️ @s.Email</div>
+                }
+                @if (!string.IsNullOrEmpty(s.Phone))
+                {
+                    <div class="sub mt-4">📞 @s.Phone</div>
+                }
+                @if (!string.IsNullOrEmpty(s.Address) || !string.IsNullOrEmpty(s.ZipCode))
+                {
+                    <div class="sub mt-4">📍 @s.Address @s.ZipCode @s.City</div>
+                }
+                @if (!string.IsNullOrEmpty(s.Notes))
+                {
+                    <div class="detail-section">
+                        <div class="detail-label">Notiz</div>
+                        <div class="detail-text">@s.Notes</div>
+                    </div>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        <div class="empty-state">Keine Lieferanten gefunden.</div>
+    }
+}
+
+<button class="add-btn" @onclick="() => _showForm = true">+</button>
+
+@if (_showForm)
+{
+    <div class="add-form-overlay" @onclick="() => _showForm = false">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>🚚 Neuer Lieferant</h3>
+            <div class="form-row"><label>Name *</label><input @bind="_fName" /></div>
+            <div class="form-row"><label>Ansprechpartner</label><input @bind="_fContact" /></div>
+            <div class="form-row"><label>E-Mail</label><input type="email" @bind="_fEmail" /></div>
+            <div class="form-row"><label>Telefon</label><input @bind="_fPhone" /></div>
+            <div class="form-row"><label>Adresse</label><input @bind="_fAddress" /></div>
+            <div class="form-row"><label>PLZ</label><input @bind="_fZip" /></div>
+            <div class="form-row"><label>Ort</label><input @bind="_fCity" /></div>
+            <div class="form-row"><label>Notizen</label><textarea @bind="_fNotes"></textarea></div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<SupplierDto> _suppliers = [];
+    private bool _loading = true;
+    private string _search = "";
+    private bool _showForm, _saving;
+    private string _fName = "", _fContact = "", _fEmail = "", _fPhone = "", _fAddress = "", _fZip = "", _fCity = "", _fNotes = "";
+
+    private IEnumerable<SupplierDto> Filtered => string.IsNullOrWhiteSpace(_search) ? _suppliers :
+        _suppliers.Where(s => s.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || s.ContactPerson.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || s.City.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _suppliers = await Db.GetSuppliersAsync(); } catch { }
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_fName)) return;
+        _saving = true;
+        try
+        {
+            await Db.CreateSupplierAsync(_fName, _fContact, _fEmail, _fPhone, _fAddress, _fZip, _fCity, _fNotes);
+            _suppliers = await Db.GetSuppliersAsync();
+            _showForm = false;
+            _fName = _fContact = _fEmail = _fPhone = _fAddress = _fZip = _fCity = _fNotes = "";
+        }
+        catch { }
+        _saving = false;
+    }
+}

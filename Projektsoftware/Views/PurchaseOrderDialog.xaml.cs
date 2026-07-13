@@ -12,7 +12,7 @@ namespace Projektsoftware.Views
     {
         private static readonly CultureInfo euroFormat = new CultureInfo("de-DE");
         public PurchaseOrder Result { get; private set; }
-        public bool SaveAsDraft => EasybillDraftCheckBox.IsChecked == true;
+        public bool SaveAsDraft => false;
         private readonly ObservableCollection<PurchaseOrderItem> _items = new();
 
         public PurchaseOrderDialog(List<Supplier> suppliers, PurchaseOrder? existing = null)

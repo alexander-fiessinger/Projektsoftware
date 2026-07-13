@@ -253,6 +253,92 @@ public class EbCustomerList
     public EbCustomer[]? Items { get; set; }
 }
 
+// ── Products ────────────────────────────────────────────────────────
+
+public class EbProduct
+{
+    [JsonPropertyName("id")]
+    public long? Id { get; set; }
+
+    [JsonPropertyName("number")]
+    public string? Number { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonConverter(typeof(EbPriceConverter))]
+    [JsonPropertyName("sale_price")]
+    public long? SalePrice { get; set; }
+
+    [JsonPropertyName("vat_percent")]
+    public decimal? VatPercent { get; set; }
+
+    [JsonPropertyName("unit")]
+    public string? Unit { get; set; }
+
+    [JsonIgnore]
+    public decimal SalePriceEuro => (SalePrice ?? 0) / 100m;
+
+    [JsonIgnore]
+    public string DisplayName => string.IsNullOrWhiteSpace(Number)
+        ? (Description ?? "(ohne Name)")
+        : $"{Number} – {Description}";
+}
+
+public class EbProductList
+{
+    [JsonPropertyName("page")]
+    public int Page { get; set; }
+
+    [JsonPropertyName("pages")]
+    public int Pages { get; set; }
+
+    [JsonPropertyName("items")]
+    public EbProduct[]? Items { get; set; }
+}
+
+// ── Positions (Leistungen) ──────────────────────────────────────────
+
+public class EbPosition
+{
+    [JsonPropertyName("id")]
+    public long? Id { get; set; }
+
+    [JsonPropertyName("customer_id")]
+    public long? CustomerId { get; set; }
+
+    [JsonPropertyName("number")]
+    public string? Number { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("quantity")]
+    public decimal? Quantity { get; set; }
+
+    [JsonConverter(typeof(EbPriceConverter))]
+    [JsonPropertyName("single_price_net")]
+    public long? SinglePriceNet { get; set; }
+
+    [JsonPropertyName("vat_percent")]
+    public decimal? VatPercent { get; set; }
+
+    [JsonIgnore]
+    public decimal SinglePriceNetEuro => (SinglePriceNet ?? 0) / 100m;
+}
+
+public class EbPositionList
+{
+    [JsonPropertyName("page")]
+    public int Page { get; set; }
+
+    [JsonPropertyName("pages")]
+    public int Pages { get; set; }
+
+    [JsonPropertyName("items")]
+    public EbPosition[]? Items { get; set; }
+}
+
 // ── Per-User Easybill Settings ──────────────────────────────────────
 
 public class EasybillUserSettings

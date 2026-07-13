@@ -8,11 +8,17 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddSingleton<ApiDatabaseService>();
 builder.Services.AddSingleton<ApiEmailService>();
+builder.Services.AddSingleton<PdfLetterService>();
+builder.Services.AddSingleton<ContractPdfService>();
+builder.Services.AddSingleton<VatCalculatorService>();
+builder.Services.AddSingleton<KpiAnalyticsService>();
 
 // Blazor Server-Side Rendering
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddScoped<SessionService>();
+builder.Services.AddScoped<PortalSessionService>();
+builder.Services.AddScoped<PortalCartService>();
 
 // CORS erlauben
 builder.Services.AddCors(options =>

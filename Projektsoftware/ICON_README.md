@@ -24,7 +24,6 @@ Das App-Icon wurde komplett neu designed mit:
 ## 📁 Aktualisierte Dateien
 
 1. **`Projektsoftware/Resources/app-icon.svg`** (WPF Desktop App)
-2. **`Projektsoftware.Mobile/Resources/AppIcon/appicon.svg`** (MAUI Mobile App)
 
 ## 🚀 Build Status
 

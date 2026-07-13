@@ -1,7 +1,8 @@
 #define MyAppName      "Projektierungssoftware Professional"
-#define MyAppPublisher "Ihr Unternehmen"
+#define MyAppPublisher "AF Software Engineering"
 #define MyAppExeName   "Projektsoftware.exe"
 ; MyAppVersion wird per /DMyAppVersion=x.x.x von der CI übergeben
+; SignEnabled wird per /DSignEnabled=1 von publish.ps1 gesetzt wenn ein Zertifikat vorhanden ist
 
 [Setup]
 AppId={{E7F8A9B0-C1D2-4E3F-B5A6-7C8D9E0F1A2B}

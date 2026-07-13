@@ -80,27 +80,64 @@
                 <MenuItem Header="SMTP E-Mail" Style="{StaticResource ModernMenuItem}">
                     <MenuItem Header="Konfiguration" Click="ConfigureExchange_Click" Style="{StaticResource ModernMenuItem}"/>
                 </MenuItem>
-<MenuItem Header="Exchange Posteingang" Style="{StaticResource ModernMenuItem}">
-    <MenuItem Header="EWS-Konfiguration" Click="ConfigureEws_Click" Style="{StaticResource ModernMenuItem}"/>
-    <MenuItem Header="Posteingang öffnen" Click="OpenExchangeInbox_Click" Style="{StaticResource ModernMenuItem}"/>
-</MenuItem>
+                <MenuItem Header="Exchange Posteingang" Style="{StaticResource ModernMenuItem}">
+                    <MenuItem Header="EWS-Konfiguration" Click="ConfigureEws_Click" Style="{StaticResource ModernMenuItem}"/>
+                    <MenuItem Header="Posteingang öffnen" Click="OpenExchangeInbox_Click" Style="{StaticResource ModernMenuItem}"/>
+                </MenuItem>
                 <MenuItem Header="Easybill" Style="{StaticResource ModernMenuItem}">
                     <MenuItem Header="Konfiguration" Click="ConfigureEasybill_Click" Style="{StaticResource ModernMenuItem}"/>
                     <MenuItem Header="Dokumente anzeigen" Click="ShowEasybillDocuments_Click" Style="{StaticResource ModernMenuItem}"/>
                     <MenuItem Header="Produkte anzeigen" Click="ShowEasybillProducts_Click" Style="{StaticResource ModernMenuItem}"/>
                     <MenuItem Header="Zeiten exportieren" Click="ExportTimesToEasybill_Click" Style="{StaticResource ModernMenuItem}"/>
+                    <MenuItem Header="Zahlungsabgleich" Click="ShowPaymentReconciliation_Click" Style="{StaticResource ModernMenuItem}"/>
                 </MenuItem>
                 <MenuItem Header="Updates" Style="{StaticResource ModernMenuItem}">
                     <MenuItem Header="Nach Updates suchen" Click="CheckForUpdates_Click" Style="{StaticResource ModernMenuItem}"/>
                 </MenuItem>
-                <MenuItem Header="📋 _Audit-Log" Click="AuditLog_Click" Style="{StaticResource ModernMenuItem}"/>
+                <Separator/>
+                <MenuItem Header="🤖 KI-Integration (LogicC)" Style="{StaticResource ModernMenuItem}">
+                    <MenuItem Header="Konfiguration" Click="ConfigureLogicCAi_Click" Style="{StaticResource ModernMenuItem}"/>
+                    <MenuItem Header="Über LogicC AI" Click="AboutLogicCAi_Click" Style="{StaticResource ModernMenuItem}"/>
+                </MenuItem>
+                <MenuItem Header="📋 _Audit-Log" Tag="audit_log" Click="AuditLog_Click" Style="{StaticResource ModernMenuItem}"/>
                 <Separator/>
                 <MenuItem x:Name="DarkModeMenuItem" Header="🌙 Dark Mode" Click="ToggleDarkMode_Click" Style="{StaticResource ModernMenuItem}" IsCheckable="True"/>
                 <Separator/>
                 <MenuItem Header="Abmelden" Click="Logout_Click" Style="{StaticResource ModernMenuItem}" Foreground="Orange"/>
             </MenuItem>
-            <MenuItem Header="📦 _Produkte" Style="{StaticResource ModernMenuItem}" Click="ShowEasybillProducts_Click"/>
-            <MenuItem Header="📄 _Dokumente" Style="{StaticResource ModernMenuItem}">
+
+            <!-- Neue thematische Hauptmenüs -->
+            <MenuItem Header="📊 _Dashboard" Style="{StaticResource ModernMenuItem}">
+                <MenuItem Header="📈 KPI-Dashboard" Tag="kpi_dashboard" Click="ShowKpiDashboard_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="📰 Aktivitäts-Feed" Tag="activity_feed" Click="ShowActivityFeed_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="⏰ SLA-Überwachung" Tag="sla_monitoring" Click="ShowSlaMonitoring_Click" Style="{StaticResource ModernMenuItem}"/>
+            </MenuItem>
+
+            <MenuItem Header="💼 _Vertrieb" Style="{StaticResource ModernMenuItem}">
+                <MenuItem Header="📋 Lead-Pipeline (Kanban)" Tag="lead_kanban" Click="ShowLeadKanban_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="📊 Lead-Statistik" Tag="lead_statistics" Click="ShowLeadStatistics_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="🔔 Wiedervorlage" Tag="follow_ups" Click="ShowFollowUps_Click" Style="{StaticResource ModernMenuItem}"/>
+            </MenuItem>
+
+            <MenuItem Header="📁 _Projekte" Style="{StaticResource ModernMenuItem}">
+                <MenuItem Header="📅 Gantt-Diagramm" Tag="gantt" Click="ShowGantt_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="💰 Budget-Tracking" Tag="budget_tracking" Click="ShowBudgetTracking_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="📑 Projektvorlagen" Tag="project_templates" Click="ShowProjectTemplates_Click" Style="{StaticResource ModernMenuItem}"/>
+            </MenuItem>
+
+            <MenuItem Header="👥 _CRM" Style="{StaticResource ModernMenuItem}">
+                <MenuItem Header="✉ E-Mail-Verlauf" Tag="email_history" Click="ShowEmailHistory_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="📋 Angebots-Historie" Tag="offer_history" Click="ShowOfferHistory_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="📥 Kontakt-Import (CSV)" Tag="csv_import" Click="ShowCsvImport_Click" Style="{StaticResource ModernMenuItem}"/>
+            </MenuItem>
+
+            <MenuItem Header="🛒 _Einkauf" Style="{StaticResource ModernMenuItem}">
+                <MenuItem Header="⭐ Lieferanten-Bewertung" Tag="supplier_rating" Click="ShowSupplierRating_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="📉 Ausgaben-Auswertung" Tag="expenses_analytics" Click="ShowExpenses_Click" Style="{StaticResource ModernMenuItem}"/>
+                <MenuItem Header="🔍 Globale Suche" Tag="global_search" Click="ShowGlobalSearch_Click" Style="{StaticResource ModernMenuItem}"/>
+            </MenuItem>
+            <MenuItem Header="📦 _Produkte" Tag="easybill_products" Style="{StaticResource ModernMenuItem}" Click="ShowEasybillProducts_Click"/>
+            <MenuItem Header="📄 _Dokumente" Tag="documents" Style="{StaticResource ModernMenuItem}">
                 <MenuItem Header="📄 Rechnung erstellen" Click="CreateDocument_Invoice_Click" Style="{StaticResource ModernMenuItem}"/>
                 <MenuItem Header="🧾 Proforma-Rechnung erstellen" Click="CreateDocument_Proforma_Click" Style="{StaticResource ModernMenuItem}"/>
                 <MenuItem Header="📋 Angebot erstellen" Click="CreateDocument_Offer_Click" Style="{StaticResource ModernMenuItem}"/>
@@ -116,7 +153,7 @@
             <MenuItem Header="_Hilfe" Style="{StaticResource ModernMenuItem}">
                 <MenuItem Header="Über" Click="About_Click" Style="{StaticResource ModernMenuItem}"/>
             </MenuItem>
-            <MenuItem Header="📤 _Export" Style="{StaticResource ModernMenuItem}">
+            <MenuItem Header="📤 _Export" Tag="export" Style="{StaticResource ModernMenuItem}">
                 <MenuItem Header="Kunden als CSV" Click="ExportCustomersCsv_Click" Style="{StaticResource ModernMenuItem}"/>
                 <MenuItem Header="Projekte als CSV" Click="ExportProjectsCsv_Click" Style="{StaticResource ModernMenuItem}"/>
                 <MenuItem Header="Zeiterfassung als CSV" Click="ExportTimeEntriesCsv_Click" Style="{StaticResource ModernMenuItem}"/>
@@ -124,6 +161,97 @@
                 <MenuItem Header="Mitarbeiter als CSV" Click="ExportEmployeesCsv_Click" Style="{StaticResource ModernMenuItem}"/>
             </MenuItem>
         </Menu>
+
+        <!-- Schnellzugriffs-Toolbar (Quick Access) -->
+        <Border DockPanel.Dock="Top"
+                Background="#FAFBFC"
+                BorderBrush="#E1E4E8"
+                BorderThickness="0,0,0,1"
+                Padding="8,6">
+            <Border.Resources>
+                <Style x:Key="QuickButton" TargetType="Button">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="BorderBrush" Value="#D1D5DA"/>
+                    <Setter Property="BorderThickness" Value="1"/>
+                    <Setter Property="Padding" Value="10,6"/>
+                    <Setter Property="Margin" Value="0,0,6,0"/>
+                    <Setter Property="Cursor" Value="Hand"/>
+                    <Setter Property="FontSize" Value="12"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="4"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="#EEF2F6"/>
+                                        <Setter TargetName="bd" Property="BorderBrush" Value="#4A90E2"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Border.Resources>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource QuickButton}" Tag="global_search" Click="ShowGlobalSearch_Click" ToolTip="Globale Suche">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="🔍" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Suche" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource QuickButton}" Tag="kpi_dashboard" Click="ShowKpiDashboard_Click" ToolTip="KPI-Dashboard">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="📈" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="KPIs" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource QuickButton}" Tag="activity_feed" Click="ShowActivityFeed_Click" ToolTip="Aktivitäts-Feed">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="📰" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Aktivität" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource QuickButton}" Tag="sla_monitoring" Click="ShowSlaMonitoring_Click" ToolTip="SLA-Überwachung">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="⏰" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="SLA" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Rectangle Width="1" Fill="#D1D5DA" Margin="6,2"/>
+                    <Button Style="{StaticResource QuickButton}" Tag="lead_kanban" Click="ShowLeadKanban_Click" ToolTip="Lead-Pipeline">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="💼" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Leads" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource QuickButton}" Tag="lead_statistics" Click="ShowLeadStatistics_Click" ToolTip="Lead-Statistik">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="📊" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Statistik" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource QuickButton}" Tag="follow_ups" Click="ShowFollowUps_Click" ToolTip="Wiedervorlage">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="🔔" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Follow-up" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Rectangle Width="1" Fill="#D1D5DA" Margin="6,2"/>
+                    <Button Style="{StaticResource QuickButton}" Tag="gantt" Click="ShowGantt_Click" ToolTip="Gantt-Diagramm">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="📅" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Gantt" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource QuickButton}" Tag="budget_tracking" Click="ShowBudgetTracking_Click" ToolTip="Budget-Tracking">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="💰" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Budget" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource QuickButton}" Tag="project_templates" Click="ShowProjectTemplates_Click" ToolTip="Projektvorlagen">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="📑" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Vorlagen" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Rectangle Width="1" Fill="#D1D5DA" Margin="6,2"/>
+                    <Button Style="{StaticResource QuickButton}" Tag="email_history" Click="ShowEmailHistory_Click" ToolTip="E-Mail-Verlauf">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="✉" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="E-Mails" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource QuickButton}" Tag="offer_history" Click="ShowOfferHistory_Click" ToolTip="Angebots-Historie">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="📋" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Angebote" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource QuickButton}" Tag="csv_import" Click="ShowCsvImport_Click" ToolTip="Kontakt-Import (CSV)">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="📥" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Import" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Rectangle Width="1" Fill="#D1D5DA" Margin="6,2"/>
+                    <Button Style="{StaticResource QuickButton}" Tag="supplier_rating" Click="ShowSupplierRating_Click" ToolTip="Lieferanten-Bewertung">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="⭐" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Lieferanten" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource QuickButton}" Tag="expenses_analytics" Click="ShowExpenses_Click" ToolTip="Ausgaben-Auswertung">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="📉" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Ausgaben" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
 
         <!-- Notification toolbar -->
         <Border DockPanel.Dock="Top"
@@ -151,6 +279,36 @@
                                 Visibility="Collapsed"
                                 VerticalAlignment="Center">
                             <TextBlock x:Name="NotificationBadgeText"
+                                       Text="0"
+                                       Foreground="White"
+                                       FontSize="10"
+                                       FontWeight="Bold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="4,0"/>
+                        </Border>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="PortalOrdersButton"
+                        DockPanel.Dock="Right"
+                        Click="PortalOrders_Click"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        ToolTip="Webshop-Bestellungen anzeigen"
+                        Padding="6,2"
+                        Margin="0,0,4,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🛒" FontSize="16" VerticalAlignment="Center"/>
+                        <Border x:Name="OrdersBadge"
+                                Background="#FF9800"
+                                CornerRadius="8"
+                                MinWidth="18"
+                                Height="18"
+                                Margin="2,0,0,0"
+                                Visibility="Collapsed"
+                                VerticalAlignment="Center">
+                            <TextBlock x:Name="OrdersBadgeText"
                                        Text="0"
                                        Foreground="White"
                                        FontSize="10"
@@ -649,6 +807,9 @@
             </TabItem>
 
             <!-- Mitarbeiter Tab -->
+            <TabItem x:Name="TabSales" Header="💼 Sales" Style="{StaticResource ModernTabItem}">
+                <views:SalesView x:Name="SalesView" Margin="0"/>
+            </TabItem>
             <TabItem x:Name="TabMitarbeiter" Header="👥 Mitarbeiter" Style="{StaticResource ModernTabItem}">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>

@@ -1,0 +1,64 @@
+@inject ApiDatabaseService Db
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Audit-Log durchsuchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    @if (Filtered.Any())
+    {
+        @foreach (var e in Filtered)
+        {
+            <div class="list-card">
+                <div class="row">
+                    <h3>@ActionIcon(e.Action) @e.Action</h3>
+                    <span class="sub">@e.Timestamp.ToString("dd.MM.yyyy HH:mm:ss")</span>
+                </div>
+                <div class="sub mt-4">👤 @e.UserName · @e.EntityType @(string.IsNullOrEmpty(e.EntityId) ? "" : $"#{e.EntityId}")</div>
+                @if (!string.IsNullOrEmpty(e.Details))
+                {
+                    <div class="detail-section">
+                        <div class="detail-text">@e.Details</div>
+                    </div>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        <div class="empty-state">Keine Einträge im Audit-Log.</div>
+    }
+}
+
+@code {
+    private List<AuditLogDto> _entries = [];
+    private bool _loading = true;
+    private string _search = "";
+
+    private IEnumerable<AuditLogDto> Filtered => string.IsNullOrWhiteSpace(_search) ? _entries :
+        _entries.Where(e => e.Action.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || e.UserName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || e.EntityType.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || e.Details.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _entries = await Db.GetAuditLogAsync(); } catch { }
+        _loading = false;
+    }
+
+    private static string ActionIcon(string a) => a switch
+    {
+        "Erstellt" => "➕",
+        "Aktualisiert" => "✏️",
+        "Gelöscht" => "🗑️",
+        "Angemeldet" => "🔑",
+        "Exportiert" => "📤",
+        _ => "📋"
+    };
+}

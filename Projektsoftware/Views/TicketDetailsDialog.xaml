@@ -167,8 +167,15 @@
                     </Border>
 
                     <!-- Aktionen -->
-                    <Button Content="✏️ Ticket bearbeiten" 
+                    <Button Content="🤖 KI-Assistent" 
                             Margin="0,20,0,10" 
+                            Height="40" 
+                            Click="AiAssistant_Click"
+                            Background="#9C27B0"
+                            Foreground="White"
+                            FontWeight="Bold"/>
+                    <Button Content="✏️ Ticket bearbeiten" 
+                            Margin="0,0,0,10" 
                             Height="40" 
                             Click="EditTicket_Click"
                             Background="#2196F3"

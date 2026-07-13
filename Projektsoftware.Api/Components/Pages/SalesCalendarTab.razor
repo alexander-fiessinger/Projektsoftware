@@ -1,0 +1,171 @@
+@inject ApiDatabaseService Db
+@inject ApiEmailService Email
+@using Projektsoftware.Api.Models
+
+<div class="section-title">📅 Sales-Kalender</div>
+
+<div class="list-card">
+    <div class="row"><h3>➕ Neuer Termin</h3></div>
+    <label class="form-label mt-8">Titel</label>
+    <input class="form-input" @bind="_new.Title" placeholder="z. B. Erstgespräch Firma Müller" />
+
+    <div class="row mt-8" style="gap:8px;">
+        <div style="flex:1;">
+            <label class="form-label">Beginn</label>
+            <input class="form-input" type="datetime-local" @bind="_new.AppointmentDate" />
+        </div>
+        <div style="flex:1;">
+            <label class="form-label">Ende</label>
+            <input class="form-input" type="datetime-local" @bind="_new.AppointmentEnd" />
+        </div>
+    </div>
+
+    <label class="form-label mt-8">Ansprechpartner</label>
+    <input class="form-input" @bind="_new.ContactName" />
+    <label class="form-label mt-8">E-Mail (Komma-getrennt)</label>
+    <input class="form-input" @bind="_new.ContactEmail" placeholder="kontakt@firma.de" />
+    <label class="form-label mt-8">Firma</label>
+    <input class="form-input" @bind="_new.ContactCompany" />
+    <label class="form-label mt-8">Ort</label>
+    <input class="form-input" @bind="_new.Location" />
+    <label class="form-label mt-8">Webex-Link (optional)</label>
+    <input class="form-input" @bind="_new.WebexJoinLink" />
+    <label class="form-label mt-8">Notizen</label>
+    <textarea class="form-input" rows="2" @bind="_new.Notes"></textarea>
+
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;margin-top:8px;">
+        <input type="checkbox" @bind="_sendInvite" />
+        Einladung per E-Mail senden (iCal)
+    </label>
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="mt-8" style="color:var(--accent);">@_message</div>
+    }
+    <button class="btn-action block mt-8" disabled="@_saving" @onclick="Save">Termin speichern</button>
+</div>
+
+@if (_loading)
+{
+    <div class="spinner"></div>
+}
+else if (_items.Count == 0)
+{
+    <div class="empty-state">Keine Termine vorhanden.</div>
+}
+else
+{
+    @foreach (var a in _items)
+    {
+        <div class="list-card" style="@(a.IsPast ? "opacity:0.6;" : "")">
+            <div class="row" style="justify-content:space-between;">
+                <strong>@a.Title</strong>
+                <span class="status-pill"><span class="status-dot" style="background:@a.RsvpColor;"></span>@a.RsvpText</span>
+            </div>
+            <div class="mt-8" style="font-size:0.85rem;color:var(--text-muted);">
+                📅 @a.AppointmentDate.ToString("dd.MM.yyyy HH:mm") · ⏱️ @a.DurationText
+            </div>
+            @if (!string.IsNullOrWhiteSpace(a.ContactName))
+            {
+                <div class="mt-8" style="font-size:0.85rem;">👤 @a.ContactName @(string.IsNullOrWhiteSpace(a.ContactCompany) ? "" : $"({a.ContactCompany})")</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(a.Location))
+            {
+                <div style="font-size:0.85rem;color:var(--text-muted);">📍 @a.Location</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(a.WebexJoinLink))
+            {
+                <div style="font-size:0.85rem;"><a href="@a.WebexJoinLink" target="_blank">🔗 Webex beitreten</a></div>
+            }
+            <div class="row mt-8" style="gap:8px;">
+                @if (!string.IsNullOrWhiteSpace(a.ContactEmail))
+                {
+                    <button class="btn-action" style="flex:1;" @onclick="() => Resend(a)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,6 12,13 22,6"/></svg>
+                        Einladung senden
+                    </button>
+                }
+                <button class="btn-action danger icon-only" title="Löschen" @onclick="() => Delete(a.Id)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private List<SalesAppointmentDto> _items = new();
+    private SalesAppointmentDto _new = NewAppt();
+    private bool _loading;
+    private bool _saving;
+    private bool _sendInvite = true;
+    private string _message = "";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try { _items = await Db.GetSalesAppointmentsAsync(); }
+        catch { _items = new(); }
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_new.Title)) { _message = "Bitte einen Titel angeben."; return; }
+        _saving = true;
+        _message = "";
+        try
+        {
+            _new.ICalUid = Guid.NewGuid().ToString();
+            var id = await Db.AddSalesAppointmentAsync(_new);
+            _new.Id = id;
+
+            if (_sendInvite && !string.IsNullOrWhiteSpace(_new.ContactEmail))
+            {
+                if (Email.IsConfigured)
+                {
+                    await Email.SendAppointmentInvitationAsync(_new);
+                    _message = "Termin gespeichert und Einladung gesendet.";
+                }
+                else
+                {
+                    _message = "Termin gespeichert. SMTP nicht konfiguriert – keine Einladung gesendet.";
+                }
+            }
+            else
+            {
+                _message = "Termin gespeichert.";
+            }
+
+            _new = NewAppt();
+            await Load();
+        }
+        catch (Exception ex) { _message = $"Fehler: {ex.Message}"; }
+        _saving = false;
+    }
+
+    private async Task Resend(SalesAppointmentDto a)
+    {
+        try
+        {
+            if (!Email.IsConfigured) { _message = "SMTP nicht konfiguriert."; return; }
+            await Email.SendAppointmentInvitationAsync(a);
+            _message = $"Einladung an {a.ContactEmail} gesendet.";
+        }
+        catch (Exception ex) { _message = $"Fehler: {ex.Message}"; }
+    }
+
+    private async Task Delete(int id)
+    {
+        await Db.DeleteSalesAppointmentAsync(id);
+        await Load();
+    }
+
+    private static SalesAppointmentDto NewAppt() => new()
+    {
+        AppointmentDate = DateTime.Today.AddDays(1).AddHours(9),
+        AppointmentEnd = DateTime.Today.AddDays(1).AddHours(10)
+    };
+}

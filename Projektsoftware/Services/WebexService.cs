@@ -102,7 +102,7 @@ namespace Projektsoftware.Services
                 enabledJoinBeforeHost = true,
                 joinBeforeHostMinutes = 5,
                 sendEmail = config.SendInviteEmails,
-                invitees = invitees.Count > 0 ? invitees : null
+                invitees = (object?)null
             };
 
             var json = JsonSerializer.Serialize(request, JsonOptions);
@@ -128,13 +128,133 @@ namespace Projektsoftware.Services
             if (!response.IsSuccessStatusCode)
                 throw new Exception($"Webex API Fehler ({response.StatusCode}): {responseBody}");
 
-            return JsonSerializer.Deserialize<WebexMeetingResponse>(responseBody, JsonOptions)
+            var meetingResponse = JsonSerializer.Deserialize<WebexMeetingResponse>(responseBody, JsonOptions)
                 ?? throw new Exception("Ungültige Antwort von Webex API");
+
+            // Teilnehmer separat einladen damit sie RSVP-E-Mail (Annehmen/Ablehnen) erhalten
+            if (invitees.Count > 0 && config.SendInviteEmails)
+                meetingResponse.InviteeErrors = await SendInviteesAsync(meetingResponse.Id!, meeting.Participants);
+
+            return meetingResponse;
         }
 
         /// <summary>
-        /// Aktualisiert ein bestehendes Webex-Meeting
+        /// Lädt Teilnehmer einzeln per POST /meetingInvitees ein (löst RSVP-E-Mail aus)
+        /// Gibt eine Liste von Fehlermeldungen zurück (leer = alles OK)
         /// </summary>
+        public async Task<List<string>> SendInviteesAsync(string meetingId, string? participants)
+        {
+            var errors = new List<string>();
+            if (string.IsNullOrWhiteSpace(participants)) return errors;
+
+            foreach (var part in participants.Split(',', ';', '\n'))
+            {
+                var email = part.Trim();
+                if (!email.Contains('@')) continue;
+
+                try
+                {
+                    var body = JsonSerializer.Serialize(new
+                    {
+                        meetingId,
+                        email,
+                        sendEmail = true
+                    }, JsonOptions);
+                    var content = new StringContent(body, Encoding.UTF8, "application/json");
+                    var resp = await httpClient.PostAsync("meetingInvitees", content);
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        // 409 Conflict = Teilnehmer ist bereits eingeladen (z.B. Organisator) – kein Fehler
+                        if (resp.StatusCode == System.Net.HttpStatusCode.Conflict)
+                            continue;
+
+                        var respBody = await resp.Content.ReadAsStringAsync();
+                        errors.Add($"{email}: {resp.StatusCode} – {respBody}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"{email}: {ex.Message}");
+                }
+            }
+            return errors;
+        }
+
+        /// <summary>
+        /// Erstellt ein Webex-Meeting für einen Sales-Termin und gibt (MeetingId, JoinLink) zurück.
+        /// </summary>
+        public async Task<(string MeetingId, string JoinLink)> CreateSalesMeetingAsync(Models.SalesAppointment appt)
+        {
+            await EnsureValidTokenAsync();
+
+            // DateTime als Local behandeln (Kind=Unspecified → Local forcieren), dann als DateTimeOffset für korrekte UTC-Konvertierung
+            var startLocal = appt.AppointmentDate.Kind == DateTimeKind.Utc
+                ? appt.AppointmentDate.ToLocalTime()
+                : DateTime.SpecifyKind(appt.AppointmentDate, DateTimeKind.Local);
+            var endLocal   = appt.AppointmentEnd.Kind == DateTimeKind.Utc
+                ? appt.AppointmentEnd.ToLocalTime()
+                : DateTime.SpecifyKind(appt.AppointmentEnd, DateTimeKind.Local);
+
+            var startOffset = new DateTimeOffset(startLocal);
+            var endOffset   = new DateTimeOffset(endLocal);
+
+            // Sicherheits-Check: Termin muss in der Zukunft liegen
+            if (startOffset <= DateTimeOffset.UtcNow)
+                throw new Exception($"Der Termin liegt in der Vergangenheit ({startLocal:dd.MM.yyyy HH:mm}). Webex-Meeting kann nicht erstellt werden.");
+
+            // Windows-Timezone-ID → IANA-ID konvertieren (Webex erwartet IANA)
+            var timezone = TimeZoneInfo.Local.HasIanaId
+                ? TimeZoneInfo.Local.Id
+                : TimeZoneInfo.TryConvertWindowsIdToIanaId(TimeZoneInfo.Local.Id, out var ianaId)
+                    ? ianaId
+                    : "Europe/Berlin"; // Fallback
+
+            var request = new
+            {
+                title    = appt.Title,
+                start    = startLocal.ToString("yyyy-MM-ddTHH:mm:ss"),
+                end      = endLocal.ToString("yyyy-MM-ddTHH:mm:ss"),
+                timezone,
+                agenda   = string.IsNullOrWhiteSpace(appt.Notes) ? (string?)null : appt.Notes,
+                password = GenerateMeetingPassword(),
+                enabledAutoRecordMeeting = false,
+                allowAnyUserToBeCoHost   = false,
+                enabledJoinBeforeHost    = true,
+                joinBeforeHostMinutes    = 5,
+                sendEmail = false
+            };
+
+            var json    = JsonSerializer.Serialize(request, JsonOptions);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await httpClient.PostAsync("meetings", content);
+            var body     = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"Webex API Fehler ({(int)response.StatusCode}): {body}");
+
+            var result = JsonSerializer.Deserialize<WebexMeetingResponse>(body, JsonOptions)
+                ?? throw new Exception("Ungültige Antwort von Webex API");
+
+            return (result.Id ?? "", result.WebLink ?? result.JoinLink ?? "");
+        }
+
+        /// <summary>
+        /// Löscht ein Webex-Meeting (z. B. bei Absage eines Sales-Termins).
+        /// Fehler werden ignoriert wenn das Meeting bereits weg ist (404).
+        /// </summary>
+        public async Task DeleteSalesMeetingAsync(string meetingId)
+        {
+            if (string.IsNullOrEmpty(meetingId)) return;
+            try
+            {
+                await EnsureValidTokenAsync();
+                await httpClient.DeleteAsync($"meetings/{meetingId}");
+            }
+            catch { /* optional – Meeting evtl. schon gelöscht */ }
+        }
+
+        /// <summary>
+        /// Aktualisiert ein bestehendes Webex-Meeting</summary>
         public async Task<WebexMeetingResponse> UpdateMeetingAsync(string webexMeetingId, Meeting meeting)
         {
             await EnsureValidTokenAsync();
@@ -185,6 +305,34 @@ namespace Projektsoftware.Services
                 var error = await response.Content.ReadAsStringAsync();
                 throw new Exception($"Webex API Fehler ({response.StatusCode}): {error}");
             }
+        }
+
+        /// <summary>
+        /// Ruft die Eingeladenen eines Meetings mit ihrem RSVP-Status ab
+        /// </summary>
+        public async Task<List<WebexInvitee>> GetMeetingInviteesAsync(string webexMeetingId)
+        {
+            var (items, _) = await GetMeetingInviteesWithDebugAsync(webexMeetingId);
+            return items;
+        }
+
+        /// <summary>
+        /// Wie GetMeetingInviteesAsync, gibt aber zusätzlich die rohe API-Antwort zurück
+        /// </summary>
+        public async Task<(List<WebexInvitee> Items, string RawResponse)> GetMeetingInviteesWithDebugAsync(string webexMeetingId)
+        {
+            await EnsureValidTokenAsync();
+
+            // Versuche zuerst mit der übergebenen ID, dann ohne hostEmail-Filter
+            var url = $"meetingInvitees?meetingId={Uri.EscapeDataString(webexMeetingId)}&max=100";
+            var response = await httpClient.GetAsync(url);
+            var body = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"Webex API Fehler ({response.StatusCode}): {body}");
+
+            var result = JsonSerializer.Deserialize<WebexInviteesResponse>(body, JsonOptions);
+            return (result?.Items ?? new List<WebexInvitee>(), body);
         }
 
         /// <summary>
@@ -274,6 +422,10 @@ namespace Projektsoftware.Services
 
     public class WebexMeetingResponse
     {
+        /// <summary>Fehler beim Einladen von Teilnehmern (leer = alle erfolgreich)</summary>
+        [JsonIgnore]
+        public List<string> InviteeErrors { get; set; } = new();
+
         [JsonPropertyName("id")]
         public string? Id { get; set; }
 
@@ -332,5 +484,47 @@ namespace Projektsoftware.Services
 
         [JsonPropertyName("expires_in")]
         public int ExpiresIn { get; set; }
+    }
+
+    public class WebexInviteesResponse
+    {
+        [JsonPropertyName("items")]
+        public List<WebexInvitee>? Items { get; set; }
+    }
+
+    public class WebexInvitee
+    {
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+
+        [JsonPropertyName("email")]
+        public string? Email { get; set; }
+
+        [JsonPropertyName("displayName")]
+        public string? DisplayName { get; set; }
+
+        [JsonPropertyName("rsvpStatus")]
+        public string? RsvpStatus { get; set; }
+
+        [JsonPropertyName("coHost")]
+        public bool CoHost { get; set; }
+
+        public string StatusIcon => RsvpStatus switch
+        {
+            "accept" => "✅",
+            "decline" => "❌",
+            "tentative" => "❓",
+            _ => "⏳"
+        };
+
+        public string StatusText => RsvpStatus switch
+        {
+            "accept" => "Angenommen",
+            "decline" => "Abgesagt",
+            "tentative" => "Tentativ",
+            _ => "Ausstehend"
+        };
+
+        public string DisplayLabel => $"{StatusIcon}  {Email ?? DisplayName ?? "–"}  ({StatusText})";
     }
 }

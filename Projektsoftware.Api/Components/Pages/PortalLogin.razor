@@ -1,0 +1,109 @@
+@page "/portal"
+@inject ApiDatabaseService Db
+@inject PortalSessionService Portal
+@inject NavigationManager Nav
+
+<PageTitle>Kundenportal · Anmeldung</PageTitle>
+
+<div class="login-container">
+    <div style="margin-bottom:12px">
+        <div class="login-logo">
+            <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                <rect x="8" y="12" width="32" height="28" rx="3" fill="#fff" opacity="0.95"/>
+                <rect x="8" y="12" width="32" height="6" rx="3" fill="#C8A251"/>
+                <circle cx="13" cy="23" r="1.5" fill="#34D399" stroke="#fff" stroke-width="0.5"/>
+                <rect x="17" y="22" width="18" height="2" rx="1" fill="#E3F2FD" opacity="0.7"/>
+                <circle cx="13" cy="28" r="1.5" fill="#34D399" stroke="#fff" stroke-width="0.5"/>
+                <rect x="17" y="27" width="14" height="2" rx="1" fill="#E3F2FD" opacity="0.7"/>
+                <circle cx="13" cy="33" r="1.5" fill="#E3F2FD" opacity="0.5"/>
+                <rect x="17" y="32" width="16" height="2" rx="1" fill="#E3F2FD" opacity="0.5"/>
+            </svg>
+        </div>
+        <div class="login-title">Kundenportal</div>
+        <div class="login-subtitle">Ihre Preise auf einen Blick</div>
+    </div>
+    <div class="login-card">
+        <div class="form-group">
+            <label>E-Mail</label>
+            <input @bind="_email" @bind:event="oninput" placeholder="E-Mail-Adresse eingeben"
+                   @onkeydown="HandleKey" autocomplete="username"/>
+        </div>
+        <div class="form-group">
+            <label>Passwort</label>
+            <input type="password" @bind="_password" @bind:event="oninput" placeholder="Passwort eingeben"
+                   @onkeydown="HandleKey" autocomplete="current-password"/>
+        </div>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="error-msg">@_error</div>
+        }
+        <button class="btn btn-primary" @onclick="DoLogin" disabled="@_loading">
+            @if (_loading)
+            {
+                <span>Wird angemeldet…</span>
+            }
+            else
+            {
+                <span>Anmelden</span>
+            }
+        </button>
+        <div style="text-align:center;margin-top:16px;font-size:14px;">
+            Noch kein Konto?
+            <a href="/portal/register" style="color:#1565C0;font-weight:600;text-decoration:none;">Jetzt registrieren</a>
+        </div>
+    </div>
+    <div style="text-align:center;margin-top:16px;color:#999;font-size:12px;">
+        Preise sind erst nach Freischaltung durch unser Team sichtbar.
+    </div>
+</div>
+
+@code {
+    private string _email = "";
+    private string _password = "";
+    private string _error = "";
+    private bool _loading;
+
+    protected override void OnInitialized()
+    {
+        if (Portal.IsAuthenticated)
+            Nav.NavigateTo("/portal/preise");
+    }
+
+    private async Task HandleKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await DoLogin();
+    }
+
+    private async Task DoLogin()
+    {
+        _error = "";
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Bitte E-Mail und Passwort eingeben.";
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            var result = await Db.AuthenticatePortalUserAsync(_email.Trim(), _password);
+            if (result.Success)
+            {
+                Portal.Login(result.UserId, result.CustomerId, result.Email, result.ContactName, result.DiscountPercent);
+                Nav.NavigateTo("/portal/preise");
+            }
+            else
+            {
+                _error = result.Error ?? "Anmeldung fehlgeschlagen.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Verbindungsfehler: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

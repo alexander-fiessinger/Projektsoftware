@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Windows;
+using System.Windows.Input;
 
 namespace Projektsoftware.Views
 {
@@ -313,6 +314,113 @@ namespace Projektsoftware.Views
         {
             DialogResult = false;
             Close();
+        }
+
+        private async void AiEstimate_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(NameTextBox.Text))
+            {
+                MessageBox.Show("Bitte geben Sie mindestens einen Projektnamen ein.", 
+                    "Name erforderlich", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var aiService = new LogicCAiService();
+            if (!aiService.IsConfigured)
+            {
+                MessageBox.Show("LogicC AI ist nicht konfiguriert.\n\nBitte konfigurieren Sie die API im Menü:\nEinstellungen → 🤖 KI-Integration → Konfiguration",
+                    "KI nicht konfiguriert", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            AiEstimateButton.IsEnabled = false;
+            AiEstimateBorder.Visibility = Visibility.Visible;
+            AiEstimateText.Text = "⏳ KI schätzt Zeitaufwand...";
+            Mouse.OverrideCursor = Cursors.Wait;
+
+            try
+            {
+                var projectTitle = NameTextBox.Text.Trim();
+                var projectDescription = DescriptionTextBox.Text.Trim();
+
+                // Extrahiere Aufgaben aus Notizen
+                var tasks = projectNotes.Select(n => n.Text).ToList();
+
+                var result = await aiService.EstimateProjectEffortAsync(projectTitle, projectDescription, tasks);
+
+                if (result != null)
+                {
+                    AiEstimateText.Text = $"🤖 KI-Zeitschätzung:\n\n" +
+                        $"⏱️ Geschätzter Aufwand: {result.EstimatedHours:F1} Stunden\n" +
+                        $"📊 Konfidenz: {result.ConfidenceLevel * 100:F0}%\n\n" +
+                        $"💡 Begründung:\n{result.Reasoning}\n\n" +
+                        $"⚠️ Risikofaktoren:\n{string.Join("\n", result.RiskFactors.Select(r => $"  • {r}"))}";
+
+                    // Budget-Vorschlag mit Stundensatz
+                    if (result.EstimatedHours > 0)
+                    {
+                        decimal hourlyRate = 0m;
+
+                        // Versuche Stundensatz aus Easybill-Feld zu holen (falls sichtbar)
+                        if (CreateInEasybillCheckBox.IsChecked == true && 
+                            !string.IsNullOrWhiteSpace(HourlyRateTextBox.Text))
+                        {
+                            decimal.TryParse(HourlyRateTextBox.Text.Replace(",", "."), 
+                                NumberStyles.Any, CultureInfo.InvariantCulture, out hourlyRate);
+                        }
+
+                        // Falls kein Stundensatz gefunden, Eingabedialog anzeigen
+                        if (hourlyRate <= 0)
+                        {
+                            var inputDialog = new InputDialog(
+                                "Stundensatz eingeben",
+                                $"KI-Schätzung: {result.EstimatedHours:F1} Stunden\n\n" +
+                                "Geben Sie Ihren Stundensatz ein, um das Budget zu berechnen:",
+                                "120,00");
+
+                            if (inputDialog.ShowDialog() == true)
+                            {
+                                decimal.TryParse(inputDialog.Result.Replace(",", "."), 
+                                    NumberStyles.Any, CultureInfo.InvariantCulture, out hourlyRate);
+                            }
+                        }
+
+                        if (hourlyRate > 0)
+                        {
+                            var suggestedBudget = (decimal)result.EstimatedHours * hourlyRate;
+
+                            var applyResult = MessageBox.Show(
+                                $"KI-Schätzung: {result.EstimatedHours:F1} Stunden\n" +
+                                $"Stundensatz: {hourlyRate:C}\n\n" +
+                                $"Berechnetes Budget: {suggestedBudget:C}\n\n" +
+                                $"Möchten Sie diesen Wert als Budget übernehmen?",
+                                "Budget übernehmen?",
+                                MessageBoxButton.YesNo,
+                                MessageBoxImage.Question);
+
+                            if (applyResult == MessageBoxResult.Yes)
+                            {
+                                BudgetTextBox.Text = suggestedBudget.ToString("F2", euroFormat);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    AiEstimateText.Text = "❌ Keine Schätzung erhalten.";
+                }
+            }
+            catch (Exception ex)
+            {
+                AiEstimateText.Text = $"❌ Fehler: {ex.Message}";
+                MessageBox.Show($"Fehler bei der KI-Zeitschätzung:\n\n{ex.Message}", 
+                    "Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                AiEstimateButton.IsEnabled = true;
+                Mouse.OverrideCursor = null;
+            }
         }
 
         private async void OpenEasybillCustomers_Click(object sender, RoutedEventArgs e)

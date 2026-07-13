@@ -18,6 +18,14 @@ namespace Projektsoftware.Models
         public long? EasybillAttachmentId { get; set; }
         public DateTime? EasybillSyncedAt { get; set; }
 
+        /// <summary>
+        /// Datei-Inhalt direkt in der Datenbank gespeichert (LONGBLOB).
+        /// Null wenn noch kein Blob vorhanden (nur lokaler Pfad).
+        /// </summary>
+        public byte[]? FileData { get; set; }
+
+        public bool HasFileInDb => FileData != null && FileData.Length > 0;
+
         private static readonly CultureInfo deFormat = new CultureInfo("de-DE");
 
         public string EasybillSyncStatus => EasybillAttachmentId.HasValue
@@ -35,8 +43,10 @@ namespace Projektsoftware.Models
 
         public string TypeDisplay => $"{DocumentTypeIcon} {DocumentType}";
 
-        public bool FileExists => !string.IsNullOrEmpty(LocalFilePath) && System.IO.File.Exists(LocalFilePath);
+        public bool FileExists => HasFileInDb || (!string.IsNullOrEmpty(LocalFilePath) && System.IO.File.Exists(LocalFilePath));
 
-        public string FileStatus => FileExists ? "📎 vorhanden" : (string.IsNullOrEmpty(LocalFilePath) ? "—" : "⚠️ fehlt");
+        public string FileStatus => HasFileInDb
+            ? "📎 vorhanden"
+            : (!string.IsNullOrEmpty(LocalFilePath) && System.IO.File.Exists(LocalFilePath) ? "📎 vorhanden" : (string.IsNullOrEmpty(LocalFilePath) ? "—" : "⚠️ fehlt"));
     }
 }

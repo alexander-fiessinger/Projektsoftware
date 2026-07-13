@@ -483,8 +483,8 @@ namespace Projektsoftware.Services
             await connection.OpenAsync();
             string query = @"INSERT INTO purchase_documents
                              (supplier_id, document_name, document_type, document_date,
-                              original_file_name, local_file_path, notes, created_at)
-                             VALUES (@sid,@name,@type,@date,@fname,@fpath,@notes,@now);
+                              original_file_name, local_file_path, notes, created_at, file_data)
+                             VALUES (@sid,@name,@type,@date,@fname,@fpath,@notes,@now,@fdata);
                              SELECT LAST_INSERT_ID();";
             using var cmd = new MySqlCommand(query, connection);
             AddPurchaseDocumentParams(cmd, doc);
@@ -499,7 +499,8 @@ namespace Projektsoftware.Services
             string query = @"UPDATE purchase_documents SET
                              supplier_id=@sid, document_name=@name, document_type=@type,
                              document_date=@date, original_file_name=@fname,
-                             local_file_path=@fpath, notes=@notes WHERE id=@id";
+                             local_file_path=@fpath, notes=@notes,
+                             file_data=COALESCE(@fdata, file_data) WHERE id=@id";
             using var cmd = new MySqlCommand(query, connection);
             AddPurchaseDocumentParams(cmd, doc);
             cmd.Parameters.AddWithValue("@id", doc.Id);
@@ -537,6 +538,7 @@ namespace Projektsoftware.Services
             cmd.Parameters.AddWithValue("@fname", (object?)doc.OriginalFileName ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@fpath", (object?)doc.LocalFilePath ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@notes", doc.Notes ?? "");
+            cmd.Parameters.AddWithValue("@fdata", (object?)doc.FileData ?? DBNull.Value);
         }
 
         private static PurchaseDocument MapPurchaseDocument(MySqlDataReader r)
@@ -560,6 +562,12 @@ namespace Projektsoftware.Services
                 int ebSyncOrd = r.GetOrdinal("easybill_synced_at");
                 doc.EasybillAttachmentId = r.IsDBNull(ebAttOrd) ? null : r.GetInt64(ebAttOrd);
                 doc.EasybillSyncedAt = r.IsDBNull(ebSyncOrd) ? null : r.GetDateTime(ebSyncOrd);
+            }
+            catch { }
+            try
+            {
+                int fdOrd = r.GetOrdinal("file_data");
+                doc.FileData = r.IsDBNull(fdOrd) ? null : (byte[])r.GetValue(fdOrd);
             }
             catch { }
             return doc;

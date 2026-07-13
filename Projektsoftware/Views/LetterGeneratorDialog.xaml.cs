@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Windows;
+using System.Windows.Input;
 
 namespace Projektsoftware.Views
 {
@@ -168,6 +169,82 @@ namespace Projektsoftware.Views
                     MessageBox.Show($"Fehler beim Generieren des Briefs:\n{ex.Message}",
                         "Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
+            }
+        }
+
+        private async void AiImprove_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(BodyBox.Text))
+            {
+                MessageBox.Show("Bitte geben Sie zuerst einen Text ein.", 
+                    "Kein Text vorhanden", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var aiService = new LogicCAiService();
+            if (!aiService.IsConfigured)
+            {
+                MessageBox.Show("LogicC AI ist nicht konfiguriert.\n\nBitte konfigurieren Sie die API im Menü:\nEinstellungen → 🤖 KI-Integration → Konfiguration",
+                    "KI nicht konfiguriert", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var originalText = BodyBox.Text;
+
+            var result = MessageBox.Show(
+                "Die KI wird Ihren Text grammatikalisch und stilistisch verbessern.\n\n" +
+                "Der Text wird professioneller und klarer formuliert.\n\n" +
+                "Möchten Sie fortfahren?",
+                "Text verbessern",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            AiImproveButton.IsEnabled = false;
+            AiImproveButton.Content = "⏳ KI verbessert Text...";
+            Mouse.OverrideCursor = Cursors.Wait;
+
+            try
+            {
+                var improvedText = await aiService.ImproveTextAsync(originalText);
+
+                if (!string.IsNullOrWhiteSpace(improvedText))
+                {
+                    // Zeige Vergleich
+                    var compareResult = MessageBox.Show(
+                        $"Original ({originalText.Length} Zeichen):\n{originalText.Substring(0, Math.Min(200, originalText.Length))}...\n\n" +
+                        $"─────────────────────────\n\n" +
+                        $"Verbessert ({improvedText.Length} Zeichen):\n{improvedText.Substring(0, Math.Min(200, improvedText.Length))}...\n\n" +
+                        $"Möchten Sie den verbesserten Text übernehmen?",
+                        "Text verbessert",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (compareResult == MessageBoxResult.Yes)
+                    {
+                        BodyBox.Text = improvedText;
+                        MessageBox.Show("✅ Text wurde erfolgreich verbessert!", 
+                            "Erfolg", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("❌ Keine Verbesserung erhalten.", 
+                        "Fehler", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Fehler bei der Text-Verbesserung:\n\n{ex.Message}", 
+                    "Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                AiImproveButton.IsEnabled = true;
+                AiImproveButton.Content = "🤖 Text mit KI verbessern";
+                Mouse.OverrideCursor = null;
             }
         }
     }

@@ -1,0 +1,239 @@
+@inject ApiDatabaseService Db
+@inject SessionService Session
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Benutzer suchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="list-card" style="border-left:4px solid var(--accent);">@_message</div>
+    }
+
+    @foreach (var u in Filtered)
+    {
+        <div class="list-card">
+            <div class="row">
+                <h3>@(u.Role == "Admin" ? "👑" : "👤") @u.Username</h3>
+                <span class="badge" style="background:@(u.IsActive ? "var(--success-light)" : "var(--danger-light)");color:@(u.IsActive ? "var(--success)" : "var(--danger)");">
+                    @(u.IsActive ? "Aktiv" : "Gesperrt")
+                </span>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(u.EmployeeName))
+            {
+                <div class="sub mt-4">🧑‍💼 @u.EmployeeName</div>
+            }
+            <div class="sub mt-4">Rolle: @u.Role · Erstellt: @u.CreatedAt.ToString("dd.MM.yyyy")@(u.LastLogin.HasValue ? $" · Letzter Login: {u.LastLogin:dd.MM.yyyy HH:mm}" : "")</div>
+            @if (u.MustChangePassword)
+            {
+                <div class="sub mt-4">⚠️ Passwortänderung erforderlich</div>
+            }
+
+            <div class="row mt-8" style="gap:8px;flex-wrap:wrap;">
+                <button class="status-select" @onclick="() => ToggleActive(u)">@(u.IsActive ? "🔒 Sperren" : "🔓 Entsperren")</button>
+                <button class="status-select" @onclick="() => ToggleRole(u)">@(u.Role == "Admin" ? "⬇️ Zu User" : "⬆️ Zu Admin")</button>
+                <button class="status-select" @onclick="() => StartReset(u)">🔑 Passwort</button>
+                <button class="status-select" @onclick="() => StartPermissions(u)">🛡️ Rechte</button>
+                <button class="status-select" style="color:var(--danger);" @onclick="() => Delete(u)">🗑️ Löschen</button>
+            </div>
+
+            @if (_resetUserId == u.Id)
+            {
+                <div class="add-form mt-8">
+                    <input type="password" placeholder="Neues Passwort (min. 4 Zeichen)" @bind="_newPassword" />
+                    <div class="row" style="gap:8px;">
+                        <button class="btn-save" disabled="@(_saving || _newPassword.Length < 4)" @onclick="() => ConfirmReset(u)">Speichern</button>
+                        <button class="btn-cancel" @onclick="() => _resetUserId = 0">Abbrechen</button>
+                    </div>
+                </div>
+            }
+
+            @if (_permUserId == u.Id)
+            {
+                <div class="add-form mt-8">
+                    <div class="section-title">Modul-Berechtigungen</div>
+                    <div class="perm-grid">
+                        @foreach (var m in _modules)
+                        {
+                            <label class="perm-item">
+                                <input type="checkbox" checked="@_selectedPerms.Contains(m.Key)"
+                                       @onchange="e => TogglePerm(m.Key, (bool)e.Value!)" />
+                                <span>@m.Label</span>
+                            </label>
+                        }
+                    </div>
+                    <div class="row" style="gap:8px;">
+                        <button class="btn-save" disabled="@_saving" @onclick="() => ConfirmPermissions(u)">Speichern</button>
+                        <button class="btn-cancel" @onclick="() => _permUserId = 0">Abbrechen</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (_showForm)
+    {
+        <div class="add-form">
+            <div class="section-title">Neuer Benutzer</div>
+            <input type="text" placeholder="Benutzername" @bind="_newUsername" />
+            <input type="password" placeholder="Passwort (min. 4 Zeichen)" @bind="_formPassword" />
+            <select class="status-select" @bind="_newRole">
+                <option value="User">User</option>
+                <option value="Admin">Admin</option>
+            </select>
+            <div class="row" style="gap:8px;">
+                <button class="btn-save" disabled="@(_saving || _newUsername.Length < 2 || _formPassword.Length < 4)" @onclick="Create">Anlegen</button>
+                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <button class="add-btn" @onclick="() => _showForm = true" title="Benutzer hinzufügen">＋</button>
+    }
+}
+
+@code {
+    private record ModuleInfo(string Key, string Label);
+
+    private List<UserDto> _users = [];
+    private bool _loading = true;
+    private bool _saving;
+    private bool _showForm;
+    private string _search = "";
+    private string _message = "";
+
+    private string _newUsername = "";
+    private string _formPassword = "";
+    private string _newRole = "User";
+
+    private int _resetUserId;
+    private string _newPassword = "";
+
+    private int _permUserId;
+    private HashSet<string> _selectedPerms = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly ModuleInfo[] _modules =
+    [
+        new("kunden", "👤 Kunden"),
+        new("projekte", "📁 Projekte"),
+        new("zeiterfassung", "⏱ Zeiterfassung"),
+        new("kalender", "📅 Kalender"),
+        new("protokolle", "📋 Protokolle"),
+        new("aufgaben", "✓ Aufgaben"),
+        new("tickets", "🎫 Tickets"),
+        new("crm", "🤝 CRM"),
+        new("einkauf", "🛒 Einkauf"),
+        new("sales", "💼 Sales"),
+        new("mitarbeiter", "👥 Mitarbeiter"),
+        new("einstellungen", "⚙ Einstellungen"),
+        new("documents", "📄 Dokumente"),
+        new("export", "📤 Export"),
+        new("audit_log", "📋 Audit-Log"),
+    ];
+
+    private IEnumerable<UserDto> Filtered => string.IsNullOrWhiteSpace(_search) ? _users :
+        _users.Where(u => u.Username.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || u.EmployeeName.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try { _users = await Db.GetUsersAsync(); } catch { }
+        _loading = false;
+    }
+
+    private async Task Create()
+    {
+        _saving = true;
+        _message = "";
+        try
+        {
+            await Db.CreateUserAsync(_newUsername.Trim(), _formPassword, _newRole);
+            _newUsername = ""; _formPassword = ""; _newRole = "User"; _showForm = false;
+            await Reload();
+        }
+        catch (Exception ex) { _message = "Fehler: " + ex.Message; }
+        _saving = false;
+    }
+
+    private async Task ToggleActive(UserDto u)
+    {
+        if (u.IsActive && u.Role == "Admin" && await Db.GetActiveAdminCountAsync() <= 1)
+        {
+            _message = "Der letzte aktive Administrator kann nicht gesperrt werden.";
+            return;
+        }
+        await Db.UpdateUserAsync(u.Id, u.Role, !u.IsActive);
+        await Reload();
+    }
+
+    private async Task ToggleRole(UserDto u)
+    {
+        var newRole = u.Role == "Admin" ? "User" : "Admin";
+        if (u.Role == "Admin" && newRole == "User" && await Db.GetActiveAdminCountAsync() <= 1)
+        {
+            _message = "Der letzte aktive Administrator kann nicht herabgestuft werden.";
+            return;
+        }
+        await Db.UpdateUserAsync(u.Id, newRole, u.IsActive);
+        await Reload();
+    }
+
+    private void StartReset(UserDto u)
+    {
+        _resetUserId = u.Id;
+        _permUserId = 0;
+        _newPassword = "";
+    }
+
+    private async Task ConfirmReset(UserDto u)
+    {
+        _saving = true;
+        try { await Db.ResetUserPasswordAsync(u.Id, _newPassword); _resetUserId = 0; _message = $"Passwort für {u.Username} zurückgesetzt."; }
+        catch (Exception ex) { _message = "Fehler: " + ex.Message; }
+        _saving = false;
+    }
+
+    private async Task StartPermissions(UserDto u)
+    {
+        _permUserId = u.Id;
+        _resetUserId = 0;
+        try { _selectedPerms = new(await Db.GetUserPermissionsAsync(u.Id), StringComparer.OrdinalIgnoreCase); }
+        catch { _selectedPerms = new(StringComparer.OrdinalIgnoreCase); }
+    }
+
+    private void TogglePerm(string key, bool on)
+    {
+        if (on) _selectedPerms.Add(key);
+        else _selectedPerms.Remove(key);
+    }
+
+    private async Task ConfirmPermissions(UserDto u)
+    {
+        _saving = true;
+        try { await Db.SetUserPermissionsAsync(u.Id, _selectedPerms.ToList()); _permUserId = 0; _message = $"Berechtigungen für {u.Username} gespeichert."; }
+        catch (Exception ex) { _message = "Fehler: " + ex.Message; }
+        _saving = false;
+    }
+
+    private async Task Delete(UserDto u)
+    {
+        if (u.Id == Session.UserId) { _message = "Sie können Ihr eigenes Konto nicht löschen."; return; }
+        if (u.Role == "Admin" && u.IsActive && await Db.GetActiveAdminCountAsync() <= 1)
+        {
+            _message = "Der letzte aktive Administrator kann nicht gelöscht werden.";
+            return;
+        }
+        await Db.DeleteUserAsync(u.Id);
+        await Reload();
+    }
+}

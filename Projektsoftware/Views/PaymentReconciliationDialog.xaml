@@ -1,0 +1,250 @@
+<Window x:Class="Projektsoftware.Views.PaymentReconciliationDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="💶 Automatischer Zahlungsabgleich"
+        Height="760"
+        Width="1150"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BackgroundBrush}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,15">
+            <TextBlock Text="💶 Automatischer Zahlungsabgleich"
+                       FontSize="24"
+                       FontWeight="Bold"
+                       Foreground="{StaticResource PrimaryBrush}"/>
+            <TextBlock Text="Kontoeingänge per BANKSapi abrufen und offene Rechnungen anhand von Kundenname und Betrag zuordnen. Teilzahlungen werden erfasst, ohne die Rechnung zu schließen."
+                       FontSize="14"
+                       Foreground="#666"
+                       Margin="0,5,0,0"/>
+        </StackPanel>
+
+        <!-- Bank-Einstellungen -->
+        <Expander Grid.Row="1"
+                  x:Name="BankSettingsExpander"
+                  Header="🏦 Bankverbindung (BANKSapi)"
+                  FontWeight="SemiBold"
+                  Foreground="{StaticResource PrimaryBrush}"
+                  Margin="0,0,0,15"
+                  Background="White">
+            <Border Background="White" Padding="15" BorderBrush="#DDD" BorderThickness="1" CornerRadius="5">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="20"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,10">
+                        <TextBlock Text="BANKSapi-Server-URL" Foreground="#444" Margin="0,0,0,3"/>
+                        <TextBox x:Name="ApiBaseUrlTextBox" Height="30" Padding="6,4"
+                                 ToolTip="Basis-URL der BANKSapi, z. B. https://banksapi.io"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,10">
+                        <TextBlock Text="Mandant (Tenant)" Foreground="#444" Margin="0,0,0,3"/>
+                        <TextBox x:Name="TenantTextBox" Height="30" Padding="6,4"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,0,10">
+                        <TextBlock Text="Client-ID" Foreground="#444" Margin="0,0,0,3"/>
+                        <TextBox x:Name="ClientIdTextBox" Height="30" Padding="6,4"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,10">
+                        <TextBlock Text="Client-Secret" Foreground="#444" Margin="0,0,0,3"/>
+                        <PasswordBox x:Name="ClientSecretPasswordBox" Height="30" Padding="6,4"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,0,10">
+                        <TextBlock Text="Kontoinhaber (optional)" Foreground="#444" Margin="0,0,0,3"/>
+                        <TextBox x:Name="AccountHolderTextBox" Height="30" Padding="6,4"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,10">
+                        <TextBlock Text="Konto-/Produkt-ID (optional)" Foreground="#444" Margin="0,0,0,3"/>
+                        <TextBox x:Name="ProductIdTextBox" Height="30" Padding="6,4"
+                                 ToolTip="Optional: IBAN/Produkt-ID des abzugleichenden Kontos. Leer lassen, um alle Konten des Zugangs abzufragen."/>
+                    </StackPanel>
+
+                    <Border Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3"
+                            Background="#F5F7FA" BorderBrush="#DDD" BorderThickness="1"
+                            CornerRadius="5" Padding="12" Margin="0,5,0,0">
+                        <StackPanel>
+                            <TextBlock x:Name="BankAccessStatusTextBlock"
+                                       Text="Es wurde noch kein Bankzugang eingerichtet."
+                                       Foreground="#444" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="🏦 Bankverbindung einrichten"
+                                        Width="220" Height="34" Margin="0,0,10,0"
+                                        Click="SetupBankAccess_Click"
+                                        Background="#FF9800" Foreground="White"
+                                        BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"
+                                        ToolTip="Öffnet die BANKSapi-WebForm im Browser für Bank-Login und Freigabe (SCA)."/>
+                                <Button Content="🔄 Einrichtung abgeschlossen"
+                                        Width="200" Height="34"
+                                        Click="ConfirmBankAccess_Click"
+                                        Background="#607D8B" Foreground="White"
+                                        BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"
+                                        ToolTip="Nach Abschluss der WebForm hier klicken, um die freigegebenen Konten zu laden."/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3"
+                                Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button Content="🔌 Verbindung testen"
+                                Width="170" Height="34" Margin="0,0,10,0"
+                                Click="TestConnection_Click"
+                                Background="#2196F3" Foreground="White"
+                                BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"/>
+                        <Button Content="💾 Speichern"
+                                Width="130" Height="34"
+                                Click="SaveBankSettings_Click"
+                                Background="#4CAF50" Foreground="White"
+                                BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
+                               x:Name="BankStatusTextBlock"
+                               Text="" TextWrapping="Wrap"
+                               Foreground="#666" Margin="0,10,0,0"/>
+                </Grid>
+            </Border>
+        </Expander>
+
+        <!-- Zeitraum + Abruf -->
+        <Border Grid.Row="2" Background="White" BorderBrush="#DDD" BorderThickness="1"
+                CornerRadius="5" Padding="15" Margin="0,0,0,15">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Zeitraum:" VerticalAlignment="Center" Foreground="#444" Margin="0,0,10,0"/>
+                <TextBlock Text="von" VerticalAlignment="Center" Foreground="#666" Margin="0,0,5,0"/>
+                <DatePicker x:Name="FromDatePicker" Width="140" VerticalAlignment="Center"/>
+                <TextBlock Text="bis" VerticalAlignment="Center" Foreground="#666" Margin="10,0,5,0"/>
+                <DatePicker x:Name="ToDatePicker" Width="140" VerticalAlignment="Center"/>
+
+                <Button Content="⬇️ Kontoumsätze abrufen &amp; abgleichen"
+                        Height="36" Margin="20,0,0,0" Padding="15,0"
+                        Click="FetchAndMatch_Click"
+                        Background="{StaticResource PrimaryBrush}" Foreground="White"
+                        BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"/>
+                <CheckBox x:Name="AutoBookCheckBox"
+                          Content="Eindeutige Treffer automatisch buchen"
+                          IsChecked="True"
+                          VerticalAlignment="Center" Margin="20,0,0,0"
+                          Foreground="#444"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Aktionen für Abgleich -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,10" HorizontalAlignment="Right">
+            <Button Content="✅ Ausgewählte als bezahlt buchen"
+                    Height="34" Padding="15,0" Margin="0,0,10,0"
+                    Click="BookSelected_Click"
+                    Background="#4CAF50" Foreground="White"
+                    BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"/>
+            <Button Content="📖 Protokoll anzeigen"
+                    Height="34" Padding="15,0"
+                    Click="ShowLog_Click"
+                    Background="#7E57C2" Foreground="White"
+                    BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"/>
+        </StackPanel>
+
+        <!-- Abgleich-Grid -->
+        <Border Grid.Row="4" BorderBrush="#DDD" BorderThickness="1" CornerRadius="5" Background="White">
+            <Grid>
+                <DataGrid x:Name="MatchesDataGrid"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="False"
+                          SelectionMode="Extended"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          GridLinesVisibility="Horizontal"
+                          HeadersVisibility="Column"
+                          AlternatingRowBackground="#F9F9F9"
+                          RowHeight="38"
+                          FontSize="13">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="" Width="40">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsEnabled="{Binding CanBook}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Datum" Binding="{Binding Transaction.ValueDateDisplay}" Width="90" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Auftraggeber" Binding="{Binding Transaction.PartnerName}" Width="180" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Verwendungszweck" Binding="{Binding Transaction.Purpose}" Width="*" MinWidth="200" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Eingang" Binding="{Binding Transaction.AmountDisplay}" Width="100" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextAlignment" Value="Right"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Rechnung" Binding="{Binding InvoiceNumberDisplay}" Width="120" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Rechnungsbetrag" Binding="{Binding InvoiceAmountDisplay}" Width="120" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextAlignment" Value="Right"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Buchung" Binding="{Binding BookingModeDisplay}" Width="180" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPartialPayment}" Value="True">
+                                            <Setter Property="Foreground" Value="#E65100"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Status" Binding="{Binding StatusDisplay}" Width="140" IsReadOnly="True"/>
+                    </DataGrid.Columns>
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Setter Property="ToolTip" Value="{Binding Reason}"/>
+                        </Style>
+                    </DataGrid.RowStyle>
+                </DataGrid>
+
+                <TextBlock x:Name="EmptyHintTextBlock"
+                           Text="Noch keine Umsätze abgerufen. Bitte Bankverbindung konfigurieren, Zeitraum wählen und &quot;Kontoumsätze abrufen&quot; klicken."
+                           TextWrapping="Wrap"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           MaxWidth="480" TextAlignment="Center"
+                           Foreground="#999" FontSize="14"/>
+            </Grid>
+        </Border>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="5" Background="#F5F5F5" BorderBrush="#DDD" BorderThickness="1"
+                CornerRadius="5" Padding="10" Margin="0,15,0,0">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="StatusTextBlock" Text="Bereit" FontSize="12" Foreground="#666"/>
+                <TextBlock x:Name="SummaryTextBlock" Text="" FontSize="12" Foreground="#666" Margin="20,0,0,0"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,177 @@
+@inject ApiDatabaseService Db
+@using Projektsoftware.Api.Models
+
+<div class="section-title">💰 Budget-Tracking</div>
+
+<div class="list-card">
+    <label class="form-label">Projekt auswählen</label>
+    <select class="status-select" @onchange="OnProjectSelected">
+        <option value="">– Projekt wählen –</option>
+        @foreach (var p in _projects)
+        {
+            <option value="@p.Id" selected="@(p.Id == _selectedProjectId)">@p.Name</option>
+        }
+    </select>
+</div>
+
+@if (_loading)
+{
+    <div class="spinner"></div>
+}
+else if (_overview is not null)
+{
+    var b = _overview.Budget;
+    <div class="kpi-grid">
+        <div class="list-card">
+            <div class="kpi-label">Geplant</div>
+            <div class="kpi-value">@b.TotalPlannedBudget.ToString("N2") €</div>
+        </div>
+        <div class="list-card">
+            <div class="kpi-label">Ist</div>
+            <div class="kpi-value" style="color:@b.BudgetStatusColor;">@b.TotalActualBudget.ToString("N2") €</div>
+        </div>
+        <div class="list-card">
+            <div class="kpi-label">Rest</div>
+            <div class="kpi-value">@b.RemainingBudget.ToString("N2") €</div>
+        </div>
+        <div class="list-card">
+            <div class="kpi-label">Auslastung</div>
+            <div class="kpi-value" style="color:@b.BudgetStatusColor;">@b.BudgetUtilizationPercentage.ToString("N1") %</div>
+        </div>
+    </div>
+
+    <div class="list-card">
+        <div class="row"><h3>⏱️ Stunden</h3></div>
+        <div class="kpi-grid mt-8">
+            <div>
+                <div class="kpi-label">Geplant</div>
+                <div class="kpi-value">@b.TotalPlannedHours.ToString("N2") h</div>
+            </div>
+            <div>
+                <div class="kpi-label">Ist</div>
+                <div class="kpi-value">@b.TotalActualHours.ToString("N2") h</div>
+            </div>
+        </div>
+        @if (_overview.IsOverBudget)
+        {
+            <div class="mt-8" style="color:#dc2626;font-weight:600;">
+                ⚠️ Budget überschritten um @Math.Abs(_overview.TotalVariance).ToString("N2") € (@_overview.VariancePercentage.ToString("N1") %)
+            </div>
+        }
+    </div>
+
+    <div class="list-card">
+        <div class="row"><h3>📊 Kategorien</h3></div>
+        @if (_overview.CategoryBreakdown.Count == 0)
+        {
+            <div class="empty-state">Keine Budget-Einträge vorhanden.</div>
+        }
+        else
+        {
+            @foreach (var c in _overview.CategoryBreakdown)
+            {
+                <div class="row mt-8" style="justify-content:space-between;">
+                    <span><strong>@c.Category</strong></span>
+                    <span>@c.ActualAmount.ToString("N2") € / @c.PlannedAmount.ToString("N2") €
+                        <span style="color:@(c.Variance > 0 ? "#dc2626" : "#16a34a");">
+                            (@(c.Variance >= 0 ? "+" : "")@c.Variance.ToString("N2") €)
+                        </span>
+                    </span>
+                </div>
+            }
+        }
+    </div>
+
+    <div class="list-card">
+        <div class="row"><h3>➕ Neuer Budget-Eintrag</h3></div>
+        <label class="form-label mt-8">Kategorie</label>
+        <select class="status-select" @bind="_newEntry.Category">
+            <option value="Arbeitszeit">Arbeitszeit</option>
+            <option value="Material">Material</option>
+            <option value="Ausrüstung">Ausrüstung</option>
+            <option value="Software">Software</option>
+            <option value="Reisekosten">Reisekosten</option>
+            <option value="Sonstiges">Sonstiges</option>
+        </select>
+        <label class="form-label mt-8">Beschreibung</label>
+        <input class="form-input" @bind="_newEntry.Description" />
+        <label class="form-label mt-8">Geplanter Betrag (€)</label>
+        <input class="form-input" type="number" step="0.01" @bind="_newEntry.PlannedAmount" />
+        <label class="form-label mt-8">Ist-Betrag (€)</label>
+        <input class="form-input" type="number" step="0.01" @bind="_newEntry.ActualAmount" />
+        <label class="form-label mt-8">Notizen</label>
+        <textarea class="form-input" rows="2" @bind="_newEntry.Notes"></textarea>
+        @if (!string.IsNullOrEmpty(_message))
+        {
+            <div class="mt-8" style="color:var(--accent);">@_message</div>
+        }
+        <button class="btn-action block mt-8" disabled="@_saving" @onclick="SaveEntry">Eintrag speichern</button>
+    </div>
+}
+
+@code {
+    private List<ProjectDto> _projects = new();
+    private int _selectedProjectId;
+    private BudgetOverviewDto? _overview;
+    private BudgetEntryDto _newEntry = new() { Category = "Arbeitszeit" };
+    private bool _loading;
+    private bool _saving;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _projects = await Db.GetProjectsAsync();
+    }
+
+    private async Task OnProjectSelected(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var id))
+        {
+            _overview = null;
+            _selectedProjectId = 0;
+            return;
+        }
+        _selectedProjectId = id;
+        await LoadOverview();
+    }
+
+    private async Task LoadOverview()
+    {
+        if (_selectedProjectId <= 0) return;
+        _loading = true;
+        _overview = null;
+        StateHasChanged();
+        try
+        {
+            _overview = await Db.GetBudgetOverviewAsync(_selectedProjectId);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveEntry()
+    {
+        if (_selectedProjectId <= 0) return;
+        _saving = true;
+        _message = null;
+        try
+        {
+            _newEntry.ProjectId = _selectedProjectId;
+            _newEntry.EntryDate = DateTime.Now;
+            await Db.AddBudgetEntryAsync(_newEntry);
+            _newEntry = new BudgetEntryDto { Category = "Arbeitszeit" };
+            _message = "Eintrag gespeichert.";
+            await LoadOverview();
+        }
+        catch (Exception ex)
+        {
+            _message = "Fehler: " + ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

@@ -21,7 +21,11 @@ namespace Projektsoftware
     {
         private MainViewModel? viewModel;
         private List<AppNotification> _cachedNotifications = new();
+        // Laufzeit-Benachrichtigungen dieser Sitzung (z. B. automatische Buchungen),
+        // die zusätzlich zu den aus der DB geladenen Benachrichtigungen angezeigt werden.
+        private readonly List<AppNotification> _sessionNotifications = new();
         private readonly TimeTrackerService _timerService = new();
+        private System.Windows.Threading.DispatcherTimer? _notificationTimer;
         public MainWindow()
         {
             InitializeComponent();
@@ -141,6 +145,9 @@ namespace Projektsoftware
                 // Benachrichtigungen laden
                 _ = LoadNotificationsAsync();
 
+                // Benachrichtigungen periodisch aktualisieren (z. B. neue Webshop-Bestellungen)
+                StartNotificationTimer();
+
                 // Dokumentensuche im Dashboard
                 if (DashboardControl != null)
                 {
@@ -150,9 +157,16 @@ namespace Projektsoftware
                         var dialog = new EasybillDocumentsDialog();
                         dialog.ShowDialog();
                     };
+                    DashboardControl.ShowInvoiceOverviewClicked += (s, items) =>
+                    {
+                        var dialog = new InvoiceOverviewDialog(items) { Owner = this };
+                        dialog.ShowDialog();
+                    };
                     _ = LoadDocumentSearchAsync();
                 }
 
+                // Nach jedem automatischen Zahlungsabgleich (Hintergrund) Finanzdaten/Übersicht aktualisieren
+                App.AutoReconciliationCompleted += OnAutoReconciliationCompleted;
 // Posteingang im Dashboard
 if (DashboardControl != null)
 {
@@ -216,7 +230,30 @@ if (DashboardControl != null)
         {
             try
             {
-                var databaseService = new DatabaseService();
+                DatabaseService databaseService;
+                try
+                {
+                    databaseService = new DatabaseService();
+                }
+                catch
+                {
+                    var result = MessageBox.Show(
+                        "Es wurde noch keine Datenbankverbindung konfiguriert oder die Konfiguration ist ungültig.\n\n" +
+                        "Möchten Sie die Datenbankverbindung jetzt einrichten?",
+                        "Datenbankverbindung einrichten",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        var configDialog = new DatabaseConfigDialog();
+                        if (configDialog.ShowDialog() == true)
+                        {
+                            return await ShowLoginDialogAsync();
+                        }
+                    }
+                    return false;
+                }
 
                 // **WICHTIG: Datenbank initialisieren (erstellt users Tabelle)**
                 try
@@ -227,18 +264,24 @@ if (DashboardControl != null)
                 }
                 catch (Exception initEx)
                 {
-                    var errorMsg = $"Fehler beim Initialisieren der Datenbank:\n\n{initEx.Message}";
-                    if (initEx.InnerException != null)
-                    {
-                        errorMsg += $"\n\nInnerException:\n{initEx.InnerException.Message}";
-                    }
-                    errorMsg += $"\n\nStackTrace:\n{initEx.StackTrace}";
+                    var errorMsg = $"Fehler beim Verbinden mit der Datenbank:\n\n{initEx.InnerException?.Message ?? initEx.Message}\n\n" +
+                                   "Möchten Sie die Datenbankverbindung jetzt konfigurieren?";
 
-                    MessageBox.Show(
-                        errorMsg + "\n\nDie Anwendung wird beendet.",
-                        "Datenbankfehler",
-                        MessageBoxButton.OK,
+                    var result = MessageBox.Show(
+                        errorMsg,
+                        "Datenbankverbindung fehlgeschlagen",
+                        MessageBoxButton.YesNo,
                         MessageBoxImage.Error);
+
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        var configDialog = new DatabaseConfigDialog();
+                        if (configDialog.ShowDialog() == true)
+                        {
+                            // Neu versuchen mit neuer Konfiguration
+                            return await ShowLoginDialogAsync();
+                        }
+                    }
                     return false;
                 }
 
@@ -681,6 +724,12 @@ if (DashboardControl != null)
             dialog.ShowDialog();
         }
 
+        private void ShowPaymentReconciliation_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new PaymentReconciliationDialog { Owner = this };
+            dialog.ShowDialog();
+        }
+
         private void ConfigureExchange_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new ExchangeSettingsDialog { Owner = this };
@@ -781,6 +830,7 @@ private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
                 ("tickets",       TabTickets),
                 ("crm",           TabCrm),
                 ("einkauf",       TabEinkauf),
+                ("sales",         TabSales),
                 ("mitarbeiter",   TabMitarbeiter),
             };
 
@@ -791,6 +841,47 @@ private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
 
             // Einstellungen-Menü nur für berechtigte Benutzer
             MenuEinstellungen.Visibility = PermissionService.HasAccess("einstellungen") ? Visibility.Visible : Visibility.Collapsed;
+
+            // Alle Menüpunkte und Quick-Access-Buttons anhand ihres Tag-Werts ausblenden
+            ApplyPermissionsToVisualTree(this);
+        }
+
+        /// <summary>
+        /// Iteriert rekursiv durch den Visual-/Logical-Tree und blendet alle Elemente
+        /// (MenuItem, Button) mit Tag="modul_key" aus, sofern der Benutzer keinen Zugriff hat.
+        /// </summary>
+        private static void ApplyPermissionsToVisualTree(DependencyObject root)
+        {
+            if (root == null) return;
+
+            foreach (var child in System.Windows.LogicalTreeHelper.GetChildren(root))
+            {
+                if (child is DependencyObject dep)
+                {
+                    if (dep is FrameworkElement fe && fe.Tag is string key && !string.IsNullOrWhiteSpace(key))
+                    {
+                        fe.Visibility = PermissionService.HasAccess(key)
+                            ? Visibility.Visible
+                            : Visibility.Collapsed;
+                    }
+                    ApplyPermissionsToVisualTree(dep);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Prüft Zugriff auf ein Modul. Zeigt Warnung an und gibt false zurück, wenn nicht erlaubt.
+        /// </summary>
+        private bool EnsureAccess(string moduleKey)
+        {
+            if (PermissionService.HasAccess(moduleKey)) return true;
+
+            MessageBox.Show(
+                "Sie haben keine Berechtigung für dieses Modul.\n\nBitte wenden Sie sich an einen Administrator.",
+                "Zugriff verweigert",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return false;
         }
 
         private void Exit_Click(object sender, RoutedEventArgs e)
@@ -1746,19 +1837,38 @@ private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
                 var selectedInvoice = deliveryDialog.SelectedInvoice;
 
                 // Erstelle Lieferschein basierend auf der Rechnung
+                // Items bereinigen: IDs, Preise und berechnete Felder entfernen
+                // damit Easybill keinen neuen Rechnungstyp erzeugt
+                var cleanItems = selectedInvoice.Items?.Select(i => new EasybillDocumentItem
+                {
+                    Type        = i.Type,
+                    Number      = i.Number,
+                    Description = i.Description,
+                    Quantity    = i.Quantity,
+                    Unit        = i.Unit,
+                    Position    = i.Position,
+                    VatPercent  = i.VatPercent,
+                    // Preise werden beim Lieferschein nicht benötigt
+                    SinglePriceNet   = null,
+                    SinglePriceGross = null,
+                    Discount         = null,
+                    DiscountType     = null,
+                    PositionId       = i.PositionId
+                }).ToArray();
+
                 var deliveryNote = new EasybillDocument
                 {
-                    Type = "DELIVERY_NOTE",
-                    CustomerId = selectedInvoice.CustomerId,
-                    ProjectId = selectedInvoice.ProjectId,
+                    Type         = "DELIVERY_NOTE",
+                    CustomerId   = selectedInvoice.CustomerId,
+                    ProjectId    = selectedInvoice.ProjectId,
                     DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
-                    Title = $"Lieferschein zu Rechnung {selectedInvoice.Number}",
-                    Subject = selectedInvoice.Subject,
-                    Text = $"Lieferung gemäß Rechnung {selectedInvoice.Number} vom {selectedInvoice.DocumentDate}",
-                    TextSuffix = "Bitte prüfen Sie die Lieferung auf Vollständigkeit und Unversehrtheit.",
-                    Items = selectedInvoice.Items,
+                    Title        = $"Lieferschein zu Rechnung {selectedInvoice.Number}",
+                    Subject      = selectedInvoice.Subject,
+                    TextPrefix   = $"Lieferung gemäß Rechnung {selectedInvoice.Number} vom {selectedInvoice.DocumentDate}",
+                    Text         = "Bitte prüfen Sie die Lieferung auf Vollständigkeit und Unversehrtheit.",
+                    Items        = cleanItems,
                     BuyerReference = selectedInvoice.Number,
-                    ServiceDate = selectedInvoice.ServiceDate
+                    ServiceDate  = selectedInvoice.ServiceDate
                 };
 
                 var createdDeliveryNote = await easybillService.CreateDeliveryNoteAsync(deliveryNote);
@@ -2044,6 +2154,59 @@ private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
             }
         }
 
+        private void ConfigureLogicCAi_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var dialog = new LogicCConfigDialog { Owner = this };
+                dialog.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Fehler beim Öffnen der LogicC AI Konfiguration:\n\n{ex.Message}",
+                    "Fehler",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private void AboutLogicCAi_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var aiService = new LogicCAiService();
+                var status = aiService.IsConfigured ? "✅ Konfiguriert und einsatzbereit" : "⚠️ Nicht konfiguriert";
+
+                MessageBox.Show(
+                    $"🤖 LogicC AI Integration\n\n" +
+                    $"Status: {status}\n\n" +
+                    $"Features:\n" +
+                    $"• Automatische Ticket-Kategorisierung\n" +
+                    $"• Intelligente Antwort-Vorschläge\n" +
+                    $"• E-Mail-Zusammenfassungen\n" +
+                    $"• Lead-Scoring für CRM\n" +
+                    $"• Projekt-Aufwandsschätzung\n" +
+                    $"• Sentiment-Analyse\n" +
+                    $"• Text-Verbesserung\n\n" +
+                    $"Dokumentation:\n" +
+                    $"→ LOGICC_AI_INTEGRATION.md\n" +
+                    $"→ LOGICC_AI_QUICKSTART.md\n\n" +
+                    $"API: https://help.logicc.com",
+                    "Über LogicC AI",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Fehler: {ex.Message}",
+                    "Fehler",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
         #endregion
 
         #region Financial Dashboard
@@ -2063,6 +2226,7 @@ private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
             int totalPurchaseDocumentsCount = 0;
             int syncedPurchaseDocumentsCount = 0;
             string? easybillError = null;
+            var invoiceOverview = new List<InvoiceOverviewItem>();
 
             // 1. Lokale DB-Daten
             try
@@ -2106,7 +2270,12 @@ private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
 
                     foreach (var inv in allInvoices)
                     {
-                        if (inv.IsDraft) { draftInvoicesCount++; continue; }
+                        if (inv.IsDraft)
+                        {
+                            draftInvoicesCount++;
+                            invoiceOverview.Add(BuildInvoiceOverviewItem(inv, InvoiceOverviewStatus.Draft));
+                            continue;
+                        }
 
                         // Stornierte Rechnungen nicht mitzählen
                         if (inv.Status == "CANCELLED" || inv.Status == "INVOICE_CANCELLATION") continue;
@@ -2128,6 +2297,9 @@ private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
                                     && DateTime.TryParse(inv.DueDate, out var due)
                                     && due < DateTime.Today));
 
+                        decimal paidAmount = inv.PaidAmount ?? 0m;
+                        InvoiceOverviewStatus overviewStatus;
+
                         if (isPaid)
                         {
                             totalRevenuePaid += amount;
@@ -2135,13 +2307,22 @@ private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
                                 && DateTime.TryParse(inv.PaidAt, out var paidDt)
                                 && paidDt >= firstOfMonth)
                                 thisMonthRevenue += amount;
+
+                            // Teilzahlung erkennen: es wurde etwas gezahlt, aber nicht der volle Betrag
+                            overviewStatus = (inv.Status == "PARTIALLY_PAID"
+                                              || (paidAmount > 0m && paidAmount < amount))
+                                ? InvoiceOverviewStatus.PartiallyPaid
+                                : InvoiceOverviewStatus.Paid;
                         }
                         else
                         {
                             openInvoicesCount++;
                             openInvoicesAmount += amount;
                             if (isOverdue) { overdueInvoicesCount++; overdueInvoicesAmount += amount; }
+                            overviewStatus = isOverdue ? InvoiceOverviewStatus.Overdue : InvoiceOverviewStatus.Open;
                         }
+
+                        invoiceOverview.Add(BuildInvoiceOverviewItem(inv, overviewStatus, amount, paidAmount));
                     }
                 }
                 catch (Exception ex)
@@ -2171,14 +2352,130 @@ private void OpenExchangeInbox_Click(object sender, RoutedEventArgs e)
                 current.SyncedPurchaseDocumentsCount = syncedPurchaseDocumentsCount;
 
                 DashboardControl?.UpdateFinancialStats(current);
+                DashboardControl?.UpdateInvoiceOverview(invoiceOverview);
                 if (easybillError != null && DashboardControl != null)
                     DashboardControl.ShowEasybillError(easybillError);
             });
         }
 
+        /// <summary>
+        /// Erzeugt ein <see cref="InvoiceOverviewItem"/> aus einem Easybill-Dokument für die
+        /// Dashboard-Rechnungsübersicht. Datums-/Betragsfelder werden defensiv geparst.
+        /// </summary>
+        private static InvoiceOverviewItem BuildInvoiceOverviewItem(
+            EasybillDocument inv,
+            InvoiceOverviewStatus status,
+            decimal? grossAmount = null,
+            decimal paidAmount = 0m)
+        {
+            decimal gross = grossAmount
+                ?? inv.TotalGross
+                ?? inv.Items?.Sum(item => item.TotalPriceGross ?? 0m)
+                ?? 0m;
+
+            string customer = !string.IsNullOrWhiteSpace(inv.CustomerDisplay)
+                ? inv.CustomerDisplay!
+                : BuildCustomerName(inv.CustomerSnapshot);
+
+            return new InvoiceOverviewItem
+            {
+                Id = inv.Id,
+                Number = inv.Number ?? "",
+                CustomerName = customer,
+                GrossAmount = gross,
+                PaidAmount = paidAmount,
+                DocumentDate = ParseEasybillDate(inv.DocumentDate),
+                DueDate = ParseEasybillDate(inv.DueDate),
+                PaidAt = ParseEasybillDate(inv.PaidAt),
+                Status = status
+            };
+        }
+
+        private static string BuildCustomerName(CustomerSnapshot? snap)
+        {
+            if (snap == null) return "";
+            if (!string.IsNullOrWhiteSpace(snap.CompanyName)) return snap.CompanyName!;
+            var name = string.Join(" ", new[] { snap.FirstName, snap.LastName }
+                .Where(s => !string.IsNullOrWhiteSpace(s)));
+            return name;
+        }
+
+        private static DateTime? ParseEasybillDate(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.StartsWith("0000"))
+                return null;
+            return DateTime.TryParse(value, out var dt) ? dt : (DateTime?)null;
+        }
+
         private async void DashboardRefreshFinancial_Click(object sender, RoutedEventArgs e)
         {
             await LoadFinancialDashboardDataAsync();
+        }
+
+        /// <summary>
+        /// Wird nach jedem automatischen Hintergrund-Zahlungsabgleich aufgerufen und aktualisiert
+        /// die Finanzkennzahlen sowie die Rechnungsübersicht im Dashboard. Bei erfolgten Buchungen
+        /// wird zusätzlich immer eine Benachrichtigung (Toast + Glocken-Badge) angezeigt.
+        /// </summary>
+        private void OnAutoReconciliationCompleted(AutoReconciliationService.AutoReconciliationResult result)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (result is not { Success: true, BookedCount: > 0 })
+                    return;
+
+                // Finanzkennzahlen/Übersicht aktualisieren.
+                _ = LoadFinancialDashboardDataAsync();
+
+                // Persistente Benachrichtigung für die Glocke.
+                var plural = result.BookedCount == 1 ? "Zahlung" : "Zahlungen";
+                var details = result.BookedDetails.Count > 0
+                    ? string.Join("\n", result.BookedDetails)
+                    : $"{result.BookedCount} {plural} automatisch verbucht.";
+
+                _sessionNotifications.Insert(0, new AppNotification
+                {
+                    Title = $"💶 {result.BookedCount} {plural} automatisch verbucht",
+                    Message = details,
+                    Severity = NotificationSeverity.Info,
+                    Timestamp = DateTime.Now
+                });
+
+                RefreshNotificationBadge();
+
+                // Dezente, selbstschließende Toast-Benachrichtigung.
+                var toastMessage = result.BookedDetails.Count > 0
+                    ? result.BookedDetails[0] + (result.BookedCount > 1
+                        ? $"\n(+{result.BookedCount - 1} weitere)"
+                        : "")
+                    : $"{result.BookedCount} {plural} automatisch verbucht.";
+
+                try
+                {
+                    ToastNotificationWindow.ShowSuccess(
+                        $"{result.BookedCount} {plural} automatisch verbucht", toastMessage);
+                }
+                catch (Exception toastEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Toast-Anzeige fehlgeschlagen: {toastEx.Message}");
+                }
+            });
+        }
+
+        /// <summary>Aktualisiert das Glocken-Badge anhand der aktuell zwischengespeicherten Benachrichtigungen.</summary>
+        private void RefreshNotificationBadge()
+        {
+            _cachedNotifications = _sessionNotifications
+                .Concat(_cachedNotifications.Where(n => !_sessionNotifications.Contains(n)))
+                .OrderByDescending(n => n.Timestamp)
+                .ToList();
+
+            var count = _cachedNotifications.Count;
+            NotificationBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            NotificationBadgeText.Text = count > 9 ? "9+" : count.ToString();
+            NotificationStatusText.Text = count > 0
+                ? $"{count} Benachrichtigung{(count == 1 ? "" : "en")}"
+                : string.Empty;
         }
 
         private async System.Threading.Tasks.Task LoadDocumentSearchAsync()
@@ -2246,6 +2543,19 @@ private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
 
         #region Notifications
 
+        private void StartNotificationTimer()
+        {
+            if (_notificationTimer != null)
+                return;
+
+            _notificationTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(60)
+            };
+            _notificationTimer.Tick += async (s, e) => await LoadNotificationsAsync();
+            _notificationTimer.Start();
+        }
+
         private async System.Threading.Tasks.Task LoadNotificationsAsync()
         {
             try
@@ -2254,7 +2564,13 @@ private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
                 if (!dbConfig.IsConfigured()) return;
 
                 var svc = new NotificationService(dbConfig.GetConnectionString());
-                _cachedNotifications = await svc.GetNotificationsAsync();
+                var dbNotifications = await svc.GetNotificationsAsync();
+
+                // Sitzungs-Benachrichtigungen (z. B. automatische Buchungen) voranstellen.
+                _cachedNotifications = _sessionNotifications
+                    .Concat(dbNotifications)
+                    .OrderByDescending(n => n.Timestamp)
+                    .ToList();
 
                 await Dispatcher.InvokeAsync(() =>
                 {
@@ -2265,6 +2581,22 @@ private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
                         ? $"{count} Benachrichtigung{(count == 1 ? "" : "en")}"
                         : string.Empty;
                 });
+
+                // Anzahl neuer Webshop-Bestellungen für die separate Badge
+                try
+                {
+                    var db = new DatabaseService();
+                    var newOrders = await db.GetNewPortalOrderCountAsync();
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        OrdersBadge.Visibility = newOrders > 0 ? Visibility.Visible : Visibility.Collapsed;
+                        OrdersBadgeText.Text = newOrders > 9 ? "9+" : newOrders.ToString();
+                    });
+                }
+                catch (Exception ordEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Bestell-Badge laden fehlgeschlagen: {ordEx.Message}");
+                }
             }
             catch (Exception ex)
             {
@@ -2279,6 +2611,14 @@ private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
             // Mark notifications as read — clear the badge
             NotificationBadge.Visibility = Visibility.Collapsed;
             NotificationStatusText.Text = string.Empty;
+        }
+
+        private async void PortalOrders_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Views.PortalOrdersDialog { Owner = this };
+            dialog.ShowDialog();
+            // Nach dem Schließen Badges aktualisieren (Bestellungen evtl. bearbeitet)
+            await LoadNotificationsAsync();
         }
 
         #endregion
@@ -2484,8 +2824,21 @@ private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
             var query = GlobalSearchBox.Text?.Trim();
             if (string.IsNullOrEmpty(query)) return;
 
-            // Search across entities and navigate to the matching tab
-            if (viewModel == null) return;
+            // 1) Lokale Schnellsuche in geladenen ViewModel-Listen mit Tab-Navigation
+            if (viewModel != null)
+            {
+                if (TryQuickJumpLocal(query)) return;
+            }
+
+            // 2) Fallback: globale DB-weite Suche im Dialog
+            var dlg = new Views.GlobalSearchDialog(query) { Owner = this };
+            GlobalSearchBox.Text = string.Empty;
+            dlg.ShowDialog();
+        }
+
+        private bool TryQuickJumpLocal(string query)
+        {
+            if (viewModel == null) return false;
 
             // Search customers
             var customerMatch = viewModel.Customers.FirstOrDefault(c =>
@@ -2496,7 +2849,7 @@ private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
                 MainTabControl.SelectedItem = TabKunden;
                 CustomersDataGrid.SelectedItem = customerMatch;
                 CustomersDataGrid.ScrollIntoView(customerMatch);
-                return;
+                return true;
             }
 
             // Search projects
@@ -2508,7 +2861,7 @@ private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
                 MainTabControl.SelectedItem = TabProjekte;
                 ProjectsDataGrid.SelectedItem = projectMatch;
                 ProjectsDataGrid.ScrollIntoView(projectMatch);
-                return;
+                return true;
             }
 
             // Search tasks
@@ -2521,7 +2874,7 @@ private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
                 MainTabControl.SelectedItem = TabAufgaben;
                 TasksDataGrid.SelectedItem = taskMatch;
                 TasksDataGrid.ScrollIntoView(taskMatch);
-                return;
+                return true;
             }
 
             // Search employees
@@ -2533,11 +2886,10 @@ private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
                 MainTabControl.SelectedItem = TabMitarbeiter;
                 EmployeesDataGrid.SelectedItem = empMatch;
                 EmployeesDataGrid.ScrollIntoView(empMatch);
-                return;
+                return true;
             }
 
-            MessageBox.Show($"Keine Ergebnisse für \"{query}\" gefunden.",
-                "Suche", MessageBoxButton.OK, MessageBoxImage.Information);
+            return false;
         }
 
         #endregion
@@ -2825,6 +3177,103 @@ private async System.Threading.Tasks.Task LoadInboxPreviewAsync()
         {
             ThemeService.Toggle();
             DarkModeMenuItem.IsChecked = ThemeService.IsDarkMode;
+        }
+
+        #endregion
+
+        #region Erweiterte Module (Suche / KPI / SLA)
+
+        private void ShowGlobalSearch_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("global_search")) return;
+            var dlg = new Views.GlobalSearchDialog { Owner = this };
+            dlg.ShowDialog();
+        }
+
+        private void ShowKpiDashboard_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("kpi_dashboard")) return;
+            var dlg = new Views.KpiDashboardDialog { Owner = this };
+            dlg.ShowDialog();
+        }
+
+        private void ShowSlaMonitoring_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("sla_monitoring")) return;
+            var dlg = new Views.SlaMonitoringDialog { Owner = this };
+            dlg.ShowDialog();
+        }
+
+        private void ShowActivityFeed_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("activity_feed")) return;
+            new Views.ActivityFeedDialog { Owner = this }.ShowDialog();
+        }
+
+        private void ShowLeadKanban_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("lead_kanban")) return;
+            new Views.LeadKanbanDialog { Owner = this }.ShowDialog();
+        }
+
+        private void ShowLeadStatistics_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("lead_statistics")) return;
+            new Views.LeadStatisticsDialog { Owner = this }.ShowDialog();
+        }
+
+        private void ShowFollowUps_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("follow_ups")) return;
+            new Views.FollowUpDialog { Owner = this }.ShowDialog();
+        }
+
+        private void ShowBudgetTracking_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("budget_tracking")) return;
+            new Views.BudgetTrackingDialog { Owner = this }.ShowDialog();
+        }
+
+        private void ShowGantt_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("gantt")) return;
+            new Views.GanttDialog { Owner = this }.ShowDialog();
+        }
+
+        private void ShowProjectTemplates_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("project_templates")) return;
+            new Views.ProjectTemplatesDialog { Owner = this }.ShowDialog();
+        }
+
+        private void ShowEmailHistory_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("email_history")) return;
+            new Views.EmailHistoryDialog { Owner = this }.ShowDialog();
+        }
+
+        private void ShowOfferHistory_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("offer_history")) return;
+            new Views.OfferHistoryDialog { Owner = this }.ShowDialog();
+        }
+
+        private void ShowCsvImport_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("csv_import")) return;
+            new Views.CsvImportDialog { Owner = this }.ShowDialog();
+        }
+
+        private void ShowSupplierRating_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("supplier_rating")) return;
+            new Views.SupplierRatingDialog { Owner = this }.ShowDialog();
+        }
+
+        private void ShowExpenses_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureAccess("expenses_analytics")) return;
+            new Views.ExpensesAnalyticsDialog { Owner = this }.ShowDialog();
         }
 
         #endregion

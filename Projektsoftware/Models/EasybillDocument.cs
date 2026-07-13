@@ -12,7 +12,7 @@ namespace Projektsoftware.Models
         public long? Id { get; set; }
 
         [JsonPropertyName("type")]
-        public string? Type { get; set; } // INVOICE, OFFER, ORDER_CONFIRMATION, DELIVERY_NOTE, CREDIT, etc.
+        public string? Type { get; set; } // INVOICE, OFFER, CHARGE_CONFIRM, DELIVERY, CREDIT, DUNNING, etc.
 
         [JsonPropertyName("customer_id")]
         [JsonConverter(typeof(NullableLongConverter))]
@@ -33,11 +33,13 @@ namespace Projektsoftware.Models
         [JsonPropertyName("subject")]
         public string? Subject { get; set; }
 
+        // Easybill: Einleitungstext (wird vor den Positionen angezeigt)
+        [JsonPropertyName("text_prefix")]
+        public string? TextPrefix { get; set; }
+
+        // Easybill: Schlusstext (wird nach den Positionen angezeigt)
         [JsonPropertyName("text")]
         public string? Text { get; set; }
-
-        [JsonPropertyName("text_suffix")]
-        public string? TextSuffix { get; set; }
 
         [JsonPropertyName("status")]
         public string? Status { get; set; } // DRAFT, SENT, PAID, CANCELLED, etc.
@@ -45,13 +47,21 @@ namespace Projektsoftware.Models
         [JsonPropertyName("service_date")]
         public ServiceDate? ServiceDate { get; set; }
 
-        [JsonPropertyName("total_gross")]
+        // Easybill liefert den Bruttobetrag im Dokument-Endpunkt unter "amount" (in Cent), nicht "total_gross".
+        [JsonPropertyName("amount")]
         [JsonConverter(typeof(EasybillPriceConverter))]
         public decimal? TotalGross { get; set; }
 
-        [JsonPropertyName("total_net")]
+        // Easybill liefert den Nettobetrag unter "amount_net" (in Cent), nicht "total_net".
+        [JsonPropertyName("amount_net")]
         [JsonConverter(typeof(EasybillPriceConverter))]
         public decimal? TotalNet { get; set; }
+
+        // Bereits (an)gezahlter Betrag (in Cent) – dient zur Erkennung offener/geschlossener Rechnungen,
+        // da das "status"-Feld dieses Endpunkts leer sein kann.
+        [JsonPropertyName("paid_amount")]
+        [JsonConverter(typeof(EasybillPriceConverter))]
+        public decimal? PaidAmount { get; set; }
 
         [JsonPropertyName("currency")]
         public string? Currency { get; set; } // EUR, USD, etc.
@@ -96,6 +106,12 @@ namespace Projektsoftware.Models
         [JsonPropertyName("buyer_reference")]
         public string? BuyerReference { get; set; }
 
+        [JsonPropertyName("ref_id")]
+        public long? RefId { get; set; }
+
+        [JsonPropertyName("root_id")]
+        public long? RootId { get; set; }
+
         [JsonPropertyName("payment_types")]
         public string[]? PaymentTypes { get; set; }
 
@@ -109,14 +125,22 @@ namespace Projektsoftware.Models
         [JsonIgnore]
         public string DisplayType => Type switch
         {
-            "INVOICE" => "Rechnung",
-            "OFFER" => "Angebot",
-            "ORDER_CONFIRMATION" => "Auftragsbestätigung",
-            "DELIVERY_NOTE" => "Lieferschein",
-            "CREDIT" => "Gutschrift",
-            "DUNNING" => "Mahnung",
-            "INVOICE_CANCELLATION" => "Storno",
-            "PROFORMA_INVOICE" => "Proforma-Rechnung",
+            "INVOICE"              => "Rechnung",
+            "OFFER"                => "Angebot",
+            "CHARGE_CONFIRM"       => "Auftragsbestätigung",
+            "ORDER"                => "Bestellung",
+            "DELIVERY"             => "Lieferschein",
+            "CREDIT"               => "Gutschrift",
+            "DUNNING"              => "Mahnung",
+            "REMINDER"             => "Zahlungserinnerung",
+            "STORNO"               => "Storno",
+            "STORNO_CREDIT"        => "Storno-Gutschrift",
+            "PROFORMA_INVOICE"     => "Proforma-Rechnung",
+            "STORNO_PROFORMA_INVOICE" => "Storno-Proforma-Rechnung",
+            "CHARGE"               => "Anzahlungsrechnung",
+            "RECURRING"            => "Wiederkehrend",
+            "PDF"                  => "PDF-Dokument",
+            "LETTER"               => "Brief",
             _ => Type
         };
 

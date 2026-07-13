@@ -34,7 +34,13 @@ namespace Projektsoftware.Models
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public bool IsActive { get; set; }
-        
+
+        // Kundenportal: genereller Rabatt in Prozent
+        public decimal DiscountPercent { get; set; }
+
+        // Kundenportal: Rechnungskauf im Webshop freigegeben (Bonität)
+        public bool InvoiceAllowed { get; set; }
+
         public Customer()
         {
             CreatedAt = DateTime.Now;

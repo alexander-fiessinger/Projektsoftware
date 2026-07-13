@@ -1,0 +1,175 @@
+@inject ApiDatabaseService Db
+@inject ContractPdfService Contracts
+@inject IJSRuntime JS
+@using Projektsoftware.Api.Models
+
+<div class="section-title">📜 Vertragsgenerator</div>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <div class="list-card" style="border-left:4px solid var(--accent);">@_message</div>
+}
+
+<div class="list-card">
+    <div class="row"><h3>⚙️ Vertragstyp</h3></div>
+    <select class="status-select mt-8" @bind="_data.ContractType">
+        <option value="@ContractType.Dienstleistungsvertrag">Dienstleistungsvertrag (Robotik) – §§ 611 ff. BGB</option>
+        <option value="@ContractType.Werkvertrag">Werkvertrag – §§ 631 ff. BGB</option>
+    </select>
+</div>
+
+<div class="list-card">
+    <div class="row"><h3>🏢 Auftragnehmer</h3></div>
+    <label class="form-label mt-8">Firma</label>
+    <input class="form-input" @bind="_data.ContractorCompany" />
+    <label class="form-label mt-8">Vertreten durch</label>
+    <input class="form-input" @bind="_data.ContractorName" />
+    <label class="form-label mt-8">Straße</label>
+    <input class="form-input" @bind="_data.ContractorStreet" />
+    <label class="form-label mt-8">PLZ / Ort</label>
+    <input class="form-input" @bind="_data.ContractorZipCity" />
+    <label class="form-label mt-8">E-Mail</label>
+    <input class="form-input" @bind="_data.ContractorEmail" />
+    <label class="form-label mt-8">Telefon</label>
+    <input class="form-input" @bind="_data.ContractorPhone" />
+    <label class="form-label mt-8">USt-IdNr.</label>
+    <input class="form-input" @bind="_data.ContractorVatId" />
+    <label class="form-label mt-8">Steuernummer</label>
+    <input class="form-input" @bind="_data.ContractorTaxNumber" />
+</div>
+
+<div class="list-card">
+    <div class="row"><h3>👤 Auftraggeber</h3></div>
+    <label class="form-label mt-8">Kunde übernehmen (optional)</label>
+    <select class="status-select" @onchange="OnCustomerSelected">
+        <option value="">– Kunde wählen –</option>
+        @foreach (var c in _customers)
+        {
+            <option value="@c.Id">@c.DisplayName</option>
+        }
+    </select>
+    <label class="form-label mt-8">Firma</label>
+    <input class="form-input" @bind="_data.ClientCompany" />
+    <label class="form-label mt-8">Name / Ansprechpartner</label>
+    <input class="form-input" @bind="_data.ClientName" />
+    <label class="form-label mt-8">Straße</label>
+    <input class="form-input" @bind="_data.ClientStreet" />
+    <label class="form-label mt-8">PLZ / Ort</label>
+    <input class="form-input" @bind="_data.ClientZipCity" />
+    <label class="form-label mt-8">E-Mail</label>
+    <input class="form-input" @bind="_data.ClientEmail" />
+    <label class="form-label mt-8">Telefon</label>
+    <input class="form-input" @bind="_data.ClientPhone" />
+</div>
+
+<div class="list-card">
+    <div class="row"><h3>📝 Vertragsinhalt</h3></div>
+    <label class="form-label mt-8">Vertragsgegenstand (optional)</label>
+    <textarea class="form-input" rows="3" @bind="_data.ContractSubject"></textarea>
+    <label class="form-label mt-8">Leistungsbeschreibung</label>
+    <textarea class="form-input" rows="6" @bind="_data.ServiceDescription"></textarea>
+    <label class="form-label mt-8">Nettobetrag (€)</label>
+    <input class="form-input" type="number" step="0.01" @bind="_data.NetAmount" />
+    <label class="form-label mt-8">USt-Satz (%)</label>
+    <input class="form-input" type="number" step="0.1" @bind="_data.VatRate" />
+    <label class="form-label mt-8">Zahlungsziel</label>
+    <input class="form-input" @bind="_data.PaymentTerms" />
+</div>
+
+@if (_data.ContractType == ContractType.Dienstleistungsvertrag)
+{
+    <div class="list-card">
+        <div class="row"><h3>🔧 Dienstleistung</h3></div>
+        <label class="form-label mt-8">Leistungsort</label>
+        <input class="form-input" @bind="_data.ServiceLocation" />
+        <label class="form-label mt-8">Arbeitszeiten</label>
+        <input class="form-input" @bind="_data.WorkingHours" />
+        <label class="form-label mt-8">Stundensatz (€, optional)</label>
+        <input class="form-input" type="number" step="0.01" @bind="_hourlyRate" />
+    </div>
+}
+else
+{
+    <div class="list-card">
+        <div class="row"><h3>🛠️ Werkvertrag</h3></div>
+        <label class="form-label mt-8">Liefertermin</label>
+        <input class="form-input" type="date" @bind="_deliveryDate" />
+        <label class="form-label mt-8">Abnahmekriterien</label>
+        <textarea class="form-input" rows="3" @bind="_data.AcceptanceCriteria"></textarea>
+        <label class="form-label mt-8">Gewährleistungsfrist</label>
+        <input class="form-input" @bind="_data.WarrantyPeriod" />
+        <label class="form-label mt-8">Zahlungsplan</label>
+        <textarea class="form-input" rows="3" @bind="_data.WorkPaymentSchedule"></textarea>
+    </div>
+}
+
+<div class="list-card">
+    <div class="row"><h3>📅 Laufzeit & Sonstiges</h3></div>
+    <label class="form-label mt-8">Vertragsbeginn</label>
+    <input class="form-input" type="date" @bind="_data.ContractStart" />
+    <label class="form-label mt-8">Vertragsende (optional)</label>
+    <input class="form-input" type="date" @bind="_contractEnd" />
+    <label class="form-label mt-8">Kündigungsfrist</label>
+    <input class="form-input" @bind="_data.NoticePeriod" />
+    <label class="form-label mt-8">Besondere Vereinbarungen (optional)</label>
+    <textarea class="form-input" rows="3" @bind="_data.AdditionalClauses"></textarea>
+    <label class="form-label mt-8">Gerichtsstand (optional)</label>
+    <input class="form-input" @bind="_data.Jurisdiction" />
+</div>
+
+<button class="btn-action block mt-8" disabled="@_busy" @onclick="GenerateContract">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    Vertrag als PDF erstellen
+</button>
+
+@code {
+    private readonly ContractData _data = new();
+    private List<CustomerDto> _customers = new();
+    private bool _busy;
+    private string? _message;
+
+    private decimal? _hourlyRate;
+    private DateTime? _deliveryDate;
+    private DateTime? _contractEnd;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _customers = await Db.GetCustomersAsync(); }
+        catch (Exception ex) { _message = "Kunden konnten nicht geladen werden: " + ex.Message; }
+    }
+
+    private void OnCustomerSelected(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var id)) return;
+        var c = _customers.FirstOrDefault(x => x.Id == id);
+        if (c is null) return;
+
+        _data.ClientCompany = c.CompanyName;
+        _data.ClientName = $"{c.FirstName} {c.LastName}".Trim();
+        _data.ClientStreet = c.Street;
+        _data.ClientZipCity = $"{c.ZipCode} {c.City}".Trim();
+        _data.ClientEmail = c.Email;
+        _data.ClientPhone = c.Phone;
+    }
+
+    private async Task GenerateContract()
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            _data.HourlyRate = _hourlyRate;
+            _data.DeliveryDate = _deliveryDate;
+            _data.ContractEnd = _contractEnd;
+
+            var bytes = Contracts.Generate(_data);
+            var base64 = Convert.ToBase64String(bytes);
+            var typeName = _data.ContractType == ContractType.Werkvertrag ? "Werkvertrag" : "Dienstleistungsvertrag";
+            var fileName = $"{typeName}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            await JS.InvokeVoidAsync("downloadFile", fileName, base64, "application/pdf");
+            _message = $"{fileName} wurde erstellt.";
+        }
+        catch (Exception ex) { _message = "Fehler: " + ex.Message; }
+        finally { _busy = false; }
+    }
+}

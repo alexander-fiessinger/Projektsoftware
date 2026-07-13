@@ -1,0 +1,242 @@
+@page "/portal/warenkorb"
+@inject ApiDatabaseService Db
+@inject PortalSessionService Portal
+@inject PortalCartService Cart
+@inject NavigationManager Nav
+@implements IDisposable
+
+<PageTitle>Kundenportal · Warenkorb</PageTitle>
+
+<div class="app-container">
+    <header class="app-header">
+        <div class="app-header-left">
+            <div>
+                <h1>Warenkorb</h1>
+                <div class="app-header-subtitle">
+                    @(string.IsNullOrWhiteSpace(Portal.ContactName) ? Portal.Email : Portal.ContactName)
+                </div>
+            </div>
+        </div>
+        <div class="app-header-actions">
+            <button @onclick="GoToShop" title="Weiter einkaufen">Weiter einkaufen</button>
+        </div>
+    </header>
+
+    <div class="app-content">
+        @if (_confirmation is not null)
+        {
+            <div class="list-card" style="text-align:center;padding:32px 20px;">
+                <div style="font-size:42px;margin-bottom:8px;">✅</div>
+                <h3 style="margin-bottom:6px;">Vielen Dank für Ihre Bestellung!</h3>
+                <div class="sub" style="margin-bottom:4px;">Ihre Bestellnummer:</div>
+                <div style="font-size:20px;font-weight:800;letter-spacing:-0.3px;margin-bottom:14px;">@_confirmation</div>
+                <div class="detail-text" style="margin-bottom:18px;">
+                    Wir haben Ihre Bestellung erhalten und bearbeiten sie schnellstmöglich.
+                    Zahlungsart: <strong>@_confirmedPaymentText</strong>.
+                </div>
+                <button class="btn btn-primary" @onclick="GoToShop">Weiter einkaufen</button>
+            </div>
+        }
+        else if (Cart.IsEmpty)
+        {
+            <div class="empty-state">
+                Ihr Warenkorb ist leer.
+                <div style="margin-top:16px;">
+                    <button class="btn btn-primary" @onclick="GoToShop">Zum Shop</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            @foreach (var item in Cart.Items)
+            {
+                <div class="list-card">
+                    <div class="row">
+                        <div>
+                            <h3>@item.Name</h3>
+                            <div class="sub">Art.-Nr. @item.Number · @item.NetPrice.ToString("N2") € netto / @item.Unit</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:17px;font-weight:800;">@item.LineNet.ToString("N2") €</div>
+                            <div class="sub">netto</div>
+                        </div>
+                    </div>
+                    <div class="row mt-8" style="gap:10px;">
+                        <div class="qty-stepper">
+                            <button type="button" @onclick="() => Dec(item)" aria-label="weniger">−</button>
+                            <input type="number" min="1" value="@item.Quantity"
+                                   @onchange="e => SetQty(item, e.Value?.ToString())" />
+                            <button type="button" @onclick="() => Inc(item)" aria-label="mehr">+</button>
+                        </div>
+                        <button class="btn-action danger" @onclick="() => Remove(item)">Entfernen</button>
+                    </div>
+                </div>
+            }
+
+            <div class="cart-summary">
+                <div class="cart-summary-row">
+                    <span>Zwischensumme (netto)</span>
+                    <span>@Cart.TotalNet.ToString("N2") €</span>
+                </div>
+                <div class="cart-summary-row">
+                    <span>zzgl. MwSt.</span>
+                    <span>@((Cart.TotalGross - Cart.TotalNet).ToString("N2")) €</span>
+                </div>
+                <div class="cart-summary-total">
+                    <span>Gesamt (brutto)</span>
+                    <span>@Cart.TotalGross.ToString("N2") €</span>
+                </div>
+            </div>
+
+            <div class="section-title">Zahlungsart</div>
+
+            <label class="payment-option @(_paymentMethod == PortalPaymentMethod.Prepayment ? "selected" : "")">
+                <input type="radio" name="payment" checked="@(_paymentMethod == PortalPaymentMethod.Prepayment)"
+                       @onchange="() => _paymentMethod = PortalPaymentMethod.Prepayment" />
+                <div>
+                    <div class="po-title">Vorkasse</div>
+                    <div class="po-hint">Sie erhalten nach der Bestellung unsere Bankverbindung. Wir liefern nach Zahlungseingang.</div>
+                </div>
+            </label>
+
+            <label class="payment-option @(_canPayByInvoice ? "" : "disabled") @(_paymentMethod == PortalPaymentMethod.Invoice ? "selected" : "")">
+                <input type="radio" name="payment" disabled="@(!_canPayByInvoice)"
+                       checked="@(_paymentMethod == PortalPaymentMethod.Invoice)"
+                       @onchange="() => _paymentMethod = PortalPaymentMethod.Invoice" />
+                <div>
+                    <div class="po-title">Auf Rechnung</div>
+                    <div class="po-hint">
+                        @if (_canPayByInvoice)
+                        {
+                            <span>Zahlung innerhalb von 14 Tagen nach Erhalt der Rechnung.</span>
+                        }
+                        else
+                        {
+                            <span>Verfügbar nach Ihren ersten 2 Bestellungen und Freigabe durch unser Team
+                                (aktuell @_completedOrderCount von 2 Bestellungen).</span>
+                        }
+                    </div>
+                </div>
+            </label>
+
+            <div class="form-group" style="margin-top:14px;">
+                <label>Anmerkung (optional)</label>
+                <input @bind="_note" placeholder="z. B. Lieferhinweis oder Wunschtermin" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="error-msg">@_error</div>
+            }
+
+            <button class="btn btn-primary" style="margin-top:8px;" @onclick="SubmitOrder" disabled="@_submitting">
+                @if (_submitting)
+                {
+                    <span>Bestellung wird gesendet…</span>
+                }
+                else
+                {
+                    <span>Jetzt kostenpflichtig bestellen</span>
+                }
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    private PortalPaymentMethod _paymentMethod = PortalPaymentMethod.Prepayment;
+    private bool _canPayByInvoice;
+    private int _completedOrderCount;
+    private string _note = "";
+    private string _error = "";
+    private bool _submitting;
+    private string? _confirmation;
+    private string _confirmedPaymentText = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Portal.IsAuthenticated)
+        {
+            Nav.NavigateTo("/portal");
+            return;
+        }
+
+        Cart.OnChange += StateHasChanged;
+
+        try
+        {
+            var status = await Db.GetPortalCustomerStatusAsync(Portal.CustomerId);
+            _canPayByInvoice = status.CanPayByInvoice;
+            _completedOrderCount = status.CompletedOrderCount;
+        }
+        catch
+        {
+            _canPayByInvoice = false;
+        }
+    }
+
+    private void Inc(PortalCartItemDto item) => Cart.SetQuantity(item.ProductId, item.Quantity + 1);
+
+    private void Dec(PortalCartItemDto item) => Cart.SetQuantity(item.ProductId, item.Quantity - 1);
+
+    private void SetQty(PortalCartItemDto item, string? value)
+    {
+        if (int.TryParse(value, out var q))
+            Cart.SetQuantity(item.ProductId, q);
+    }
+
+    private void Remove(PortalCartItemDto item) => Cart.Remove(item.ProductId);
+
+    private async Task SubmitOrder()
+    {
+        _error = "";
+        if (Cart.IsEmpty)
+        {
+            _error = "Ihr Warenkorb ist leer.";
+            return;
+        }
+
+        // Sicherheit: Rechnung nur bei Berechtigung – sonst Vorkasse erzwingen.
+        var paymentMethod = _paymentMethod;
+        if (paymentMethod == PortalPaymentMethod.Invoice && !_canPayByInvoice)
+            paymentMethod = PortalPaymentMethod.Prepayment;
+
+        _submitting = true;
+        try
+        {
+            var request = new PortalCheckoutRequest(
+                Portal.UserId,
+                Portal.CustomerId,
+                Cart.Snapshot(),
+                paymentMethod,
+                _note);
+
+            var result = await Db.CreatePortalOrderAsync(request);
+            if (result.Success)
+            {
+                _confirmation = result.OrderNumber;
+                _confirmedPaymentText = paymentMethod == PortalPaymentMethod.Invoice ? "Auf Rechnung" : "Vorkasse";
+                Cart.Clear();
+            }
+            else
+            {
+                _error = result.Error ?? "Die Bestellung konnte nicht abgeschlossen werden.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Verbindungsfehler: {ex.Message}";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private void GoToShop() => Nav.NavigateTo("/portal/preise");
+
+    public void Dispose()
+    {
+        Cart.OnChange -= StateHasChanged;
+    }
+}

@@ -1,0 +1,193 @@
+@page "/portal/preise"
+@inject ApiDatabaseService Db
+@inject PortalSessionService Portal
+@inject PortalCartService Cart
+@inject NavigationManager Nav
+@implements IDisposable
+
+<PageTitle>Kundenportal · Shop</PageTitle>
+
+<div class="app-container">
+    <header class="app-header">
+        <div class="app-header-left">
+            <div>
+                <h1>Shop</h1>
+                <div class="app-header-subtitle">
+                    @(string.IsNullOrWhiteSpace(Portal.ContactName) ? Portal.Email : Portal.ContactName)
+                </div>
+            </div>
+        </div>
+        <div class="app-header-actions">
+            <button @onclick="GoToOrders" title="Meine Bestellungen">Bestellungen</button>
+            <button @onclick="GoToCart" title="Warenkorb" style="position:relative;">
+                Warenkorb
+                @if (Cart.TotalQuantity > 0)
+                {
+                    <span class="cart-badge">@Cart.TotalQuantity</span>
+                }
+            </button>
+            <button @onclick="Logout" title="Abmelden">Abmelden</button>
+        </div>
+    </header>
+
+    <div class="app-content">
+        <div class="shop-wrap">
+            @if (Portal.DiscountPercent > 0)
+            {
+                <div class="badge" style="margin-bottom:14px;">
+                    Ihr persönlicher Rabatt: @Portal.DiscountPercent.ToString("0.##") %
+                </div>
+            }
+
+            <div class="search-bar">
+                <input @bind="_search" @bind:event="oninput" placeholder="Artikel suchen…" />
+            </div>
+        </div>
+
+        @if (_loading)
+        {
+            <div class="loading">Artikel werden geladen…</div>
+        }
+        else if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="error-msg">@_error</div>
+        }
+        else if (Filtered.Count == 0)
+        {
+            <div class="empty-state">Keine Artikel gefunden.</div>
+        }
+        else
+        {
+            <div class="shop-wrap">
+                <div class="shop-grid">
+                    @foreach (var p in Filtered)
+                    {
+                        <div class="shop-card">
+                            <div class="shop-card-head">
+                                <div class="shop-card-title">
+                                    <h3>@p.Name</h3>
+                                    <div class="shop-card-meta">
+                                        <span class="shop-chip">Art.-Nr. @p.Number</span>
+                                        <span class="shop-chip muted">je @p.Unit</span>
+                                    </div>
+                                </div>
+                                <div class="shop-price-box">
+                                    @if (p.HasDiscount)
+                                    {
+                                        <div class="shop-price-old">@p.ListNetPrice.ToString("N2") €</div>
+                                    }
+                                    <div class="shop-price">@p.NetPrice.ToString("N2") €</div>
+                                    <div class="shop-price-label">netto</div>
+                                </div>
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(p.Description))
+                            {
+                                <div class="shop-card-desc">@p.Description</div>
+                            }
+
+                            <div class="shop-card-foot shop-card-foot-top">
+                                <div class="shop-tax">
+                                    inkl. @p.VatPercent % MwSt.<br />
+                                    <strong>@p.GrossPrice.ToString("N2") € brutto</strong>
+                                </div>
+                                <div class="shop-actions">
+                                    <div class="qty-stepper">
+                                        <button type="button" @onclick="() => DecQty(p.Id)" aria-label="weniger">−</button>
+                                        <input type="number" min="1" value="@GetQty(p.Id)"
+                                               @onchange="e => SetQty(p.Id, e.Value?.ToString())" />
+                                        <button type="button" @onclick="() => IncQty(p.Id)" aria-label="mehr">+</button>
+                                    </div>
+                                    <button class="btn-action success" @onclick="() => AddToCart(p)">
+                                        In den Warenkorb
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<PortalProductDto> _products = new();
+    private readonly Dictionary<int, int> _quantities = new();
+    private string _search = "";
+    private string _error = "";
+    private bool _loading = true;
+
+    private List<PortalProductDto> Filtered =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _products
+            : _products.Where(p =>
+                (p.Name?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (p.Number?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (p.Description?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false))
+              .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Portal.IsAuthenticated)
+        {
+            Nav.NavigateTo("/portal");
+            return;
+        }
+
+        Cart.OnChange += StateHasChanged;
+
+        try
+        {
+            _products = await Db.GetPortalProductsAsync(Portal.DiscountPercent);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Artikel konnten nicht geladen werden: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private int GetQty(int productId) => _quantities.TryGetValue(productId, out var q) ? q : 1;
+
+    private void SetQty(int productId, string? value)
+    {
+        if (int.TryParse(value, out var q) && q >= 1)
+            _quantities[productId] = q;
+        else
+            _quantities[productId] = 1;
+    }
+
+    private void IncQty(int productId) => _quantities[productId] = GetQty(productId) + 1;
+
+    private void DecQty(int productId)
+    {
+        var q = GetQty(productId) - 1;
+        _quantities[productId] = q < 1 ? 1 : q;
+    }
+
+    private void AddToCart(PortalProductDto p)
+    {
+        Cart.Add(p.Id, p.Number, p.Name, p.Unit, p.NetPrice, p.VatPercent, GetQty(p.Id));
+        _quantities[p.Id] = 1;
+    }
+
+    private void GoToCart() => Nav.NavigateTo("/portal/warenkorb");
+
+    private void GoToOrders() => Nav.NavigateTo("/portal/bestellungen");
+
+    private void Logout()
+    {
+        Cart.Clear();
+        Portal.Logout();
+        Nav.NavigateTo("/portal");
+    }
+
+    public void Dispose()
+    {
+        Cart.OnChange -= StateHasChanged;
+    }
+}

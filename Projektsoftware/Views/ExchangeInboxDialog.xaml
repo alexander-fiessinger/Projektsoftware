@@ -22,7 +22,9 @@
                             Background="#4CAF50" Foreground="White" FontWeight="Bold"
                             BorderThickness="0" Margin="0,0,8,0"/>
                     <Button Content="👤 Kunde zuweisen" Width="145" Height="32" Click="AssignCustomer_Click"
-                            Background="#FF9800" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
+                            Background="#FF9800" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
+                    <Button x:Name="AiSummarizeButton" Content="🤖 KI-Zusammenfassung" Width="180" Height="32" Click="AiSummarize_Click"
+                            Background="#9C27B0" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
                 </StackPanel>
                 <TextBlock Grid.Column="1" x:Name="StatusTextBlock" VerticalAlignment="Center"
                            HorizontalAlignment="Center" FontStyle="Italic" Foreground="#555"/>
@@ -83,6 +85,11 @@
                             <TextBlock x:Name="PreviewDateText" Foreground="#777" FontSize="11" Margin="0,1,0,0"/>
                             <TextBlock x:Name="PreviewCustomerText" FontSize="12" Margin="0,2,0,0"
                                        Foreground="#1976D2"/>
+                            <!-- KI-Zusammenfassung Ergebnis -->
+                            <Border x:Name="AiSummaryBorder" Background="#E1F5FE" Padding="8" Margin="0,8,0,0" 
+                                    BorderBrush="#4EC9B0" BorderThickness="1" CornerRadius="4" Visibility="Collapsed">
+                                <TextBlock x:Name="AiSummaryText" TextWrapping="Wrap" FontSize="11" Foreground="#333"/>
+                            </Border>
                         </StackPanel>
                     </Border>
 

@@ -1,0 +1,192 @@
+@page "/portal/register"
+@inject ApiDatabaseService Db
+@inject NavigationManager Nav
+
+<PageTitle>Kundenportal · Registrierung</PageTitle>
+
+<div class="login-container">
+    <div style="margin-bottom:12px">
+        <div class="login-title">Konto erstellen</div>
+        <div class="login-subtitle">Neukunden-Registrierung fürs Kundenportal</div>
+    </div>
+    <div class="login-card">
+        @if (_success)
+        {
+            <div style="text-align:center;padding:8px 0;">
+                <div style="font-size:40px;line-height:1;margin-bottom:8px;">✓</div>
+                <div style="font-weight:600;margin-bottom:8px;">Registrierung erfolgreich</div>
+                <div style="color:#666;font-size:14px;margin-bottom:16px;">
+                    Ihre Daten wurden übernommen und als Neukunde angelegt.
+                    Ihr Konto wird durch unser Team geprüft und freigeschaltet.
+                    Sie können sich anmelden, sobald die Freischaltung erfolgt ist.
+                </div>
+                <a class="btn btn-primary" href="/portal" style="display:inline-block;text-decoration:none;">Zur Anmeldung</a>
+            </div>
+        }
+        else
+        {
+            <div style="font-weight:600;font-size:14px;margin-bottom:8px;color:#1565C0;">Firmen-/Kontaktdaten</div>
+            <div class="form-group">
+                <label>Firmenname</label>
+                <input @bind="_companyName" @bind:event="oninput" placeholder="Firmenname (optional bei Privatperson)"
+                       @onkeydown="HandleKey" autocomplete="organization"/>
+            </div>
+            <div style="display:flex;gap:12px;">
+                <div class="form-group" style="flex:1;">
+                    <label>Vorname</label>
+                    <input @bind="_firstName" @bind:event="oninput" placeholder="Vorname"
+                           @onkeydown="HandleKey" autocomplete="given-name"/>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Nachname</label>
+                    <input @bind="_lastName" @bind:event="oninput" placeholder="Nachname"
+                           @onkeydown="HandleKey" autocomplete="family-name"/>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>E-Mail</label>
+                <input @bind="_email" @bind:event="oninput" placeholder="E-Mail-Adresse eingeben"
+                       @onkeydown="HandleKey" autocomplete="username"/>
+            </div>
+            <div class="form-group">
+                <label>Telefon</label>
+                <input @bind="_phone" @bind:event="oninput" placeholder="Telefonnummer (optional)"
+                       @onkeydown="HandleKey" autocomplete="tel"/>
+            </div>
+
+            <div style="font-weight:600;font-size:14px;margin:8px 0;color:#1565C0;">Adresse</div>
+            <div class="form-group">
+                <label>Straße &amp; Nr.</label>
+                <input @bind="_street" @bind:event="oninput" placeholder="Straße und Hausnummer"
+                       @onkeydown="HandleKey" autocomplete="street-address"/>
+            </div>
+            <div style="display:flex;gap:12px;">
+                <div class="form-group" style="flex:0 0 35%;">
+                    <label>PLZ</label>
+                    <input @bind="_zipCode" @bind:event="oninput" placeholder="PLZ"
+                           @onkeydown="HandleKey" autocomplete="postal-code"/>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Stadt</label>
+                    <input @bind="_city" @bind:event="oninput" placeholder="Stadt"
+                           @onkeydown="HandleKey" autocomplete="address-level2"/>
+                </div>
+            </div>
+            <div style="display:flex;gap:12px;">
+                <div class="form-group" style="flex:1;">
+                    <label>Land</label>
+                    <input @bind="_country" @bind:event="oninput" placeholder="Land"
+                           @onkeydown="HandleKey" autocomplete="country-name"/>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>USt-IdNr.</label>
+                    <input @bind="_vatId" @bind:event="oninput" placeholder="USt-IdNr. (optional)"
+                           @onkeydown="HandleKey"/>
+                </div>
+            </div>
+
+            <div style="font-weight:600;font-size:14px;margin:8px 0;color:#1565C0;">Zugangsdaten</div>
+            <div class="form-group">
+                <label>Passwort</label>
+                <input type="password" @bind="_password" @bind:event="oninput" placeholder="Mindestens 6 Zeichen"
+                       @onkeydown="HandleKey" autocomplete="new-password"/>
+            </div>
+            <div class="form-group">
+                <label>Passwort wiederholen</label>
+                <input type="password" @bind="_passwordConfirm" @bind:event="oninput" placeholder="Passwort wiederholen"
+                       @onkeydown="HandleKey" autocomplete="new-password"/>
+            </div>
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="error-msg">@_error</div>
+            }
+            <button class="btn btn-primary" @onclick="DoRegister" disabled="@_loading">
+                @if (_loading)
+                {
+                    <span>Wird registriert…</span>
+                }
+                else
+                {
+                    <span>Registrieren</span>
+                }
+            </button>
+            <div style="text-align:center;margin-top:16px;font-size:14px;">
+                Bereits ein Konto?
+                <a href="/portal" style="color:#1565C0;font-weight:600;text-decoration:none;">Zur Anmeldung</a>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string _companyName = "";
+    private string _firstName = "";
+    private string _lastName = "";
+    private string _email = "";
+    private string _phone = "";
+    private string _street = "";
+    private string _zipCode = "";
+    private string _city = "";
+    private string _country = "Deutschland";
+    private string _vatId = "";
+    private string _password = "";
+    private string _passwordConfirm = "";
+    private string _error = "";
+    private bool _loading;
+    private bool _success;
+
+    private async Task HandleKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await DoRegister();
+    }
+
+    private async Task DoRegister()
+    {
+        _error = "";
+        if (string.IsNullOrWhiteSpace(_companyName) &&
+            (string.IsNullOrWhiteSpace(_firstName) || string.IsNullOrWhiteSpace(_lastName)))
+        {
+            _error = "Bitte geben Sie einen Firmennamen oder Vor- und Nachnamen an.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Bitte E-Mail und Passwort eingeben.";
+            return;
+        }
+        if (_password != _passwordConfirm)
+        {
+            _error = "Die Passwörter stimmen nicht überein.";
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            var request = new PortalRegisterRequest(
+                _email.Trim(), _password, _companyName.Trim(),
+                _firstName.Trim(), _lastName.Trim(), _phone.Trim(),
+                _street.Trim(), _zipCode.Trim(), _city.Trim(),
+                string.IsNullOrWhiteSpace(_country) ? "Deutschland" : _country.Trim(),
+                _vatId.Trim());
+
+            var result = await Db.RegisterPortalUserAsync(request);
+            if (result.Success)
+            {
+                _success = true;
+            }
+            else
+            {
+                _error = result.Error ?? "Registrierung fehlgeschlagen.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Verbindungsfehler: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

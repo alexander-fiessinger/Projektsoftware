@@ -46,8 +46,8 @@
                     <ComboBoxItem Content="📄 Rechnungen" Tag="INVOICE"/>
                     <ComboBoxItem Content="🧾 Proforma-Rechnungen" Tag="PROFORMA_INVOICE"/>
                     <ComboBoxItem Content="📋 Angebote" Tag="OFFER"/>
-                    <ComboBoxItem Content="✓ Auftragsbestätigungen" Tag="ORDER_CONFIRMATION"/>
-                    <ComboBoxItem Content="📦 Lieferscheine" Tag="DELIVERY_NOTE"/>
+                    <ComboBoxItem Content="✓ Auftragsbestätigungen" Tag="CHARGE_CONFIRM"/>
+                    <ComboBoxItem Content="📦 Lieferscheine" Tag="DELIVERY"/>
                     <ComboBoxItem Content="💳 Gutschriften" Tag="CREDIT"/>
                     <ComboBoxItem Content="⚠️ Mahnungen" Tag="DUNNING"/>
                 </ComboBox>
@@ -81,8 +81,8 @@
                     <ContextMenu x:Name="CreateDocumentMenu">
                         <MenuItem Header="📄 Rechnung" Tag="INVOICE" Click="CreateDocumentType_Click"/>
                         <MenuItem Header="📋 Angebot" Tag="OFFER" Click="CreateDocumentType_Click"/>
-                        <MenuItem Header="✓ Auftragsbestätigung" Tag="ORDER_CONFIRMATION" Click="CreateDocumentType_Click"/>
-                        <MenuItem Header="📦 Lieferschein" Tag="DELIVERY_NOTE" Click="CreateDocumentType_Click"/>
+                        <MenuItem Header="✓ Auftragsbestätigung" Tag="CHARGE_CONFIRM" Click="CreateDocumentType_Click"/>
+                        <MenuItem Header="📦 Lieferschein" Tag="DELIVERY" Click="CreateDocumentType_Click"/>
                         <MenuItem Header="💳 Gutschrift" Tag="CREDIT" Click="CreateDocumentType_Click"/>
                         <MenuItem Header="⚠️ Mahnung" Tag="DUNNING" Click="CreateDocumentType_Click"/>
                     </ContextMenu>
@@ -123,10 +123,21 @@
                     </DataGridTextColumn>
                     <DataGridTextColumn Header="Status" Binding="{Binding DisplayStatus}" Width="120"/>
                     
-                    <DataGridTemplateColumn Header="Aktionen" Width="450">
+                    <DataGridTemplateColumn Header="Aktionen" Width="510">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <Button Content="✏️ Bearb." 
+                                            Width="58" 
+                                            Height="28"
+                                            Margin="2"
+                                            ToolTip="Dokument bearbeiten"
+                                            Click="EditDocument_Click"
+                                            Background="#607D8B"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            FontSize="11"/>
                                     <Button Content="📄 PDF" 
                                             Width="52" 
                                             Height="28"

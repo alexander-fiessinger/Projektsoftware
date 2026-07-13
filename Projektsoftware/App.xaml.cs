@@ -10,6 +10,24 @@ namespace Projektsoftware
     {
         private static BitmapFrame? _appIcon;
 
+        // Automatische Artikel-Synchronisation (Easybill -> lokaler Portal-Katalog)
+        private System.Windows.Threading.DispatcherTimer? _productSyncTimer;
+        private bool _productSyncRunning;
+
+        // Automatischer Zahlungsabgleich (BANKSapi -> Easybill) im Hintergrund
+        private System.Windows.Threading.DispatcherTimer? _reconciliationTimer;
+        private bool _reconciliationRunning;
+
+        /// <summary>
+        /// Wird nach jedem automatischen Artikel-Sync ausgelöst (z. B. zur Statusanzeige in offenen Dialogen).
+        /// </summary>
+        public static event Action<Services.ProductSyncService.SyncResult>? ProductSyncCompleted;
+
+        /// <summary>
+        /// Wird nach jedem automatischen Zahlungsabgleich ausgelöst (z. B. zur Aktualisierung des Dashboards).
+        /// </summary>
+        public static event Action<Services.AutoReconciliationService.AutoReconciliationResult>? AutoReconciliationCompleted;
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
@@ -74,6 +92,85 @@ namespace Projektsoftware
                 typeof(Window),
                 Window.LoadedEvent,
                 new RoutedEventHandler(OnAnyWindowLoaded));
+
+            // Automatische Artikel-Synchronisation alle 2 Minuten starten
+            StartProductSyncTimer();
+
+            // Automatischen Zahlungsabgleich (BANKSapi -> Easybill) starten:
+            // einmal beim Programmstart, danach stündlich ein kompletter Durchlauf.
+            StartReconciliationTimer();
+        }
+
+        private void StartProductSyncTimer()
+        {
+            _productSyncTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMinutes(2)
+            };
+            _productSyncTimer.Tick += async (s, e) => await RunProductSyncAsync();
+            _productSyncTimer.Start();
+
+            // Einmaliger initialer Lauf, damit der Katalog nicht erst nach 2 Minuten befüllt wird
+            _ = RunProductSyncAsync();
+        }
+
+        private async System.Threading.Tasks.Task RunProductSyncAsync()
+        {
+            // Überlappende Läufe verhindern (z. B. bei langsamer API)
+            if (_productSyncRunning)
+                return;
+
+            _productSyncRunning = true;
+            try
+            {
+                var result = await new Services.ProductSyncService().SyncAsync();
+                ProductSyncCompleted?.Invoke(result);
+            }
+            catch (Exception ex)
+            {
+                // Hintergrund-Sync darf die App nie zum Absturz bringen
+                System.Diagnostics.Debug.WriteLine($"Artikel-Sync-Fehler: {ex.Message}");
+            }
+            finally
+            {
+                _productSyncRunning = false;
+            }
+        }
+
+        private void StartReconciliationTimer()
+        {
+            _reconciliationTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromHours(1)
+            };
+            _reconciliationTimer.Tick += async (s, e) => await RunReconciliationAsync();
+            _reconciliationTimer.Start();
+
+            // Einmaliger initialer Lauf beim Programmstart.
+            _ = RunReconciliationAsync();
+        }
+
+        private async System.Threading.Tasks.Task RunReconciliationAsync()
+        {
+            // Überlappende Läufe verhindern (z. B. bei langsamer Bank-/Easybill-API).
+            if (_reconciliationRunning)
+                return;
+
+            _reconciliationRunning = true;
+            try
+            {
+                var result = await new Services.AutoReconciliationService().RunAsync();
+                AutoReconciliationCompleted?.Invoke(result);
+            }
+            catch (Exception ex)
+            {
+                // Hintergrund-Abgleich darf die App nie zum Absturz bringen.
+                System.Diagnostics.Debug.WriteLine($"Auto-Zahlungsabgleich-Fehler: {ex.Message}");
+            }
+            finally
+            {
+                _reconciliationRunning = false;
+            }
         }
 
         private static BitmapFrame? LoadOrCreateAppIcon()

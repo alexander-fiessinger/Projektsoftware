@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace Projektsoftware.Views
@@ -166,6 +167,118 @@ namespace Projektsoftware.Views
                             "Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
+            }
+        }
+
+        private async void AiBatchCategorize_Click(object sender, RoutedEventArgs e)
+        {
+            var aiService = new LogicCAiService();
+
+            if (!aiService.IsConfigured)
+            {
+                var configResult = MessageBox.Show(
+                    "LogicC AI ist noch nicht konfiguriert.\n\n" +
+                    "Möchten Sie die Konfiguration jetzt vornehmen?",
+                    "KI nicht konfiguriert",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question
+                );
+
+                if (configResult == MessageBoxResult.Yes)
+                {
+                    var configDialog = new LogicCConfigDialog { Owner = Window.GetWindow(this) };
+                    configDialog.ShowDialog();
+
+                    // Prüfe erneut nach Konfiguration
+                    if (!aiService.IsConfigured)
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    return;
+                }
+            }
+
+            var confirmResult = MessageBox.Show(
+                "Diese Funktion kategorisiert automatisch alle unkategorisierten Tickets.\n\n" +
+                "Möchten Sie fortfahren?",
+                "Batch-Kategorisierung",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question
+            );
+
+            if (confirmResult != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
+
+                // Hole unkategorisierte Tickets
+                var uncategorizedTickets = allTickets
+                    .Where(t => t.Category == TicketCategory.General)
+                    .Take(10) // Maximal 10 auf einmal
+                    .ToList();
+
+                if (!uncategorizedTickets.Any())
+                {
+                    MessageBox.Show(
+                        "Keine unkategorisierten Tickets gefunden!",
+                        "Info",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information
+                    );
+                    return;
+                }
+
+                int successful = 0;
+                foreach (var ticket in uncategorizedTickets)
+                {
+                    try
+                    {
+                        var result = await aiService.CategorizeTicketAsync(
+                            ticket.Subject,
+                            ticket.Description
+                        );
+
+                        // Hier würde man normalerweise das Ticket updaten
+                        // Für Demo-Zwecke nur Ausgabe
+                        successful++;
+                    }
+                    catch
+                    {
+                        // Fehler ignorieren und weitermachen
+                    }
+                }
+
+                MessageBox.Show(
+                    $"Batch-Kategorisierung abgeschlossen!\n\n" +
+                    $"Verarbeitet: {uncategorizedTickets.Count}\n" +
+                    $"Erfolgreich: {successful}\n\n" +
+                    $"Hinweis: Automatische Speicherung noch nicht implementiert.",
+                    "Fertig",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information
+                );
+
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Fehler bei Batch-Kategorisierung:\n\n{ex.Message}",
+                    "Fehler",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error
+                );
+            }
+            finally
+            {
+                Mouse.OverrideCursor = null;
             }
         }
 

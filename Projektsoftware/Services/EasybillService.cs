@@ -2,6 +2,7 @@
 using Projektsoftware.Converters;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -77,6 +78,49 @@ namespace Projektsoftware.Services
         }
 
         public bool IsConfigured => config.IsConfigured;
+
+        /// <summary>
+        /// Führt einen HTTP-Request aus und wiederholt ihn automatisch bei
+        /// "429 Too Many Requests" (Easybill Rate-Limit) mit exponentiellem Backoff.
+        /// Berücksichtigt den "Retry-After"-Header, falls von Easybill gesetzt.
+        /// </summary>
+        private async Task<HttpResponseMessage> SendWithRetryAsync(
+            Func<Task<HttpResponseMessage>> requestFactory,
+            int maxRetries = 5)
+        {
+            for (int attempt = 0; ; attempt++)
+            {
+                var response = await requestFactory();
+
+                if (response.StatusCode != System.Net.HttpStatusCode.TooManyRequests || attempt >= maxRetries)
+                {
+                    return response;
+                }
+
+                // Wartezeit bestimmen: bevorzugt "Retry-After"-Header, sonst exponentielles Backoff (1s, 2s, 4s, ...)
+                TimeSpan delay;
+                if (response.Headers.RetryAfter?.Delta is TimeSpan retryAfterDelta && retryAfterDelta > TimeSpan.Zero)
+                {
+                    delay = retryAfterDelta;
+                }
+                else if (response.Headers.RetryAfter?.Date is DateTimeOffset retryAfterDate)
+                {
+                    delay = retryAfterDate - DateTimeOffset.Now;
+                    if (delay < TimeSpan.FromSeconds(1)) delay = TimeSpan.FromSeconds(1);
+                }
+                else
+                {
+                    delay = TimeSpan.FromSeconds(Math.Pow(2, attempt));
+                }
+
+                response.Dispose();
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"Easybill Rate-Limit (429) erreicht. Warte {delay.TotalSeconds:0.#}s und versuche erneut (Versuch {attempt + 1}/{maxRetries}).");
+
+                await Task.Delay(delay);
+            }
+        }
 
         /// <summary>
         /// Testet die API-Verbindung
@@ -205,9 +249,12 @@ namespace Projektsoftware.Services
             try
             {
                 var json = JsonSerializer.Serialize(customer, jsonOptions);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await httpClient.PostAsync("customers", content);
+                var response = await SendWithRetryAsync(() =>
+                {
+                    var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    return httpClient.PostAsync("customers", content);
+                });
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -232,10 +279,13 @@ namespace Projektsoftware.Services
             try
             {
                 var json = JsonSerializer.Serialize(customer, jsonOptions);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await httpClient.PutAsync($"customers/{customerId}", content);
-                
+                var response = await SendWithRetryAsync(() =>
+                {
+                    var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    return httpClient.PutAsync($"customers/{customerId}", content);
+                });
+
                 if (!response.IsSuccessStatusCode)
                 {
                     var error = await response.Content.ReadAsStringAsync();
@@ -751,18 +801,17 @@ namespace Projektsoftware.Services
             try
             {
                 var json = JsonSerializer.Serialize(document, jsonOptions);
-
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await httpClient.PostAsync("documents", content);
 
+                var resultJson = await response.Content.ReadAsStringAsync();
+
                 if (!response.IsSuccessStatusCode)
                 {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
+                    throw new Exception($"API-Fehler: {response.StatusCode} - {resultJson}");
                 }
 
-                var resultJson = await response.Content.ReadAsStringAsync();
                 return JsonSerializer.Deserialize<EasybillDocument>(resultJson, jsonOptions);
             }
             catch (Exception ex)
@@ -900,9 +949,12 @@ namespace Projektsoftware.Services
         }
 
         /// <summary>
-        /// Dokument als bezahlt markieren (erstellt eine Zahlung über den vollen Bruttobetrag)
+        /// Erfasst eine Zahlung zu einem Dokument. Bei <paramref name="markAsPaid"/>=true wird die
+        /// Rechnung vollständig als bezahlt markiert (Vollzahlung); bei false wird nur die (Teil-)Zahlung
+        /// erfasst und die Rechnung bleibt offen. Der zu buchende Betrag kann über
+        /// <paramref name="amount"/> vorgegeben werden (z. B. exakter Zahlungseingang).
         /// </summary>
-        public async Task<EasybillDocument> MarkDocumentAsPaidAsync(long documentId, string paidAt = null)
+        public async Task<EasybillDocument> MarkDocumentAsPaidAsync(long documentId, string paidAt = null, decimal? amount = null, bool markAsPaid = true)
         {
             try
             {
@@ -910,10 +962,18 @@ namespace Projektsoftware.Services
 
                 var document = await GetDocumentAsync(documentId);
 
+                // Zu buchenden Betrag bestimmen:
+                // 1) expliziter Betrag (z. B. exakter Zahlungseingang aus dem Abgleich),
+                // 2) sonst der noch offene Betrag (Brutto abzüglich bereits gezahlter Anzahlungen),
+                // 3) als Rückfall der volle Bruttobetrag.
+                var gross = document.TotalGross ?? 0m;
+                var open = gross - (document.PaidAmount ?? 0m);
+                var payAmount = amount ?? (open > 0m ? open : gross);
+
                 var payment = new EasybillPayment
                 {
                     DocumentId = documentId,
-                    Amount = document.TotalGross ?? 0m,
+                    Amount = payAmount,
                     Type = "BANK_TRANSFER",
                     PaymentAt = paidDate
                 };
@@ -921,7 +981,10 @@ namespace Projektsoftware.Services
                 var json = JsonSerializer.Serialize(payment, jsonOptions);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await httpClient.PostAsync("document-payments?paid=true", content);
+                // paid=true  → Rechnung wird vollständig als bezahlt markiert (Vollzahlung).
+                // paid=false → nur die (Teil-)Zahlung wird erfasst, die Rechnung bleibt offen.
+                var paidFlag = markAsPaid ? "true" : "false";
+                var response = await httpClient.PostAsync($"document-payments?paid={paidFlag}", content);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -962,49 +1025,111 @@ namespace Projektsoftware.Services
         }
 
         /// <summary>
-        /// Konvertiert ein bestehendes Dokument in einen anderen Typ (z.B. Angebot → Auftragsbestätigung)
+        /// Konvertiert ein bestehendes Dokument in einen anderen Typ über POST /documents/{id}/{type}
         /// </summary>
         public async Task<EasybillDocument> ConvertDocumentAsync(EasybillDocument sourceDocument, string targetType, bool isDraft = true)
         {
             try
             {
-                var items = sourceDocument.Items?.Select((item, index) => new EasybillDocumentItem
-                {
-                    Number = item.Number,
-                    Description = item.Description,
-                    Quantity = item.Quantity,
-                    Unit = item.Unit,
-                    Type = item.Type,
-                    Position = index + 1,
-                    SinglePriceNet = item.SinglePriceNet,
-                    VatPercent = item.VatPercent,
-                    Discount = item.Discount,
-                    DiscountType = item.DiscountType,
-                }).ToArray();
+                if (!sourceDocument.Id.HasValue)
+                    throw new Exception("Quelldokument hat keine ID.");
 
-                var newDoc = new EasybillDocument
+                // Der Easybill Konvertierungs-Endpoint POST /documents/{id}/{type} unterstützt laut
+                // API-Spezifikation NUR: DUNNING, REMINDER, CHARGE_CONFIRM, CHARGE, CREDIT, DELIVERY, INVOICE, ORDER.
+                // PROFORMA_INVOICE ist dort nicht erlaubt und kann nur beim Erstellen eines neuen
+                // Dokuments gesetzt werden. Daher wird hierfür ein neues Dokument aus dem Quelldokument erstellt.
+                if (targetType is "PROFORMA_INVOICE" or "PROFORMA")
                 {
-                    Type = targetType,
-                    CustomerId = sourceDocument.CustomerId,
-                    DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
-                    Subject = sourceDocument.Subject,
-                    Text = sourceDocument.Text,
-                    TextSuffix = sourceDocument.TextSuffix,
-                    Discount = sourceDocument.Discount,
-                    DiscountType = sourceDocument.DiscountType,
-                    IsDraft = isDraft,
-                    Items = items,
+                    return await CreateDocumentFromSourceAsync(sourceDocument, "PROFORMA_INVOICE", isDraft);
+                }
+
+                // Easybill API Typbezeichnungen für den Konvertierungsendpoint
+                var apiType = targetType switch
+                {
+                    "DELIVERY_NOTE"      => "DELIVERY",
+                    "ORDER_CONFIRMATION" => "CHARGE_CONFIRM",
+                    "ORDER"              => "ORDER",
+                    "INVOICE"            => "INVOICE",
+                    "CREDIT"             => "CREDIT",
+                    "DUNNING"            => "DUNNING",
+                    "REMINDER"           => "REMINDER",
+                    "CHARGE"             => "CHARGE",
+                    _                    => targetType
                 };
 
-                if (targetType == "INVOICE")
-                    newDoc.DueInDays = 14;
+                var url = $"documents/{sourceDocument.Id.Value}/{apiType}";
+                var response = await httpClient.PostAsync(url, null);
+                var resultJson = await response.Content.ReadAsStringAsync();
 
-                return await CreateDocumentAsync(newDoc);
+                if (!response.IsSuccessStatusCode)
+                    throw new Exception($"API-Fehler: {response.StatusCode} - {resultJson}");
+
+                return JsonSerializer.Deserialize<EasybillDocument>(resultJson, jsonOptions);
             }
             catch (Exception ex)
             {
                 throw new Exception($"Fehler beim Konvertieren des Dokuments: {ex.Message}", ex);
             }
+        }
+
+        /// <summary>
+        /// Erstellt ein neues Dokument des angegebenen Typs auf Basis eines Quelldokuments.
+        /// Wird für Typen verwendet, die der Konvertierungs-Endpoint nicht unterstützt (z. B. PROFORMA_INVOICE).
+        /// </summary>
+        private async Task<EasybillDocument> CreateDocumentFromSourceAsync(EasybillDocument sourceDocument, string newType, bool isDraft)
+        {
+            var newDocument = new EasybillDocument
+            {
+                Type           = newType,
+                CustomerId     = sourceDocument.CustomerId ?? sourceDocument.CustomerSnapshot?.Id,
+                ProjectId      = sourceDocument.ProjectId,
+                ContactId      = sourceDocument.ContactId,
+                Title          = sourceDocument.Title,
+                Subject        = sourceDocument.Subject,
+                TextPrefix     = sourceDocument.TextPrefix,
+                Text           = sourceDocument.Text,
+                Currency       = sourceDocument.Currency,
+                Discount       = sourceDocument.Discount,
+                DiscountType   = sourceDocument.DiscountType,
+                ServiceDate    = sourceDocument.ServiceDate,
+                PdfTemplateId  = sourceDocument.PdfTemplateId,
+                BuyerReference = sourceDocument.BuyerReference,
+                PaymentTypes   = sourceDocument.PaymentTypes,
+                IsDraft        = isDraft,
+                Items          = sourceDocument.Items?.Select(item => new EasybillDocumentItem
+                {
+                    Number          = item.Number,
+                    Description     = item.Description,
+                    Quantity        = item.Quantity,
+                    Unit            = item.Unit,
+                    Type            = item.Type,
+                    Position        = item.Position,
+                    SinglePriceNet  = item.SinglePriceNet,
+                    SinglePriceGross = item.SinglePriceGross,
+                    VatPercent      = item.VatPercent,
+                    Discount        = item.Discount,
+                    DiscountType    = item.DiscountType,
+                    PositionId      = item.PositionId,
+                    ExportIdentifier = item.ExportIdentifier
+                }).ToArray()
+            };
+
+            var created = await CreateDocumentAsync(newDocument);
+
+            if (!isDraft && created?.Id.HasValue == true)
+            {
+                created = await FinalizeDocumentAsync(created.Id.Value);
+            }
+
+            return created;
+        }
+
+        /// <summary>
+        /// Erstellt einen Lieferschein aus einem bestehenden Dokument über POST /documents/{id}/DELIVERY
+        /// </summary>
+        public async Task<EasybillDocument> CreateDeliveryNoteFromDocumentAsync(EasybillDocument sourceDocument, bool isDraft = true)
+        {
+            return await ConvertDocumentAsync(sourceDocument, "DELIVERY_NOTE", isDraft);
         }
 
         #endregion
@@ -1481,21 +1606,46 @@ namespace Projektsoftware.Services
         {
             try
             {
+                // Schritt 1: POST /attachments (multipart/form-data, field "file")
                 using var content = new MultipartFormDataContent();
+                var ext = Path.GetExtension(fileName).ToLowerInvariant();
+                var mimeType = ext switch
+                {
+                    ".jpg" or ".jpeg" => "image/jpeg",
+                    ".png"            => "image/png",
+                    ".tiff" or ".tif" => "image/tiff",
+                    ".bmp"            => "image/bmp",
+                    _                 => "application/pdf"
+                };
                 var fileContent = new ByteArrayContent(fileData);
-                fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
                 content.Add(fileContent, "file", fileName);
 
-                var response = await httpClient.PostAsync($"documents/{documentId}/attachments", content);
-
-                if (!response.IsSuccessStatusCode)
+                var uploadResponse = await httpClient.PostAsync("attachments", content);
+                if (!uploadResponse.IsSuccessStatusCode)
                 {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
+                    var error = await uploadResponse.Content.ReadAsStringAsync();
+                    throw new Exception($"API-Fehler beim Upload: {uploadResponse.StatusCode} - {error}");
                 }
 
-                var resultJson = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<EasybillAttachment>(resultJson, jsonOptions);
+                var uploadJson = await uploadResponse.Content.ReadAsStringAsync();
+                var attachment = JsonSerializer.Deserialize<EasybillAttachment>(uploadJson, jsonOptions)
+                    ?? throw new Exception("Leere Antwort beim Hochladen.");
+
+                // Schritt 2: PUT /attachments/{id} mit document_id verknüpfen
+                var linkPayload = new EasybillAttachment { DocumentId = documentId };
+                var linkJson = JsonSerializer.Serialize(linkPayload, jsonOptions);
+                var linkContent = new StringContent(linkJson, Encoding.UTF8, "application/json");
+
+                var linkResponse = await httpClient.PutAsync($"attachments/{attachment.Id}", linkContent);
+                if (!linkResponse.IsSuccessStatusCode)
+                {
+                    var error = await linkResponse.Content.ReadAsStringAsync();
+                    throw new Exception($"API-Fehler beim Verknüpfen: {linkResponse.StatusCode} - {error}");
+                }
+
+                var linkedJson = await linkResponse.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<EasybillAttachment>(linkedJson, jsonOptions) ?? attachment;
             }
             catch (Exception ex)
             {
@@ -1506,37 +1656,49 @@ namespace Projektsoftware.Services
         /// <summary>
         /// Holt alle AnhÃ¤nge eines Dokuments
         /// </summary>
+        /// <summary>
+        /// Holt alle Anhänge eines Dokuments.
+        /// Swagger: GET /attachments (limit/page) – kein document_id-Filter → client-seitig filtern.
+        /// </summary>
         public async Task<List<EasybillAttachment>> GetAttachmentsByDocumentAsync(long documentId)
         {
             try
             {
-                var response = await httpClient.GetAsync($"documents/{documentId}/attachments");
-
-                if (!response.IsSuccessStatusCode)
+                var result = new List<EasybillAttachment>();
+                int page = 1;
+                int pages = 1;
+                do
                 {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                }
-
-                var json = await response.Content.ReadAsStringAsync();
-                var attachments = JsonSerializer.Deserialize<EasybillAttachment[]>(json, jsonOptions);
-                return attachments?.ToList() ?? new List<EasybillAttachment>();
+                    var response = await httpClient.GetAsync($"attachments?limit=100&page={page}");
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var error = await response.Content.ReadAsStringAsync();
+                        throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
+                    }
+                    var json = await response.Content.ReadAsStringAsync();
+                    var list = JsonSerializer.Deserialize<EasybillAttachmentList>(json, jsonOptions);
+                    if (list?.Items != null)
+                        result.AddRange(list.Items.Where(a => a.DocumentId == documentId));
+                    pages = list?.Pages ?? 1;
+                    page++;
+                } while (page <= pages);
+                return result;
             }
             catch (Exception ex)
             {
-                throw new Exception($"Fehler beim Abrufen der AnhÃ¤nge: {ex.Message}", ex);
+                throw new Exception($"Fehler beim Abrufen der Anhänge: {ex.Message}", ex);
             }
         }
 
         /// <summary>
-        /// LÃ¶scht einen Anhang
+        /// Löscht einen Anhang.
+        /// Swagger: DELETE /attachments/{id}
         /// </summary>
-        public async Task DeleteAttachmentAsync(long documentId, long attachmentId)
+        public async Task DeleteAttachmentAsync(long attachmentId)
         {
             try
             {
-                var response = await httpClient.DeleteAsync($"documents/{documentId}/attachments/{attachmentId}");
-
+                var response = await httpClient.DeleteAsync($"attachments/{attachmentId}");
                 if (!response.IsSuccessStatusCode)
                 {
                     var error = await response.Content.ReadAsStringAsync();
@@ -1545,25 +1707,24 @@ namespace Projektsoftware.Services
             }
             catch (Exception ex)
             {
-                throw new Exception($"Fehler beim LÃ¶schen des Anhangs: {ex.Message}", ex);
+                throw new Exception($"Fehler beim Löschen des Anhangs: {ex.Message}", ex);
             }
         }
 
         /// <summary>
-        /// LÃ¤dt einen Anhang herunter
+        /// Lädt den Inhalt eines Anhangs herunter.
+        /// Swagger: GET /attachments/{id}/content
         /// </summary>
-        public async Task<byte[]> DownloadAttachmentAsync(long documentId, long attachmentId)
+        public async Task<byte[]> DownloadAttachmentAsync(long attachmentId)
         {
             try
             {
-                var response = await httpClient.GetAsync($"documents/{documentId}/attachments/{attachmentId}/download");
-
+                var response = await httpClient.GetAsync($"attachments/{attachmentId}/content");
                 if (!response.IsSuccessStatusCode)
                 {
                     var error = await response.Content.ReadAsStringAsync();
                     throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
                 }
-
                 return await response.Content.ReadAsByteArrayAsync();
             }
             catch (Exception ex)
@@ -1581,7 +1742,16 @@ namespace Projektsoftware.Services
             {
                 using var content = new MultipartFormDataContent();
                 var fileContent = new ByteArrayContent(fileData);
-                fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+                var ext = Path.GetExtension(fileName).ToLowerInvariant();
+                var mimeType = ext switch
+                {
+                    ".jpg" or ".jpeg" => "image/jpeg",
+                    ".png" => "image/png",
+                    ".tiff" or ".tif" => "image/tiff",
+                    ".bmp" => "image/bmp",
+                    _ => "application/pdf"
+                };
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
                 content.Add(fileContent, "file", fileName);
 
                 var response = await httpClient.PostAsync("attachments", content);
@@ -1843,83 +2013,6 @@ namespace Projektsoftware.Services
 
         #endregion
 
-        #region SEPA Mandate Methods
-
-        /// <summary>
-        /// Holt alle SEPA-Mandate fÃ¼r einen Kunden
-        /// </summary>
-        public async Task<List<EasybillSepaMandate>> GetSepaMandatesByCustomerAsync(long customerId)
-        {
-            try
-            {
-                var response = await httpClient.GetAsync($"sepa-mandates?customer_id={customerId}");
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                }
-
-                var json = await response.Content.ReadAsStringAsync();
-                var mandates = JsonSerializer.Deserialize<EasybillSepaMandate[]>(json, jsonOptions);
-                return mandates?.ToList() ?? new List<EasybillSepaMandate>();
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Abrufen der SEPA-Mandate: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Erstellt ein SEPA-Mandat
-        /// </summary>
-        public async Task<EasybillSepaMandate> CreateSepaMandateAsync(EasybillSepaMandate mandate)
-        {
-            try
-            {
-                var json = JsonSerializer.Serialize(mandate);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await httpClient.PostAsync("sepa-mandates", content);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                }
-
-                var resultJson = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<EasybillSepaMandate>(resultJson, jsonOptions);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Erstellen des SEPA-Mandats: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// LÃ¶scht ein SEPA-Mandat
-        /// </summary>
-        public async Task DeleteSepaMandateAsync(long mandateId)
-        {
-            try
-            {
-                var response = await httpClient.DeleteAsync($"sepa-mandates/{mandateId}");
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim LÃ¶schen des SEPA-Mandats: {ex.Message}", ex);
-            }
-        }
-
-        #endregion
-
         #region Webhook Methods
 
         /// <summary>
@@ -2086,8 +2179,8 @@ namespace Projektsoftware.Services
                     DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
                     Title = $"Rechnung für Projekt: {project.Name}",
                     Subject = $"Leistungen {project.Name}",
-                    Text = invoiceText ?? $"Vielen Dank für Ihren Auftrag.\n\nHiermit stellen wir Ihnen die erbrachten Leistungen für das Projekt '{project.Name}' in Rechnung:",
-                    TextSuffix = textSuffix,
+                    TextPrefix = invoiceText ?? $"Vielen Dank für Ihren Auftrag.\n\nHiermit stellen wir Ihnen die erbrachten Leistungen für das Projekt '{project.Name}' in Rechnung:",
+                    Text = textSuffix,
                     Status = "DRAFT",
                     Currency = "EUR",
                     DueInDays = dueInDays,
@@ -2140,8 +2233,8 @@ namespace Projektsoftware.Services
                     DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
                     Title = $"Angebot fÃ¼r Projekt: {project.Name}",
                     Subject = $"Angebot {project.Name}",
-                    Text = offerText ?? $"Vielen Dank fÃ¼r Ihre Anfrage.\n\nGerne unterbreiten wir Ihnen folgendes Angebot fÃ¼r das Projekt '{project.Name}':",
-                    TextSuffix = $"Dieses Angebot ist gÃ¼ltig bis {DateTime.Now.AddDays(validityDays):dd.MM.yyyy}.\n\nWir freuen uns auf Ihre Auftragserteilung.",
+                    TextPrefix = offerText ?? $"Vielen Dank fÃ¼r Ihre Anfrage.\n\nGerne unterbreiten wir Ihnen folgendes Angebot fÃ¼r das Projekt '{project.Name}':",
+                    Text = $"Dieses Angebot ist gÃ¼ltig bis {DateTime.Now.AddDays(validityDays):dd.MM.yyyy}.\n\nWir freuen uns auf Ihre Auftragserteilung.",
                     Status = "DRAFT",
                     Currency = "EUR",
                     Items = items.ToArray()
@@ -2241,8 +2334,8 @@ namespace Projektsoftware.Services
                     DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
                     Title = $"Angebot f\u00fcr Projekt: {project.Name}",
                     Subject = $"Angebot {project.Name}",
-                    Text = offerText ?? $"Vielen Dank f\u00fcr Ihre Anfrage.\n\nGerne unterbreiten wir Ihnen folgendes Angebot f\u00fcr das Projekt '{project.Name}':",
-                    TextSuffix = textSuffix,
+                    TextPrefix = offerText ?? $"Vielen Dank f\u00fcr Ihre Anfrage.\n\nGerne unterbreiten wir Ihnen folgendes Angebot f\u00fcr das Projekt '{project.Name}':",
+                    Text = textSuffix,
                     Status = "DRAFT",
                     Currency = "EUR",
                     ServiceDate = new ServiceDate
@@ -2327,8 +2420,8 @@ namespace Projektsoftware.Services
                     DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
                     Title = $"Proforma-Rechnung f\u00fcr Projekt: {project.Name}",
                     Subject = $"Proforma-Rechnung {project.Name}",
-                    Text = proformaText ?? $"Sehr geehrte Damen und Herren,\n\nhiermit \u00fcbersenden wir Ihnen die Proforma-Rechnung f\u00fcr die erbrachten Leistungen im Rahmen des Projekts '{project.Name}':",
-                    TextSuffix = textSuffix,
+                    TextPrefix = proformaText ?? $"Sehr geehrte Damen und Herren,\n\nhiermit \u00fcbersenden wir Ihnen die Proforma-Rechnung f\u00fcr die erbrachten Leistungen im Rahmen des Projekts '{project.Name}':",
+                    Text = textSuffix,
                     Status = "DRAFT",
                     Currency = "EUR",
                     ServiceDate = new ServiceDate
@@ -2538,371 +2631,9 @@ namespace Projektsoftware.Services
 
         #endregion
 
-        #region Note Methods
-
-        /// <summary>
-        /// Holt alle Notizen (optional gefiltert nach Typ)
-        /// </summary>
-        public async Task<List<EasybillNote>> GetAllNotesAsync(string type = null)
-        {
-            var allNotes = new List<EasybillNote>();
-
-            try
-            {
-                int page = 1;
-                int totalPages = 1;
-
-                while (page <= totalPages)
-                {
-                    var url = $"notes?page={page}&limit=100";
-                    if (!string.IsNullOrEmpty(type))
-                    {
-                        url += $"&type={type}";
-                    }
-
-                    var response = await httpClient.GetAsync(url);
-
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        var error = await response.Content.ReadAsStringAsync();
-                        throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                    }
-
-                    var json = await response.Content.ReadAsStringAsync();
-                    var result = JsonSerializer.Deserialize<EasybillNoteList>(json, jsonOptions);
-
-                    if (result?.Items != null)
-                    {
-                        allNotes.AddRange(result.Items);
-                        totalPages = result.Pages;
-                    }
-
-                    page++;
-                }
-
-                return allNotes;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Abrufen der Notizen: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Holt Notizen für ein Dokument
-        /// </summary>
-        public async Task<List<EasybillNote>> GetNotesByDocumentAsync(long documentId)
-        {
-            try
-            {
-                var allNotes = await GetAllNotesAsync();
-                return allNotes.FindAll(n => n.DocumentId == documentId);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Abrufen der Dokument-Notizen: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Holt Notizen für einen Kunden
-        /// </summary>
-        public async Task<List<EasybillNote>> GetNotesByCustomerAsync(long customerId)
-        {
-            try
-            {
-                var allNotes = await GetAllNotesAsync();
-                return allNotes.FindAll(n => n.CustomerId == customerId);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Abrufen der Kunden-Notizen: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Erstellt eine Notiz
-        /// </summary>
-        public async Task<EasybillNote> CreateNoteAsync(EasybillNote note)
-        {
-            try
-            {
-                var json = JsonSerializer.Serialize(note);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await httpClient.PostAsync("notes", content);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                }
-
-                var resultJson = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<EasybillNote>(resultJson, jsonOptions);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Erstellen der Notiz: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Aktualisiert eine Notiz
-        /// </summary>
-        public async Task<EasybillNote> UpdateNoteAsync(long noteId, EasybillNote note)
-        {
-            try
-            {
-                var json = JsonSerializer.Serialize(note);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await httpClient.PutAsync($"notes/{noteId}", content);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                }
-
-                var resultJson = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<EasybillNote>(resultJson, jsonOptions);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Aktualisieren der Notiz: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Löscht eine Notiz
-        /// </summary>
-        public async Task DeleteNoteAsync(long noteId)
-        {
-            try
-            {
-                var response = await httpClient.DeleteAsync($"notes/{noteId}");
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Löschen der Notiz: {ex.Message}", ex);
-            }
-        }
-
-        #endregion
-
-        #region Activity Methods
-
-        /// <summary>
-        /// Holt alle Aktivitäten
-        /// </summary>
-        public async Task<List<EasybillActivity>> GetAllActivitiesAsync()
-        {
-            var allActivities = new List<EasybillActivity>();
-
-            try
-            {
-                int page = 1;
-                int totalPages = 1;
-
-                while (page <= totalPages)
-                {
-                    var response = await httpClient.GetAsync($"activities?page={page}&limit=100");
-
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        var error = await response.Content.ReadAsStringAsync();
-                        throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                    }
-
-                    var json = await response.Content.ReadAsStringAsync();
-                    var result = JsonSerializer.Deserialize<EasybillActivityList>(json, jsonOptions);
-
-                    if (result?.Items != null)
-                    {
-                        allActivities.AddRange(result.Items);
-                        totalPages = result.Pages;
-                    }
-
-                    page++;
-                }
-
-                return allActivities;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Abrufen der Aktivitäten: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Holt Aktivitäten für einen Kunden
-        /// </summary>
-        public async Task<List<EasybillActivity>> GetActivitiesByCustomerAsync(long customerId)
-        {
-            try
-            {
-                var allActivities = await GetAllActivitiesAsync();
-                return allActivities.FindAll(a => a.CustomerId == customerId);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Abrufen der Kunden-Aktivitäten: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Erstellt eine Aktivität
-        /// </summary>
-        public async Task<EasybillActivity> CreateActivityAsync(EasybillActivity activity)
-        {
-            try
-            {
-                var json = JsonSerializer.Serialize(activity);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await httpClient.PostAsync("activities", content);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                }
-
-                var resultJson = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<EasybillActivity>(resultJson, jsonOptions);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Erstellen der Aktivität: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Aktualisiert eine Aktivität
-        /// </summary>
-        public async Task<EasybillActivity> UpdateActivityAsync(long activityId, EasybillActivity activity)
-        {
-            try
-            {
-                var json = JsonSerializer.Serialize(activity);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await httpClient.PutAsync($"activities/{activityId}", content);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                }
-
-                var resultJson = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<EasybillActivity>(resultJson, jsonOptions);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Aktualisieren der Aktivität: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Löscht eine Aktivität
-        /// </summary>
-        public async Task DeleteActivityAsync(long activityId)
-        {
-            try
-            {
-                var response = await httpClient.DeleteAsync($"activities/{activityId}");
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Löschen der Aktivität: {ex.Message}", ex);
-            }
-        }
-
-        #endregion
-
-        #region Tax Rule Methods
-
-        /// <summary>
-        /// Holt alle Steuerregeln
-        /// </summary>
-        public async Task<List<EasybillTaxRule>> GetAllTaxRulesAsync()
-        {
-            var allTaxRules = new List<EasybillTaxRule>();
-
-            try
-            {
-                int page = 1;
-                int totalPages = 1;
-
-                while (page <= totalPages)
-                {
-                    var response = await httpClient.GetAsync($"tax-rules?page={page}&limit=100");
-
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        var error = await response.Content.ReadAsStringAsync();
-                        throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                    }
-
-                    var json = await response.Content.ReadAsStringAsync();
-                    var result = JsonSerializer.Deserialize<EasybillTaxRuleList>(json, jsonOptions);
-
-                    if (result?.Items != null)
-                    {
-                        allTaxRules.AddRange(result.Items);
-                        totalPages = result.Pages;
-                    }
-
-                    page++;
-                }
-
-                return allTaxRules;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Abrufen der Steuerregeln: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Holt eine einzelne Steuerregel
-        /// </summary>
-        public async Task<EasybillTaxRule> GetTaxRuleAsync(long taxRuleId)
-        {
-            try
-            {
-                var response = await httpClient.GetAsync($"tax-rules/{taxRuleId}");
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API-Fehler: {response.StatusCode} - {error}");
-                }
-
-                var json = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<EasybillTaxRule>(json, jsonOptions);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Fehler beim Abrufen der Steuerregel: {ex.Message}", ex);
-            }
-        }
-
-        #endregion
+        // Note/Activity/TaxRule Methods wurden entfernt:
+        // /notes, /activities, /tax-rules existieren nicht in der Easybill REST API v1.
+        // Nutzen Sie die lokale Datenbank (DatabaseService) für Notizen und Aktivitäten.
 
         #region Document Type Helpers
 
