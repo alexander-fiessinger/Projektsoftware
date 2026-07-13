@@ -873,11 +873,10 @@ namespace Projektsoftware.Services
 
         private static string ExtractICalLine(string ical, string field)
         {
-            foreach (var line in ical.Split('\n'))
+            foreach (var line in UnfoldIcal(ical))
             {
-                var trimmed = line.TrimEnd('\r');
-                if (trimmed.StartsWith(field + ":", StringComparison.OrdinalIgnoreCase))
-                    return trimmed[(field.Length + 1)..].Trim();
+                if (line.StartsWith(field + ":", StringComparison.OrdinalIgnoreCase))
+                    return line[(field.Length + 1)..].Trim();
             }
             return string.Empty;
         }
@@ -898,17 +897,44 @@ namespace Projektsoftware.Services
 
         private static string ExtractICalAttendeePartstat(string ical)
         {
-            foreach (var line in ical.Split('\n'))
+            foreach (var line in UnfoldIcal(ical))
             {
-                var trimmed = line.TrimEnd('\r');
-                if (!trimmed.StartsWith("ATTENDEE", StringComparison.OrdinalIgnoreCase)) continue;
-                var idx = trimmed.IndexOf("PARTSTAT=", StringComparison.OrdinalIgnoreCase);
+                if (!line.StartsWith("ATTENDEE", StringComparison.OrdinalIgnoreCase)) continue;
+                var idx = line.IndexOf("PARTSTAT=", StringComparison.OrdinalIgnoreCase);
                 if (idx < 0) continue;
-                var val = trimmed[(idx + 9)..];
+                var val = line[(idx + 9)..];
                 var end = val.IndexOfAny(new[] { ';', ':' });
                 return end >= 0 ? val[..end] : val;
             }
             return string.Empty;
+        }
+
+        /// <summary>
+        /// Entfaltet iCal-Zeilen gemäß RFC 5545 (§3.1): Zeilen, die mit einem
+        /// Leerzeichen oder Tab beginnen, sind Fortsetzungen der vorherigen Zeile.
+        /// Ohne dieses Unfolding werden lange UIDs oder ATTENDEE-Parameter
+        /// abgeschnitten, was das RSVP-Matching unzuverlässig macht.
+        /// </summary>
+        private static List<string> UnfoldIcal(string ical)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrEmpty(ical)) return result;
+
+            // CRLF und LF normalisieren, dann zeilenweise verarbeiten
+            foreach (var rawLine in ical.Replace("\r\n", "\n").Split('\n'))
+            {
+                var line = rawLine.TrimEnd('\r');
+                if (line.Length > 0 && (line[0] == ' ' || line[0] == '\t') && result.Count > 0)
+                {
+                    // Fortsetzungszeile: an vorherige anhängen (führendes Whitespace entfernen)
+                    result[^1] += line[1..];
+                }
+                else
+                {
+                    result.Add(line);
+                }
+            }
+            return result;
         }
     }
 }
