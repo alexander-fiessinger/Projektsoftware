@@ -31,7 +31,7 @@ parität zu bringen.
 | Einkauf | PurchaseView, PurchaseDocument/Invoice/Order-Dialog | `PurchaseTab` | 🟡 Edit-Dialoge |
 | Protokolle | MeetingProtocolDialog | `ProtocolsTab` | 🟡 |
 | Lieferanten | SupplierDialog, SupplierRatingDialog | `SuppliersTab`, `SupplierRatingTab` | 🟡 Edit |
-| Vertrieb | SalesView, SalesLead/Appointment-Dialog, LeadKanban, LeadStatistics | `SalesTab`, `SalesCalendarTab` | 🟡 Lead-Kanban/Statistik |
+| Vertrieb | SalesView, SalesLead/Appointment-Dialog, LeadKanban, LeadStatistics | `SalesTab`, `SalesCalendarTab` | ✅ Leads (CRUD/Status/Statistik) + Termine |
 | Globale Suche | GlobalSearchDialog | `SearchTab` | 🟡 |
 | Benachrichtigungen | NotificationsDialog | `NotificationsTab` | ✅ |
 | Audit-Log | AuditLogDialog | `AuditLogTab` | ✅ |

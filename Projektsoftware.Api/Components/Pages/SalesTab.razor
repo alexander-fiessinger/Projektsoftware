@@ -7,6 +7,29 @@
 }
 else
 {
+    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:12px;">
+        <div class="list-card" style="text-align:center;padding:10px;">
+            <div style="font-size:1.4rem;font-weight:700;">@_leads.Count</div>
+            <div class="sub">Gesamt</div>
+        </div>
+        <div class="list-card" style="text-align:center;padding:10px;">
+            <div style="font-size:1.4rem;font-weight:700;color:var(--gray);">@_leads.Count(l => l.Status == 0)</div>
+            <div class="sub">🆕 Neu</div>
+        </div>
+        <div class="list-card" style="text-align:center;padding:10px;">
+            <div style="font-size:1.4rem;font-weight:700;color:var(--warning);">@_leads.Count(l => l.Status == 1)</div>
+            <div class="sub">🔄 Aktiv</div>
+        </div>
+        <div class="list-card" style="text-align:center;padding:10px;">
+            <div style="font-size:1.4rem;font-weight:700;color:var(--success);">@_leads.Count(l => l.Status == 2)</div>
+            <div class="sub">✅ Qualifiz.</div>
+        </div>
+        <div class="list-card" style="text-align:center;padding:10px;">
+            <div style="font-size:1.4rem;font-weight:700;">@ConversionRate%</div>
+            <div class="sub">Quote</div>
+        </div>
+    </div>
+
     <div class="sub-tabs">
         <button class="sub-tab @(_filter == -1 ? "active" : "")" @onclick="() => _filter = -1">Alle</button>
         <button class="sub-tab @(_filter == 0 ? "active" : "")" @onclick="() => _filter = 0">🆕 Neu</button>
@@ -60,6 +83,10 @@ else
                     <option value="2" selected="@(lead.Status == 2)">✅ Qualifiziert</option>
                     <option value="3" selected="@(lead.Status == 3)">❌ Abgelehnt</option>
                 </select>
+                <div class="row mt-8" style="gap:8px;">
+                    <button class="btn-action" style="flex:1;" @onclick="() => EditLead(lead)">✏️ Bearbeiten</button>
+                    <button class="btn-action danger" style="flex:1;" @onclick="() => DeleteLead(lead)">🗑 Löschen</button>
+                </div>
             </div>
         }
     }
@@ -69,13 +96,13 @@ else
     }
 }
 
-<button class="add-btn" @onclick="() => _showForm = true">+</button>
+<button class="add-btn" @onclick="OpenNewForm">+</button>
 
 @if (_showForm)
 {
-    <div class="add-form-overlay" @onclick="() => _showForm = false">
+    <div class="add-form-overlay" @onclick="CloseForm">
         <div class="add-form" @onclick:stopPropagation="true">
-            <h3>💼 Neuer Lead</h3>
+            <h3>@(_editId is null ? "💼 Neuer Lead" : "✏️ Lead bearbeiten")</h3>
             <div class="form-row"><label>Titel *</label><input @bind="_fTitle" /></div>
             <div class="form-row"><label>Ansprechpartner</label><input @bind="_fContact" /></div>
             <div class="form-row"><label>Firma</label><input @bind="_fCompany" /></div>
@@ -94,7 +121,7 @@ else
             <div class="form-row"><label>Lead-Datum</label><input type="date" @bind="_fDate" /></div>
             <div class="form-row"><label>Notizen</label><textarea @bind="_fNotes"></textarea></div>
             <div class="form-actions">
-                <button class="btn-cancel" @onclick="() => _showForm = false">Abbrechen</button>
+                <button class="btn-cancel" @onclick="CloseForm">Abbrechen</button>
                 <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
             </div>
         </div>
@@ -107,9 +134,13 @@ else
     private string _search = "";
     private int _filter = -1;
     private bool _showForm, _saving;
+    private int? _editId;
     private string _fTitle = "", _fContact = "", _fCompany = "", _fEmail = "", _fPhone = "", _fSource = "", _fNotes = "";
     private string _fStatus = "0";
     private DateTime _fDate = DateTime.Today;
+
+    private int ConversionRate => _leads.Count == 0 ? 0
+        : (int)Math.Round(_leads.Count(l => l.Status == 2) * 100.0 / _leads.Count);
 
     private IEnumerable<SalesLeadDto> Filtered => _leads
         .Where(l => _filter == -1 || l.Status == _filter)
@@ -142,15 +173,62 @@ else
         try
         {
             int.TryParse(_fStatus, out var status);
-            await Db.CreateSalesLeadAsync(_fTitle, _fContact, _fCompany, _fEmail, _fPhone,
-                _fSource, status, _fDate, _fNotes, Session.Username);
+            if (_editId is null)
+            {
+                await Db.CreateSalesLeadAsync(_fTitle, _fContact, _fCompany, _fEmail, _fPhone,
+                    _fSource, status, _fDate, _fNotes, Session.Username);
+            }
+            else
+            {
+                await Db.UpdateSalesLeadAsync(_editId.Value, _fTitle, _fContact, _fCompany, _fEmail,
+                    _fPhone, _fSource, status, _fDate, _fNotes);
+            }
             _leads = await Db.GetSalesLeadsAsync();
-            _showForm = false;
-            _fTitle = _fContact = _fCompany = _fEmail = _fPhone = _fSource = _fNotes = "";
-            _fStatus = "0"; _fDate = DateTime.Today;
+            CloseForm();
         }
         catch { }
         _saving = false;
+    }
+
+    private void OpenNewForm()
+    {
+        _editId = null;
+        _fTitle = _fContact = _fCompany = _fEmail = _fPhone = _fSource = _fNotes = "";
+        _fStatus = "0"; _fDate = DateTime.Today;
+        _showForm = true;
+    }
+
+    private void EditLead(SalesLeadDto lead)
+    {
+        _editId = lead.Id;
+        _fTitle = lead.Title;
+        _fContact = lead.ContactName;
+        _fCompany = lead.ContactCompany;
+        _fEmail = lead.ContactEmail;
+        _fPhone = lead.ContactPhone;
+        _fSource = lead.Source;
+        _fStatus = lead.Status.ToString();
+        _fDate = lead.LeadDate;
+        _fNotes = lead.Notes;
+        _showForm = true;
+    }
+
+    private async Task DeleteLead(SalesLeadDto lead)
+    {
+        try
+        {
+            await Db.DeleteSalesLeadAsync(lead.Id);
+            _leads.Remove(lead);
+        }
+        catch { }
+    }
+
+    private void CloseForm()
+    {
+        _showForm = false;
+        _editId = null;
+        _fTitle = _fContact = _fCompany = _fEmail = _fPhone = _fSource = _fNotes = "";
+        _fStatus = "0"; _fDate = DateTime.Today;
     }
 
     private static string StatusText(int s) => s switch

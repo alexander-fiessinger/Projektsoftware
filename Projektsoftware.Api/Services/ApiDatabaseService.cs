@@ -2053,6 +2053,41 @@ public class ApiDatabaseService
         await cmd.ExecuteNonQueryAsync();
     }
 
+    public async Task UpdateSalesLeadAsync(int id, string title, string contactName, string contactCompany,
+        string contactEmail, string contactPhone, string source, int status, DateTime leadDate, string notes)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await EnsureSalesLeadsTableAsync(conn);
+
+        const string sql = @"UPDATE sales_leads SET
+            title=@title, contact_name=@cname, contact_company=@ccomp, contact_email=@cemail,
+            contact_phone=@cphone, source=@src, status=@status, lead_date=@ldate, notes=@notes
+            WHERE id=@id";
+        using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@title", title);
+        cmd.Parameters.AddWithValue("@cname", contactName);
+        cmd.Parameters.AddWithValue("@ccomp", contactCompany);
+        cmd.Parameters.AddWithValue("@cemail", contactEmail);
+        cmd.Parameters.AddWithValue("@cphone", contactPhone);
+        cmd.Parameters.AddWithValue("@src", source);
+        cmd.Parameters.AddWithValue("@status", status);
+        cmd.Parameters.AddWithValue("@ldate", leadDate);
+        cmd.Parameters.AddWithValue("@notes", notes);
+        cmd.Parameters.AddWithValue("@id", id);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task DeleteSalesLeadAsync(int id)
+    {
+        using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        const string sql = "DELETE FROM sales_leads WHERE id=@id";
+        using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     // ── Notifications ───────────────────────────────────────────────
 
     public async Task<List<NotificationDto>> GetNotificationsAsync()
