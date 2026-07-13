@@ -209,6 +209,76 @@ public class ApiEasybillService : IDisposable
         return JsonSerializer.Deserialize<EbDocument>(json, _json)!;
     }
 
+    /// <summary>
+    /// Erstellt eine Rechnung oder ein Angebot aus Zeiteinträgen. Jede Zeit-Position wird mit
+    /// dem angegebenen Stundensatz (netto) berechnet. Beträge an Easybill werden in Cent gesendet.
+    /// </summary>
+    /// <param name="documentType">"INVOICE" oder "OFFER".</param>
+    public async Task<EbDocument> CreateDocumentFromTimeEntriesAsync(
+        long customerId,
+        string projectName,
+        IEnumerable<TimeEntryDto> timeEntries,
+        decimal hourlyRate,
+        string documentType = "INVOICE",
+        long? projectId = null,
+        int dueInDays = 14,
+        int vatPercent = 19,
+        bool finalize = false)
+    {
+        var entries = timeEntries.ToList();
+        var items = new List<EbDocumentItem>();
+
+        foreach (var entry in entries)
+        {
+            var hours = (decimal)entry.Duration.TotalHours;
+            var activity = string.IsNullOrWhiteSpace(entry.Activity) ? "Zeiterfassung" : entry.Activity;
+            var desc = string.IsNullOrWhiteSpace(entry.Description)
+                ? $"{activity} – {entry.Date:dd.MM.yyyy}"
+                : $"{activity} – {entry.Date:dd.MM.yyyy}\n{entry.Description}";
+
+            items.Add(new EbDocumentItem
+            {
+                Type = "POSITION",
+                Description = desc,
+                Quantity = hours,
+                Unit = "Stunden",
+                SinglePriceNet = (long)Math.Round(hourlyRate * 100m), // Cent
+                VatPercent = vatPercent
+            });
+        }
+
+        var isOffer = string.Equals(documentType, "OFFER", StringComparison.OrdinalIgnoreCase);
+        var doc = new EbDocument
+        {
+            Type = isOffer ? "OFFER" : "INVOICE",
+            CustomerId = customerId,
+            ProjectId = projectId,
+            DocumentDate = DateTime.Now.ToString("yyyy-MM-dd"),
+            Title = isOffer ? $"Angebot für Projekt: {projectName}" : $"Rechnung für Projekt: {projectName}",
+            Subject = isOffer ? $"Angebot {projectName}" : $"Leistungen {projectName}",
+            Currency = "EUR",
+            DueInDays = isOffer ? null : dueInDays,
+            Items = items.ToArray()
+        };
+
+        if (entries.Count > 0)
+        {
+            doc.ServiceDate = new EbServiceDate
+            {
+                Type = "FROM_TO",
+                DateFrom = entries.Min(e => e.Date).ToString("yyyy-MM-dd"),
+                DateTo = entries.Max(e => e.Date).ToString("yyyy-MM-dd")
+            };
+        }
+
+        var created = await CreateDocumentAsync(doc);
+
+        if (finalize && created.Id.HasValue)
+            created = await FinalizeDocumentAsync(created.Id.Value);
+
+        return created;
+    }
+
     // ── Customers ───────────────────────────────────────────────────
 
     public async Task<List<EbCustomer>> GetCustomersAsync()

@@ -73,7 +73,9 @@ parität zu bringen.
      Schnellfilter + offener Betrag in `DocumentsTab`.
    - ✅ „Als bezahlt markieren" (document-payments, Beträge in Cent).
    - ✅ Angebot→Rechnung / Auftragsbestätigung konvertieren; Rechnung stornieren.
-   - ⏭️ Offen: Rechnung aus Projekt (Zeiteinträge→Positionen), Proforma, Mahnung.
+   - ✅ Rechnung/Angebot aus Projekt erstellen (Zeiteinträge→Positionen mit Stundensatz,
+     MwSt, Leistungszeitraum; optional direkt abschließen) im `EasybillExportTab`.
+   - ⏭️ Offen: Proforma, Mahnung.
 2. **Detail-/Edit-Dialoge** je Tab vervollständigen (Kunden, Projekte, Tickets, CRM)
 3. **PDF-Erzeugung** serverseitig (Brief, Vertrag, Rechnung) über API-Endpunkte
 4. **E-Mail/Exchange-Posteingang** und Ticket-E-Mail-Versand

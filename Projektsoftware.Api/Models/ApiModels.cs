@@ -40,6 +40,8 @@ public class ProjectDto
     public decimal Budget { get; set; }
     public string Tags { get; set; } = "";
     public int ProgressPercent { get; set; }
+    public long? EasybillCustomerId { get; set; }
+    public long? EasybillProjectId { get; set; }
 }
 
 // ── Tasks ───────────────────────────────────────────────────────────

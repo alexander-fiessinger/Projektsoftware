@@ -87,6 +87,20 @@ else
             <button class="btn-action block mt-8" disabled="@(_busy || _selectedCustomerId == 0 || _timeEntries.Count == 0)" @onclick="ExportTime">
                 Als Positionen exportieren
             </button>
+
+            <div class="row mt-8" style="align-items:center;gap:8px;">
+                <label style="font-size:0.85rem;">
+                    <input type="checkbox" @bind="_finalize" /> direkt abschließen (nicht als Entwurf)
+                </label>
+            </div>
+            <div class="row mt-8" style="gap:8px;">
+                <button class="btn-action" style="flex:1" disabled="@(_busy || _selectedCustomerId == 0 || _timeEntries.Count == 0)" @onclick='() => CreateDocument("INVOICE")'>
+                    🧾 Als Rechnung erstellen
+                </button>
+                <button class="btn-action neutral" style="flex:1" disabled="@(_busy || _selectedCustomerId == 0 || _timeEntries.Count == 0)" @onclick='() => CreateDocument("OFFER")'>
+                    📄 Als Angebot erstellen
+                </button>
+            </div>
         </div>
 
         @if (_busy) { <div class="spinner"></div> }
@@ -120,6 +134,7 @@ else
     private long _selectedCustomerId;
     private int _selectedProjectId;
     private decimal _hourlyRate = 90m;
+    private bool _finalize;
 
     private double _totalHours => _timeEntries.Sum(t => t.Duration.TotalHours);
 
@@ -189,6 +204,36 @@ else
             _message = $"{count} Position(en) erfolgreich nach Easybill exportiert.";
         }
         catch (Exception ex) { _message = $"Fehler beim Export: {ex.Message}"; }
+        _busy = false;
+    }
+
+    private async Task CreateDocument(string documentType)
+    {
+        if (_selectedCustomerId == 0 || _timeEntries.Count == 0) return;
+        _busy = true;
+        _message = "";
+        try
+        {
+            var projectName = _projects.FirstOrDefault(p => p.Id == _selectedProjectId)?.Name ?? "Projekt";
+            long? projectId = null;
+            var linked = _projects.FirstOrDefault(p => p.Id == _selectedProjectId)?.EasybillProjectId;
+            if (linked.HasValue) projectId = linked.Value;
+
+            using var svc = new ApiEasybillService(_setEmail, _setApiKey);
+            var doc = await svc.CreateDocumentFromTimeEntriesAsync(
+                _selectedCustomerId,
+                projectName,
+                _timeEntries,
+                _hourlyRate,
+                documentType,
+                projectId,
+                finalize: _finalize);
+
+            var label = documentType == "OFFER" ? "Angebot" : "Rechnung";
+            var numberInfo = string.IsNullOrWhiteSpace(doc.Number) ? "" : $" (Nr. {doc.Number})";
+            _message = $"{label}{numberInfo} erfolgreich {(_finalize ? "erstellt und abgeschlossen" : "als Entwurf erstellt")}.";
+        }
+        catch (Exception ex) { _message = $"Fehler beim Erstellen: {ex.Message}"; }
         _busy = false;
     }
 }

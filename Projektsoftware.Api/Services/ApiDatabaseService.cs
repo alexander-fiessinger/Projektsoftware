@@ -526,7 +526,9 @@ public class ApiDatabaseService
                 ClientName = r.IsDBNull(r.GetOrdinal("client_name")) ? "" : r.GetString(r.GetOrdinal("client_name")),
                 Budget = r.GetDecimal(r.GetOrdinal("budget")),
                 Tags = r.IsDBNull(r.GetOrdinal("tags")) ? "" : r.GetString(r.GetOrdinal("tags")),
-                ProgressPercent = total > 0 ? (int)(done * 100.0 / total) : 0
+                ProgressPercent = total > 0 ? (int)(done * 100.0 / total) : 0,
+                EasybillCustomerId = r.IsDBNull(r.GetOrdinal("easybill_customer_id")) ? null : r.GetInt64(r.GetOrdinal("easybill_customer_id")),
+                EasybillProjectId = r.IsDBNull(r.GetOrdinal("easybill_project_id")) ? null : r.GetInt64(r.GetOrdinal("easybill_project_id"))
             });
         }
         return list;
