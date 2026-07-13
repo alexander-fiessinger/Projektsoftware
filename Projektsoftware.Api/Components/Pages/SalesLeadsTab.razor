@@ -1,0 +1,251 @@
+@inject ApiDatabaseService Db
+@inject SessionService Session
+
+@if (_loading)
+{
+    <div class="loading"><div class="spinner"></div></div>
+}
+else
+{
+    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:12px;">
+        <div class="list-card" style="text-align:center;padding:10px;">
+            <div style="font-size:1.4rem;font-weight:700;">@_leads.Count</div>
+            <div class="sub">Gesamt</div>
+        </div>
+        <div class="list-card" style="text-align:center;padding:10px;">
+            <div style="font-size:1.4rem;font-weight:700;color:var(--gray);">@_leads.Count(l => l.Status == 0)</div>
+            <div class="sub">🆕 Neu</div>
+        </div>
+        <div class="list-card" style="text-align:center;padding:10px;">
+            <div style="font-size:1.4rem;font-weight:700;color:var(--warning);">@_leads.Count(l => l.Status == 1)</div>
+            <div class="sub">🔄 Aktiv</div>
+        </div>
+        <div class="list-card" style="text-align:center;padding:10px;">
+            <div style="font-size:1.4rem;font-weight:700;color:var(--success);">@_leads.Count(l => l.Status == 2)</div>
+            <div class="sub">✅ Qualifiz.</div>
+        </div>
+        <div class="list-card" style="text-align:center;padding:10px;">
+            <div style="font-size:1.4rem;font-weight:700;">@ConversionRate%</div>
+            <div class="sub">Quote</div>
+        </div>
+    </div>
+
+    <div class="sub-tabs">
+        <button class="sub-tab @(_filter == -1 ? "active" : "")" @onclick="() => _filter = -1">Alle</button>
+        <button class="sub-tab @(_filter == 0 ? "active" : "")" @onclick="() => _filter = 0">🆕 Neu</button>
+        <button class="sub-tab @(_filter == 1 ? "active" : "")" @onclick="() => _filter = 1">🔄 In Bearbeitung</button>
+        <button class="sub-tab @(_filter == 2 ? "active" : "")" @onclick="() => _filter = 2">✅ Qualifiziert</button>
+        <button class="sub-tab @(_filter == 3 ? "active" : "")" @onclick="() => _filter = 3">❌ Abgelehnt</button>
+    </div>
+
+    <div class="search-bar">
+        <input type="text" placeholder="🔍 Leads suchen..." @bind="_search" @bind:event="oninput" />
+    </div>
+
+    @if (Filtered.Any())
+    {
+        @foreach (var lead in Filtered)
+        {
+            <div class="list-card">
+                <div class="row">
+                    <h3>@lead.Title</h3>
+                    <span class="badge" style="background:@StatusColor(lead.Status)">@StatusText(lead.Status)</span>
+                </div>
+                @if (!string.IsNullOrEmpty(lead.ContactName) || !string.IsNullOrEmpty(lead.ContactCompany))
+                {
+                    <div class="sub mt-4">👤 @lead.ContactName @(string.IsNullOrEmpty(lead.ContactCompany) ? "" : $"· {lead.ContactCompany}")</div>
+                }
+                @if (!string.IsNullOrEmpty(lead.ContactEmail))
+                {
+                    <div class="sub mt-4">✉️ @lead.ContactEmail</div>
+                }
+                @if (!string.IsNullOrEmpty(lead.ContactPhone))
+                {
+                    <div class="sub mt-4">📞 @lead.ContactPhone</div>
+                }
+                <div class="row mt-4">
+                    <span class="sub">📅 @lead.LeadDate.ToString("dd.MM.yyyy") @(string.IsNullOrEmpty(lead.Source) ? "" : $"· {lead.Source}")</span>
+                    @if (lead.HasFile)
+                    {
+                        <span class="sub">📎</span>
+                    }
+                </div>
+                @if (!string.IsNullOrEmpty(lead.Notes))
+                {
+                    <div class="detail-section">
+                        <div class="detail-label">Notiz</div>
+                        <div class="detail-text">@lead.Notes</div>
+                    </div>
+                }
+                <select class="status-select" @onchange="(e) => ChangeStatus(lead, e)">
+                    <option value="0" selected="@(lead.Status == 0)">🆕 Neu</option>
+                    <option value="1" selected="@(lead.Status == 1)">🔄 In Bearbeitung</option>
+                    <option value="2" selected="@(lead.Status == 2)">✅ Qualifiziert</option>
+                    <option value="3" selected="@(lead.Status == 3)">❌ Abgelehnt</option>
+                </select>
+                <div class="row mt-8" style="gap:8px;">
+                    <button class="btn-action" style="flex:1;" @onclick="() => EditLead(lead)">✏️ Bearbeiten</button>
+                    <button class="btn-action danger" style="flex:1;" @onclick="() => DeleteLead(lead)">🗑 Löschen</button>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="empty-state">Keine Leads gefunden.</div>
+    }
+}
+
+<button class="add-btn" @onclick="OpenNewForm">+</button>
+
+@if (_showForm)
+{
+    <div class="add-form-overlay" @onclick="CloseForm">
+        <div class="add-form" @onclick:stopPropagation="true">
+            <h3>@(_editId is null ? "💼 Neuer Lead" : "✏️ Lead bearbeiten")</h3>
+            <div class="form-row"><label>Titel *</label><input @bind="_fTitle" /></div>
+            <div class="form-row"><label>Ansprechpartner</label><input @bind="_fContact" /></div>
+            <div class="form-row"><label>Firma</label><input @bind="_fCompany" /></div>
+            <div class="form-row"><label>E-Mail</label><input type="email" @bind="_fEmail" /></div>
+            <div class="form-row"><label>Telefon</label><input @bind="_fPhone" /></div>
+            <div class="form-row"><label>Quelle</label><input @bind="_fSource" placeholder="z.B. Webseite, Messe, Empfehlung" /></div>
+            <div class="form-row">
+                <label>Status</label>
+                <select @bind="_fStatus">
+                    <option value="0">🆕 Neu</option>
+                    <option value="1">🔄 In Bearbeitung</option>
+                    <option value="2">✅ Qualifiziert</option>
+                    <option value="3">❌ Abgelehnt</option>
+                </select>
+            </div>
+            <div class="form-row"><label>Lead-Datum</label><input type="date" @bind="_fDate" /></div>
+            <div class="form-row"><label>Notizen</label><textarea @bind="_fNotes"></textarea></div>
+            <div class="form-actions">
+                <button class="btn-cancel" @onclick="CloseForm">Abbrechen</button>
+                <button class="btn-save" @onclick="Save" disabled="@_saving">@(_saving ? "..." : "Speichern")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<SalesLeadDto> _leads = [];
+    private bool _loading = true;
+    private string _search = "";
+    private int _filter = -1;
+    private bool _showForm, _saving;
+    private int? _editId;
+    private string _fTitle = "", _fContact = "", _fCompany = "", _fEmail = "", _fPhone = "", _fSource = "", _fNotes = "";
+    private string _fStatus = "0";
+    private DateTime _fDate = DateTime.Today;
+
+    private int ConversionRate => _leads.Count == 0 ? 0
+        : (int)Math.Round(_leads.Count(l => l.Status == 2) * 100.0 / _leads.Count);
+
+    private IEnumerable<SalesLeadDto> Filtered => _leads
+        .Where(l => _filter == -1 || l.Status == _filter)
+        .Where(l => string.IsNullOrWhiteSpace(_search)
+            || l.Title.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || l.ContactName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || l.ContactCompany.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _leads = await Db.GetSalesLeadsAsync(); } catch { }
+        _loading = false;
+    }
+
+    private async Task ChangeStatus(SalesLeadDto lead, ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var newStatus) || newStatus == lead.Status) return;
+        try
+        {
+            await Db.UpdateSalesLeadStatusAsync(lead.Id, newStatus);
+            lead.Status = newStatus;
+        }
+        catch { }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_fTitle)) return;
+        _saving = true;
+        try
+        {
+            int.TryParse(_fStatus, out var status);
+            if (_editId is null)
+            {
+                await Db.CreateSalesLeadAsync(_fTitle, _fContact, _fCompany, _fEmail, _fPhone,
+                    _fSource, status, _fDate, _fNotes, Session.Username);
+            }
+            else
+            {
+                await Db.UpdateSalesLeadAsync(_editId.Value, _fTitle, _fContact, _fCompany, _fEmail,
+                    _fPhone, _fSource, status, _fDate, _fNotes);
+            }
+            _leads = await Db.GetSalesLeadsAsync();
+            CloseForm();
+        }
+        catch { }
+        _saving = false;
+    }
+
+    private void OpenNewForm()
+    {
+        _editId = null;
+        _fTitle = _fContact = _fCompany = _fEmail = _fPhone = _fSource = _fNotes = "";
+        _fStatus = "0"; _fDate = DateTime.Today;
+        _showForm = true;
+    }
+
+    private void EditLead(SalesLeadDto lead)
+    {
+        _editId = lead.Id;
+        _fTitle = lead.Title;
+        _fContact = lead.ContactName;
+        _fCompany = lead.ContactCompany;
+        _fEmail = lead.ContactEmail;
+        _fPhone = lead.ContactPhone;
+        _fSource = lead.Source;
+        _fStatus = lead.Status.ToString();
+        _fDate = lead.LeadDate;
+        _fNotes = lead.Notes;
+        _showForm = true;
+    }
+
+    private async Task DeleteLead(SalesLeadDto lead)
+    {
+        try
+        {
+            await Db.DeleteSalesLeadAsync(lead.Id);
+            _leads.Remove(lead);
+        }
+        catch { }
+    }
+
+    private void CloseForm()
+    {
+        _showForm = false;
+        _editId = null;
+        _fTitle = _fContact = _fCompany = _fEmail = _fPhone = _fSource = _fNotes = "";
+        _fStatus = "0"; _fDate = DateTime.Today;
+    }
+
+    private static string StatusText(int s) => s switch
+    {
+        0 => "🆕 Neu",
+        1 => "🔄 In Bearbeitung",
+        2 => "✅ Qualifiziert",
+        3 => "❌ Abgelehnt",
+        _ => "Unbekannt"
+    };
+
+    private static string StatusColor(int s) => s switch
+    {
+        0 => "var(--gray)",
+        1 => "var(--warning)",
+        2 => "var(--success)",
+        3 => "var(--danger)",
+        _ => "var(--gray)"
+    };
+}
